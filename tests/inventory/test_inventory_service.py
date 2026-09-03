@@ -162,3 +162,26 @@ def test_assigned_spool_must_be_unassigned_before_archive() -> None:
         inventory.assign_spool(spool.spool_id, "printer-1", "slot-1")
     with pytest.raises(ArchivedSpoolError, match="adjustments"):
         inventory.consume(spool.spool_id, Decimal("1"), idempotency_key="after-archive")
+
+
+def test_existing_adjustment_replay_survives_later_spool_archive() -> None:
+    inventory = _service()
+    spool = inventory.add_spool(material_family="PETG", initial_filament_mass_g=Decimal("1000"))
+    adjustment = inventory.consume(
+        spool.spool_id,
+        Decimal("25"),
+        idempotency_key="queue:completed:42",
+        note="completed print",
+    )
+    inventory.archive_spool(spool.spool_id)
+
+    replay = inventory.consume(
+        spool.spool_id,
+        Decimal("25"),
+        idempotency_key="queue:completed:42",
+        note="completed print",
+    )
+
+    assert replay == adjustment
+    assert inventory.balance(spool.spool_id).remaining_filament_mass_g == Decimal("975")
+    assert inventory.adjustments(spool.spool_id) == (adjustment,)
