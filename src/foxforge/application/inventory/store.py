@@ -98,7 +98,9 @@ class InMemoryInventoryStore:
         slot_key = (assignment.printer_id, assignment.slot_id)
         other_spool_id = self._assignments_by_slot.get(slot_key)
         if other_spool_id is not None and other_spool_id != assignment.spool_id:
-            raise InventoryStoreConflictError(f"material slot already assigned: {assignment.printer_id}/{assignment.slot_id}")
+            raise InventoryStoreConflictError(
+                f"material slot already assigned: {assignment.printer_id}/{assignment.slot_id}"
+            )
 
         previous = self._assignments_by_spool.get(assignment.spool_id)
         if previous is not None:
