@@ -19,7 +19,7 @@ FoxForge is intended to become a self-hosted 3D-printer management platform with
 - server-side operation suitable for Docker, ARM64 and Umbrel;
 - APIs and a user interface built above the same vendor-independent application layer.
 
-Bambu-specific capabilities such as AMS-family behavior, drying, HMS, K profiles, dual-nozzle control, Virtual Printer and X2D-specific transport can remain first-class Bambu features without leaking Bambu concepts into Moonraker or other adapters.
+Bambu-specific capabilities such as AMS-family behavior, drying, HMS, K profiles, dual-nozzle control, Virtual Printer and future X2D-specific transport can remain first-class Bambu features without leaking Bambu concepts into Moonraker or other adapters.
 
 ## Architecture
 
@@ -38,8 +38,8 @@ FoxForge follows a ports-and-adapters design.
         |                  |
    BambuAdapter      MoonrakerAdapter
         |                  |
- MQTT / FTPS / X2D    HTTP / WebSocket
-     transports          transport
+ MQTT / project        HTTP / WebSocket
+ storage strategies       transport
 ```
 
 The governing rule is:
@@ -62,10 +62,10 @@ The repository already contains more than design documents and experiments.
 | Print queue | Durable vendor-neutral dispatch state machine implemented |
 | Queue persistence | SQLite store with restart-safe dispatch/idempotency semantics implemented |
 | Bambu adapter | Foundation, state mapping, print execution and material-system support implemented |
-| Bambu LAN transport | MQTT/TLS + implicit-FTPS implementation candidate; physical-printer validation pending |
+| Bambu LAN transport | MQTT/TLS + implicit-FTPS implementation; physical-printer validation pending |
+| Bambu project storage | Bambu-specific storage strategy seam implemented; FTPS is default and future X2D/eMMC storage remains hardware-led work |
 | Moonraker/Klipper adapter | Foundation, state mapping, print execution and external-spool semantics implemented |
 | Moonraker transport | HTTP/WebSocket implementation and CI validation complete; physical-printer validation pending |
-| X2D/N6 port 6000 research | Preserved separately under `integrations/bambuddy/x2d_port6000/`; not wired into the production adapter |
 
 The queue deliberately persists `DISPATCHING` before invoking a printer side effect and treats uncertain starts as `INDETERMINATE`, preventing a process restart from blindly starting the same job twice.
 
@@ -93,7 +93,9 @@ FoxForge is its own project and is **not a Bambuddy distribution or permanent fo
 
 Bambuddy, PrintBuddy and PrintOps were studied while defining the architecture. FoxForge keeps its multi-vendor core independent from those applications while documenting provenance where upstream behavior informed an implementation.
 
-Historical Bambuddy/X2D experiments that remain useful for research or possible upstream contributions are isolated under [`integrations/bambuddy/`](integrations/bambuddy/). Production Umbrel packaging of official Bambuddy releases remains a separate concern in `MikeFox303/umbrel-3d-printing-store`.
+The remaining [`integrations/bambuddy/`](integrations/bambuddy/) content is limited to migration/provenance and localization records. The former X2D port-6000 experiment was deliberately removed rather than carried forward as dormant implementation code. Any future X2D/eMMC transport will be newly implemented behind `BambuProjectStorage` after physical validation.
+
+Production Umbrel packaging of official Bambuddy releases remains a separate concern in `MikeFox303/umbrel-3d-printing-store`.
 
 ## Documentation
 
@@ -105,6 +107,7 @@ Key documents include:
 - [Printer contracts v1](docs/design/printer-contracts.md)
 - [Bambu adapter foundation](docs/design/bambu-adapter-foundation.md)
 - [Bambu LAN production transport](docs/design/bambu-lan-transport.md)
+- [Bambu project storage strategy](docs/design/bambu-project-storage.md)
 - [AdapterRegistry and FleetService](docs/design/fleet-service.md)
 - [Queue dispatch and durable idempotency](docs/design/queue-dispatch.md)
 - [Moonraker/Klipper adapter foundation](docs/design/moonraker-adapter-foundation.md)
