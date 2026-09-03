@@ -176,24 +176,15 @@ class InventoryService:
             note=note,
         )
 
-    def correct_remaining(
+    def correct_by_delta(
         self,
         spool_id: UUID,
-        remaining_mass_g: Decimal,
+        delta_mass_g: Decimal,
         *,
         idempotency_key: str,
         note: str | None = None,
     ) -> SpoolAdjustment:
-        target = _nonnegative_mass(remaining_mass_g, field_name="remaining_mass_g")
-        spool = self.get_spool(spool_id)
-        if target > spool.initial_filament_mass_g:
-            raise InventoryBalanceError("remaining mass cannot exceed initial filament mass")
-        delta = target - self.balance(spool_id).remaining_filament_mass_g
-        if delta == 0:
-            existing = self._store.get_adjustment_by_key(idempotency_key.strip())
-            if existing is not None:
-                return existing
-            raise InventoryBalanceError("correction would not change the spool balance")
+        delta = _nonzero_mass_delta(delta_mass_g, field_name="delta_mass_g")
         return self._record_adjustment(
             spool_id,
             kind=SpoolAdjustmentKind.CORRECTION,
@@ -302,11 +293,11 @@ def _positive_mass(value: Decimal, *, field_name: str) -> Decimal:
     return mass
 
 
-def _nonnegative_mass(value: Decimal, *, field_name: str) -> Decimal:
-    mass = _finite_decimal(value, field_name=field_name)
-    if mass < 0:
-        raise ValueError(f"{field_name} must be non-negative")
-    return mass
+def _nonzero_mass_delta(value: Decimal, *, field_name: str) -> Decimal:
+    delta = _finite_decimal(value, field_name=field_name)
+    if delta == 0:
+        raise ValueError(f"{field_name} must not be zero")
+    return delta
 
 
 def _optional_text(value: str | None) -> str | None:
