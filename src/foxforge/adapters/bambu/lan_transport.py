@@ -1,14 +1,13 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 MikeFox303
 
-"""Production Bambu LAN transport: MQTT state/control plus implicit FTPS upload."""
+"""Production Bambu LAN control transport with pluggable project storage."""
 
 from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator, Mapping
 from contextlib import suppress
-from pathlib import Path
 
 from foxforge.domain.printers import utc_now
 
@@ -27,11 +26,12 @@ from .lan_wire import (
     PahoBambuMqttWire,
 )
 from .native import BambuNativeDispatchResult, BambuNativePrintRequest, BambuNativeState
+from .storage import BambuProjectStorage, FtpsBambuProjectStorage
 from .transport import BambuTransportError, BambuTransportErrorKind
 
 
 class BambuLanTransport:
-    """Bambu local-LAN transport with conservative print-start semantics."""
+    """Bambu local-LAN control with conservative print-start semantics."""
 
     def __init__(
         self,
@@ -39,10 +39,15 @@ class BambuLanTransport:
         *,
         mqtt_wire: BambuMqttWire | None = None,
         ftps_wire: BambuFtpsWire | None = None,
+        project_storage: BambuProjectStorage | None = None,
     ) -> None:
+        if ftps_wire is not None and project_storage is not None:
+            raise ValueError("provide either ftps_wire or project_storage, not both")
         self._settings = settings
         self._mqtt = mqtt_wire or PahoBambuMqttWire(settings)
-        self._ftps = ftps_wire or ImplicitFtpsBambuWire(settings)
+        if project_storage is None:
+            project_storage = FtpsBambuProjectStorage(ftps_wire or ImplicitFtpsBambuWire(settings))
+        self._project_storage = project_storage
         self._codec = BambuLanCodec()
         self._events: asyncio.Queue[BambuNativeState | BambuTransportError | None] = asyncio.Queue()
         self._pump_task: asyncio.Task[None] | None = None
@@ -115,8 +120,7 @@ class BambuLanTransport:
         if is_bambu_busy(self._codec.state):
             raise BambuTransportError(BambuTransportErrorKind.BUSY, "Bambu printer already has an active print")
 
-        remote_filename = _safe_remote_filename(request.filename)
-        await self._ftps.upload(request.local_path, remote_filename)
+        stored_project = await self._project_storage.upload(request.local_path, request.filename)
 
         if is_bambu_busy(self._codec.state):
             raise BambuTransportError(
@@ -125,7 +129,12 @@ class BambuLanTransport:
             )
 
         sequence_id = self._next_sequence()
-        command = build_project_file_command(sequence_id, request, remote_filename)
+        command = build_project_file_command(
+            sequence_id,
+            request,
+            stored_project.remote_filename,
+            stored_project.project_url,
+        )
         key = ("print", "project_file", sequence_id)
         loop = asyncio.get_running_loop()
         response_future: asyncio.Future[Mapping[str, object]] = loop.create_future()
@@ -203,13 +212,6 @@ class BambuLanTransport:
     def _next_sequence(self) -> str:
         self._sequence += 1
         return str(self._sequence)
-
-
-def _safe_remote_filename(filename: str) -> str:
-    basename = Path(filename).name
-    if not basename or basename != filename or basename in {".", ".."}:
-        raise BambuTransportError(BambuTransportErrorKind.REJECTED, "Bambu remote filename must be a plain basename")
-    return basename
 
 
 def _response_job_id(response: Mapping[str, object]) -> str | None:

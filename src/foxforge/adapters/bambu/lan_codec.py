@@ -232,6 +232,7 @@ def build_project_file_command(
     sequence_id: str,
     request: BambuNativePrintRequest,
     remote_filename: str,
+    project_url: str,
 ) -> dict[str, object]:
     plate_number = request.plate_number or 1
     routes = tuple(sorted(request.material_routes, key=lambda route: route.material_index))
@@ -250,7 +251,7 @@ def build_project_file_command(
             "subtask_id": "0",
             "subtask_name": subtask_name,
             "file": remote_filename,
-            "url": f"ftp:///{remote_filename}",
+            "url": project_url,
             "md5": "",
             "timelapse": False,
             "bed_type": "auto",

@@ -17,6 +17,12 @@ from .native import (
     BambuNativeTray,
 )
 from .print_execution import BambuPrintExecutionCapability
+from .storage import (
+    BambuProjectStorage,
+    BambuProjectStorageKind,
+    BambuStoredProject,
+    FtpsBambuProjectStorage,
+)
 from .transport import BambuTransport, BambuTransportError, BambuTransportErrorKind
 
 __all__ = [
@@ -33,8 +39,12 @@ __all__ = [
     "BambuNativeState",
     "BambuNativeTray",
     "BambuPrintExecutionCapability",
+    "BambuProjectStorage",
+    "BambuProjectStorageKind",
+    "BambuStoredProject",
     "BambuTransport",
     "BambuTransportError",
     "BambuTransportErrorKind",
+    "FtpsBambuProjectStorage",
     "create_bambu_lan_adapter",
 ]

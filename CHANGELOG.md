@@ -44,12 +44,18 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Local fake Moonraker HTTP/WebSocket server tests covering authentication, subscription updates, multipart checksum upload/start, and indeterminate start timeout.
 - Registry-ready `create_moonraker_http_adapter()` production factory so concrete Moonraker wiring remains a composition-root concern rather than a branch inside `AdapterRegistry`.
 - Moonraker HTTP/WebSocket transport design documenting wire semantics, safety boundaries, test coverage, and the remaining physical-printer validation gate.
-- Phase 7 Bambu LAN transport candidate with MQTT 3.1.1 over TLS, QoS-1 request publishing, implicit-FTPS file delivery, and `create_bambu_lan_adapter()` composition factory.
+- Phase 7 Bambu LAN transport with MQTT 3.1.1 over TLS, QoS-1 request publishing, implicit-FTPS file delivery, and `create_bambu_lan_adapter()` composition factory.
 - Sticky Bambu LAN codec that merges incremental `push_status` reports and retains AMS/AMS 2 Pro/AMS HT typing discovered through `get_version`.
 - Bambu LAN print-start sequence with mandatory busy checks both before file upload and immediately before `project_file` dispatch.
 - Size-aware implicit-FTPS uploads using manual `STOR` data transfer plus `226`/remote-`SIZE` confirmation so a known partial 3MF cannot proceed to print start.
 - Bambu LAN safety tests covering sticky AMS state, plate/material routing, pre-upload busy rejection, upload-race busy rejection, ambiguous MQTT start handling, FTPS confirmation recovery, and partial-file rejection.
 - Bambu LAN production-transport design/provenance documentation with an explicit X2D/N6 hardware-validation boundary.
+- Phase 8 Bambu-specific `BambuProjectStorage` strategy boundary separating project delivery from MQTT print control without changing common Queue/Fleet contracts.
+- `BambuStoredProject` value model carrying validated remote filename, Bambu-native project URL, and storage kind for standard FTPS or future validated internal-eMMC delivery.
+- `FtpsBambuProjectStorage` preserving the merged Phase 7 implicit-FTPS behavior as the default production storage strategy.
+- Project-storage tests proving `BambuLanTransport` can forward a storage-owned `brtc://emmc/...` project reference without importing or enabling the preserved X2D port-6000 experiment.
+- Architecture guard preventing the production Bambu adapter package from importing preserved Bambuddy/X2D integration modules.
+- Bambu project-storage design documenting the future X2D/eMMC extension point and its physical-validation gate.
 
 ### Changed
 
@@ -60,6 +66,8 @@ FoxForge has not published a stable release yet, so development milestones are l
 - CI now prints the exact Ruff formatter diff when formatting validation fails.
 - Runtime dependencies now include `aiohttp>=3.12,<4` for Moonraker HTTP/WebSocket transport support and `paho-mqtt>=2.1,<3` for Bambu LAN MQTT support.
 - Bambu FTPS whole-transfer deadlines are derived from file size and a pessimistic transfer floor rather than reusing the short MQTT command timeout.
+- `BambuLanTransport` now consumes a Bambu-specific project-storage strategy; `project_file.url` comes from the storage result instead of being hard-coded to FTP inside the MQTT codec.
+- The default Bambu production composition remains standard implicit FTPS; Phase 8 adds no automatic model detection or hidden fallback to experimental X2D storage.
 
 ### Validation
 
@@ -78,12 +86,14 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 6 Moonraker HTTP/WebSocket transport merged through PR #7.
 - Phase 6 squash commit: `5ae2a361000ed2864098cb0ca940bf96184fc752`.
 - Phase 6 final PR CI run `33807996066` passed Ruff lint, Ruff formatting, socket-level HTTP/WebSocket integration tests, factory tests, and the full suite on Python 3.12 and Python 3.13.
-- Phase 7 Bambu LAN transport candidate has passed the common lint/format/full-suite gate on intermediate head `51060b891abec1ab18e49cfbbffa0166ad92adcf`; final safety-test and PR gates remain required before merge.
+- Phase 7 Bambu LAN transport merged through PR #8.
+- Phase 7 squash commit: `9e02cbbe2c4461ababf6de342b35f4a8ac5c558f`.
+- Phase 7 final PR CI run `33810445079` passed Ruff lint, Ruff formatting, Bambu LAN storage/dispatch safety tests, production factory tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
-- Bambu LAN MQTT/implicit-FTPS transport is implemented as the Phase 7 candidate, but physical Bambu connectivity, storage, and print-start validation are still pending.
-- The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package; Phase 7 does not assume X2D uses conventional FTPS storage.
+- Bambu LAN MQTT/implicit-FTPS transport is merged and CI validated, but physical Bambu connectivity, storage, and print-start validation are still pending.
+- The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package; Phase 8 only creates the production storage seam and does not claim X2D/eMMC support is complete.
 - Queue scheduling, automatic retry/backoff, event-driven completion tracking and inventory reservations are not yet implemented.
 - Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
 
