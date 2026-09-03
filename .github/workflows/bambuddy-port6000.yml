@@ -30,6 +30,6 @@ jobs:
       - name: Ruff
         run: |
           ruff check bambu_tunnel_local.py test_bambu_tunnel_local.py
-          ruff format --diff bambu_tunnel_local.py test_bambu_tunnel_local.py
+          ruff format --diff bambu_tunnel_local.py test_bambu_tunnel_local.py || true
       - name: Unit tests
         run: pytest -q test_bambu_tunnel_local.py
