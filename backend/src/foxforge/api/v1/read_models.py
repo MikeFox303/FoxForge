@@ -181,9 +181,7 @@ def _queue_entry(entry: QueueEntry) -> dict[str, Any]:
                 "sizeBytes": request.artifact.size_bytes,
                 "sha256": request.artifact.sha256,
             },
-            "selection": (
-                None if request.selection is None else {"plateIndex": request.selection.plate_index}
-            ),
+            "selection": (None if request.selection is None else {"plateIndex": request.selection.plate_index}),
             "materialBindings": [
                 {"materialIndex": binding.material_index, "slotId": binding.slot_id}
                 for binding in request.material_bindings
@@ -196,8 +194,7 @@ def _queue_entry(entry: QueueEntry) -> dict[str, Any]:
                 "eligible": assessment.eligible,
                 "observedAt": _datetime(assessment.observed_at),
                 "blockers": [
-                    {"code": blocker.code.value, "message": blocker.message}
-                    for blocker in assessment.blockers
+                    {"code": blocker.code.value, "message": blocker.message} for blocker in assessment.blockers
                 ],
             }
         ),
