@@ -20,6 +20,11 @@ import paho.mqtt.client as mqtt
 
 from .transport import BambuTransportError, BambuTransportErrorKind
 
+_UPLOAD_FLOOR_BYTES_PER_SECOND = 25 * 1024
+_UPLOAD_MIN_TIMEOUT_SECONDS = 600.0
+_UPLOAD_CHUNK_BYTES = 1024 * 1024
+_UPLOAD_CONFIRM_TIMEOUT_SECONDS = 60.0
+
 
 @dataclass(frozen=True, slots=True)
 class BambuLanSettings:
@@ -255,9 +260,18 @@ class ImplicitFtpsBambuWire:
         if Path(remote_filename).name != remote_filename or not remote_filename:
             raise BambuTransportError(BambuTransportErrorKind.REJECTED, "remote filename must be a plain basename")
         try:
+            file_size = local_path.stat().st_size
+        except OSError as error:
+            raise BambuTransportError(BambuTransportErrorKind.REJECTED, str(error)) from error
+        upload_timeout = max(
+            _UPLOAD_MIN_TIMEOUT_SECONDS,
+            self._settings.command_timeout_seconds,
+            file_size / _UPLOAD_FLOOR_BYTES_PER_SECOND,
+        )
+        try:
             await asyncio.wait_for(
-                asyncio.to_thread(self._upload_sync, local_path, remote_filename),
-                timeout=self._settings.command_timeout_seconds,
+                asyncio.to_thread(self._upload_sync, local_path, remote_filename, file_size),
+                timeout=upload_timeout,
             )
         except TimeoutError as error:
             raise BambuTransportError(BambuTransportErrorKind.TIMEOUT, "Bambu FTPS upload timed out") from error
@@ -274,7 +288,7 @@ class ImplicitFtpsBambuWire:
         except ftplib.all_errors as error:
             raise BambuTransportError(BambuTransportErrorKind.UNAVAILABLE, str(error)) from error
 
-    def _upload_sync(self, local_path: Path, remote_filename: str) -> None:
+    def _upload_sync(self, local_path: Path, remote_filename: str, file_size: int) -> None:
         context = _tls_context(self._settings.tls_verify)
         ftp = _ImplicitFTP_TLS(context=context, timeout=self._settings.connect_timeout_seconds)
         try:
@@ -285,13 +299,52 @@ class ImplicitFtpsBambuWire:
             )
             ftp.login(self._settings.username, self._settings.access_code)
             ftp.prot_p()
-            with local_path.open("rb") as handle:
-                ftp.storbinary(f"STOR {remote_filename}", handle, blocksize=1024 * 1024)
+            self._send_file(ftp, local_path, remote_filename)
+            self._confirm_uploaded_file(ftp, remote_filename, file_size)
             with suppress(*ftplib.all_errors):
                 ftp.quit()
         finally:
             with suppress(*ftplib.all_errors):
                 ftp.close()
+
+    def _send_file(self, ftp: ftplib.FTP_TLS, local_path: Path, remote_filename: str) -> None:
+        data_connection = ftp.transfercmd(f"STOR {remote_filename}")
+        data_connection.setblocking(True)
+        data_connection.settimeout(self._settings.command_timeout_seconds)
+        try:
+            with local_path.open("rb") as handle:
+                while chunk := handle.read(_UPLOAD_CHUNK_BYTES):
+                    data_connection.sendall(chunk)
+        finally:
+            with suppress(OSError):
+                data_connection.close()
+
+    def _confirm_uploaded_file(self, ftp: ftplib.FTP_TLS, remote_filename: str, file_size: int) -> None:
+        control_socket = ftp.sock
+        previous_timeout = control_socket.gettimeout() if control_socket is not None else None
+        try:
+            if control_socket is not None:
+                control_socket.settimeout(max(self._settings.command_timeout_seconds, _UPLOAD_CONFIRM_TIMEOUT_SECONDS))
+            try:
+                ftp.voidresp()
+                return
+            except (OSError, ftplib.Error, EOFError) as confirmation_error:
+                server_size = _remote_size(ftp, remote_filename)
+                if server_size == file_size:
+                    return
+                if isinstance(confirmation_error, ftplib.error_perm):
+                    kind = BambuTransportErrorKind.REJECTED
+                else:
+                    kind = BambuTransportErrorKind.UNAVAILABLE
+                detail = "unknown" if server_size is None else str(server_size)
+                raise BambuTransportError(
+                    kind,
+                    f"Bambu FTPS upload was not confirmed; remote size={detail}, expected={file_size}",
+                ) from confirmation_error
+        finally:
+            if control_socket is not None:
+                with suppress(OSError):
+                    control_socket.settimeout(previous_timeout)
 
 
 class _ImplicitFTP_TLS(ftplib.FTP_TLS):
@@ -322,6 +375,14 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
         self.file = self.sock.makefile("r", encoding=self.encoding)
         self.welcome = self.getresp()
         return self.welcome
+
+
+def _remote_size(ftp: ftplib.FTP_TLS, remote_filename: str) -> int | None:
+    try:
+        size = ftp.size(remote_filename)
+    except ftplib.all_errors:
+        return None
+    return size if isinstance(size, int) and size >= 0 else None
 
 
 def _tls_context(verify: bool) -> ssl.SSLContext:
