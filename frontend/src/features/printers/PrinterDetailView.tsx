@@ -7,15 +7,20 @@ import { useNavigate, useParams } from 'react-router-dom';
 
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel } from '../../domain';
 import {
+  formatLocalizedRelativeTime,
+  localizedMaterialUnit,
+  localizedPresence,
+  localizedPrinterStatus,
+  localizedQueueState,
+  localizedStatus,
+} from '../../presentation/localization';
+import {
   describeMaterialSource,
   formatDuration,
   formatPercent,
-  formatRelativeTime,
-  printerStatusLabel,
   printerTone,
 } from '../../viewModel';
 import {
-  materialSlots,
   printerByRouteId,
   queueForPrinter,
   summarizePrinterMaterials,
@@ -27,7 +32,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
   const { printerId } = useParams();
   const printer = printerByRouteId(fleet, printerId);
   const navigate = useNavigate();
-  const { t } = useTranslation();
+  const { i18n, t } = useTranslation();
   const [tab, setTab] = useState<PrinterDetailTab>('overview');
 
   if (!printer) {
@@ -46,6 +51,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
   const job = printer.snapshot.activeJob;
   const queue = queueForPrinter(fleet, printer.identity.printerId);
   const materialSummary = summarizePrinterMaterials(printer);
+  const language = i18n.resolvedLanguage ?? i18n.language;
 
   return (
     <div className="stack-lg printer-detail-page">
@@ -60,7 +66,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
         </div>
         <div className="printer-detail-hero-status">
           <StatusBadge printer={printer} />
-          <span>{formatRelativeTime(printer.snapshot.observedAt)}</span>
+          <span>{formatLocalizedRelativeTime(printer.snapshot.observedAt, language)}</span>
         </div>
       </section>
 
@@ -76,8 +82,8 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
       {tab === 'overview' && (
         <div className="stack-lg">
           <section className="printer-detail-kpis">
-            <DetailKpi label={t('printerDetail.connection')} value={friendlyState(printer.snapshot.connection)} />
-            <DetailKpi label={t('printerDetail.state')} value={friendlyState(printerStatusLabel(printer))} />
+            <DetailKpi label={t('printerDetail.connection')} value={localizedStatus(printer.snapshot.connection, t)} />
+            <DetailKpi label={t('printerDetail.state')} value={localizedPrinterStatus(printer, t)} />
             <DetailKpi label={t('printerDetail.material')} value={describeMaterialSource(printer)} />
             <DetailKpi label={t('printerDetail.queue')} value={queue.length ? `${queue.length}` : t('printerDetail.clear')} />
           </section>
@@ -96,7 +102,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
                 <Fact label={t('printerDetail.elapsed')} value={formatDuration(job.elapsedSeconds)} />
                 <Fact label={t('printerDetail.remainingTime')} value={formatDuration(job.remainingSeconds)} />
                 <Fact label={t('printerDetail.layer')} value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} />
-                <Fact label={t('printerDetail.jobState')} value={friendlyState(job.state)} />
+                <Fact label={t('printerDetail.jobState')} value={t(`status.${job.state}`, { defaultValue: job.state.replaceAll('_', ' ') })} />
               </div>
               <div className="printer-control-row">
                 <button className="secondary-button" disabled title={t('printerDetail.requiresApi')}>{t('printerDetail.pause')}</button>
@@ -124,7 +130,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
                   {printer.materialSystem.units.map((unit) => (
                     <div className="printer-material-summary-row" key={unit.unitId}>
                       <div>
-                        <strong>{unit.label ?? friendlyUnit(unit.kind)}</strong>
+                        <strong>{unit.label ?? localizedMaterialUnit(unit.kind, t)}</strong>
                         <span>{unit.slots.filter((slot) => slot.presence === 'loaded').length} {t('printerDetail.loaded').toLocaleLowerCase()}</span>
                       </div>
                       <div className="slot-dots">{unit.slots.map((slot) => <MaterialDot slot={slot} key={slot.slotId} />)}</div>
@@ -145,7 +151,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
                   {queue.slice(0, 4).map((entry) => (
                     <div key={entry.queueId}>
                       <div><strong>{entry.requestedName}</strong><span>{entry.filename}</span></div>
-                      <span className={`queue-badge state-${entry.state}`}>{entry.state}</span>
+                      <span className={`queue-badge state-${entry.state}`}>{localizedQueueState(entry.state, t)}</span>
                     </div>
                   ))}
                 </div>
@@ -171,8 +177,8 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
           {printer.materialSystem?.units.map((unit) => (
             <section className="panel" key={unit.unitId}>
               <div className="material-unit-head">
-                <div><strong>{unit.label ?? friendlyUnit(unit.kind)}</strong><span>{friendlyUnit(unit.kind)}</span></div>
-                <span className="count-pill">{unit.slots.length} slot{unit.slots.length === 1 ? '' : 's'}</span>
+                <div><strong>{unit.label ?? localizedMaterialUnit(unit.kind, t)}</strong><span>{localizedMaterialUnit(unit.kind, t)}</span></div>
+                <span className="count-pill">{unit.slots.length} {t('common.slots')}</span>
               </div>
               <div className="slot-grid printer-detail-slot-grid">{unit.slots.map((slot) => <MaterialSlot slot={slot} key={slot.slotId} />)}</div>
             </section>
@@ -191,9 +197,9 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
               {queue.map((entry) => (
                 <div className="printer-queue-table-row" key={entry.queueId}>
                   <div><strong>{entry.requestedName}</strong><span>{entry.filename} · {entry.format.toUpperCase()}</span>{entry.blocker && <small>{entry.blocker}</small>}</div>
-                  <span className={`queue-badge state-${entry.state}`}>{entry.state}</span>
+                  <span className={`queue-badge state-${entry.state}`}>{localizedQueueState(entry.state, t)}</span>
                   <div><strong>{entry.attemptCount}</strong><span>{t('printerDetail.attempts')}</span></div>
-                  <div><strong>{new Date(entry.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</strong><span>{new Date(entry.updatedAt).toLocaleDateString()}</span></div>
+                  <div><strong>{new Date(entry.updatedAt).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</strong><span>{new Date(entry.updatedAt).toLocaleDateString(language)}</span></div>
                 </div>
               ))}
             </div>
@@ -230,8 +236,9 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 function StatusBadge({ printer }: { printer: PrinterViewModel }) {
+  const { t } = useTranslation();
   const tone = printerTone(printer);
-  return <span className={`status-badge tone-${tone}`}><span className={`status-dot ${tone}`} />{friendlyState(printerStatusLabel(printer))}</span>;
+  return <span className={`status-badge tone-${tone}`}><span className={`status-dot ${tone}`} />{localizedPrinterStatus(printer, t)}</span>;
 }
 
 function Progress({ value = 0 }: { value?: number }) {
@@ -253,7 +260,7 @@ function MaterialSlot({ slot }: { slot: MaterialSlotSnapshot }) {
     <article className={`material-slot printer-detail-slot ${slot.activity === 'active' ? 'active' : ''}`}>
       <div className="material-slot-head">
         <MaterialDot slot={slot} />
-        <div><strong>{slot.label ?? `Slot ${slot.position + 1}`}</strong><span>{slot.activity === 'active' ? t('printerDetail.activeSource') : friendlyState(slot.presence)}</span></div>
+        <div><strong>{slot.label ?? `${t('common.slot')} ${slot.position + 1}`}</strong><span>{slot.activity === 'active' ? t('printerDetail.activeSource') : localizedPresence(slot.presence, t)}</span></div>
       </div>
       {material ? (
         <>
@@ -264,15 +271,4 @@ function MaterialSlot({ slot }: { slot: MaterialSlotSnapshot }) {
       ) : <div className="empty-slot-label">{t('printerDetail.empty')}</div>}
     </article>
   );
-}
-
-function friendlyUnit(kind: string): string {
-  if (kind === 'multi_slot') return 'Multi-slot';
-  if (kind === 'external') return 'External';
-  if (kind === 'toolhead') return 'Toolhead';
-  return 'Material unit';
-}
-
-function friendlyState(value: string): string {
-  return value.replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase());
 }
