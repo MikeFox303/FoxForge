@@ -2,6 +2,7 @@
 # Copyright (C) 2026 MikeFox303
 
 from .adapter import MoonrakerAdapter
+from .factory import create_moonraker_http_adapter
 from .http_transport import MoonrakerHttpSettings, MoonrakerHttpTransport
 from .mapping import MOONRAKER_EXTERNAL_SLOT_ID, MOONRAKER_EXTERNAL_UNIT_ID
 from .material_system import MoonrakerMaterialSystemCapability
@@ -23,4 +24,5 @@ __all__ = [
     "MoonrakerTransport",
     "MoonrakerTransportError",
     "MoonrakerTransportErrorKind",
+    "create_moonraker_http_adapter",
 ]
