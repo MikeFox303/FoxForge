@@ -14,7 +14,6 @@ from collections.abc import AsyncIterator, Mapping
 from contextlib import suppress
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 import aiohttp
@@ -95,7 +94,10 @@ class MoonrakerHttpTransport:
             raise
         except TimeoutError as error:
             await self._close_resources()
-            raise MoonrakerTransportError(MoonrakerTransportErrorKind.TIMEOUT, "Moonraker connection timed out") from error
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.TIMEOUT,
+                "Moonraker connection timed out",
+            ) from error
         except aiohttp.ClientResponseError as error:
             await self._close_resources()
             raise self._http_exception(error.status, str(error)) from error
@@ -158,7 +160,10 @@ class MoonrakerHttpTransport:
                 if response.status < 200 or response.status >= 300:
                     raise self._http_error(response.status, payload)
         except TimeoutError as error:
-            raise MoonrakerTransportError(MoonrakerTransportErrorKind.TIMEOUT, "Moonraker printer info timed out") from error
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.TIMEOUT,
+                "Moonraker printer info timed out",
+            ) from error
         except aiohttp.ClientError as error:
             raise MoonrakerTransportError(MoonrakerTransportErrorKind.UNAVAILABLE, str(error)) from error
         if not isinstance(payload, dict):
@@ -303,7 +308,10 @@ class MoonrakerHttpTransport:
                     if response.status < 200 or response.status >= 300:
                         raise self._http_error(response.status, payload)
         except FileNotFoundError as error:
-            raise MoonrakerTransportError(MoonrakerTransportErrorKind.REJECTED, "local G-code file does not exist") from error
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.REJECTED,
+                "local G-code file does not exist",
+            ) from error
         except TimeoutError as error:
             raise MoonrakerTransportError(MoonrakerTransportErrorKind.TIMEOUT, "Moonraker upload timed out") from error
         except aiohttp.ClientError as error:
