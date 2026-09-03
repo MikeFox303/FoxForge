@@ -236,11 +236,7 @@ def build_project_file_command(
     plate_number = request.plate_number or 1
     routes = tuple(sorted(request.material_routes, key=lambda route: route.material_index))
     ams_mapping = _ams_mapping(routes)
-    ams_mapping2 = [
-        {"ams_id": route.ams_id, "slot_id": route.tray_id}
-        for route in routes
-        if 0 <= route.ams_id < 254
-    ]
+    ams_mapping2 = [{"ams_id": route.ams_id, "slot_id": route.tray_id} for route in routes if 0 <= route.ams_id < 254]
     use_ams = bool(ams_mapping2)
     subtask_name = (request.requested_name or Path(remote_filename).stem).strip() or Path(remote_filename).stem
     return {
