@@ -2,9 +2,10 @@
 // Copyright (C) 2026 MikeFox303
 
 import type {
-  ActiveJobSnapshot,
   FleetData,
-  MaterialSystemSnapshot,
+  MaterialActivity,
+  MaterialPresence,
+  MaterialUnitKind,
   PrinterViewModel,
   QueueEntryState,
   QueueViewModel,
@@ -13,6 +14,49 @@ import type {
 interface ApiCapability {
   capabilityId: string;
   majorVersion: number;
+}
+
+interface ApiActiveJob {
+  vendorJobId: string | null;
+  name: string | null;
+  state: PrinterViewModel['snapshot']['activeJob'] extends infer _ ?
+    'queued' | 'transferring' | 'accepted' | 'preparing' | 'printing' | 'paused' | 'completed' | 'failed' | 'cancelled' | 'unknown'
+    : never;
+  progress: number | null;
+  elapsedSeconds: number | null;
+  remainingSeconds: number | null;
+  currentLayer: number | null;
+  totalLayers: number | null;
+}
+
+interface ApiDetectedMaterial {
+  materialFamily: string | null;
+  vendorName: string | null;
+  productName: string | null;
+  rgbaHex: string | null;
+  tag: { scheme: string; value: string } | null;
+  remainingFraction: number | null;
+}
+
+interface ApiMaterialSystem {
+  printerId: string;
+  units: Array<{
+    unitId: string;
+    kind: MaterialUnitKind;
+    label: string | null;
+    position: number;
+    slots: Array<{
+      slotId: string;
+      unitId: string;
+      position: number;
+      label: string | null;
+      presence: MaterialPresence;
+      activity: MaterialActivity;
+      detectedMaterial: ApiDetectedMaterial | null;
+    }>;
+  }>;
+  observedAt: string;
+  stale: boolean;
 }
 
 interface ApiPrinter {
@@ -28,10 +72,7 @@ interface ApiPrinter {
     printerId: string;
     connection: PrinterViewModel['snapshot']['connection'];
     operationalState: PrinterViewModel['snapshot']['operationalState'];
-    activeJob: (Omit<ActiveJobSnapshot, 'vendorJobId' | 'name'> & {
-      vendorJobId: string | null;
-      name: string | null;
-    }) | null;
+    activeJob: ApiActiveJob | null;
     observedAt: string;
     stale: boolean;
     faultSummary: Array<{
@@ -41,7 +82,7 @@ interface ApiPrinter {
     }>;
   };
   capabilities: ApiCapability[];
-  materialSystem?: MaterialSystemSnapshot;
+  materialSystem?: ApiMaterialSystem;
 }
 
 interface ApiFleetResponse {
@@ -115,9 +156,14 @@ function mapPrinter(printer: ApiPrinter): PrinterViewModel {
       operationalState: printer.snapshot.operationalState,
       activeJob: job
         ? {
-            ...job,
             vendorJobId: job.vendorJobId ?? undefined,
             name: job.name ?? undefined,
+            state: job.state,
+            progress: job.progress ?? undefined,
+            elapsedSeconds: job.elapsedSeconds ?? undefined,
+            remainingSeconds: job.remainingSeconds ?? undefined,
+            currentLayer: job.currentLayer ?? undefined,
+            totalLayers: job.totalLayers ?? undefined,
           }
         : undefined,
       observedAt: printer.snapshot.observedAt,
@@ -133,7 +179,39 @@ function mapPrinter(printer: ApiPrinter): PrinterViewModel {
       majorVersion: capability.majorVersion,
       label: capability.capabilityId,
     })),
-    materialSystem: printer.materialSystem,
+    materialSystem: printer.materialSystem ? mapMaterialSystem(printer.materialSystem) : undefined,
+  };
+}
+
+function mapMaterialSystem(system: ApiMaterialSystem): NonNullable<PrinterViewModel['materialSystem']> {
+  return {
+    printerId: system.printerId,
+    observedAt: system.observedAt,
+    stale: system.stale,
+    units: system.units.map((unit) => ({
+      unitId: unit.unitId,
+      kind: unit.kind,
+      label: unit.label ?? undefined,
+      position: unit.position,
+      slots: unit.slots.map((slot) => ({
+        slotId: slot.slotId,
+        unitId: slot.unitId,
+        position: slot.position,
+        label: slot.label ?? undefined,
+        presence: slot.presence,
+        activity: slot.activity,
+        detectedMaterial: slot.detectedMaterial
+          ? {
+              materialFamily: slot.detectedMaterial.materialFamily ?? undefined,
+              vendorName: slot.detectedMaterial.vendorName ?? undefined,
+              productName: slot.detectedMaterial.productName ?? undefined,
+              rgbaHex: slot.detectedMaterial.rgbaHex ?? undefined,
+              tag: slot.detectedMaterial.tag ?? undefined,
+              remainingFraction: slot.detectedMaterial.remainingFraction ?? undefined,
+            }
+          : undefined,
+      })),
+    })),
   };
 }
 
