@@ -4,12 +4,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import StrEnum
 from uuid import UUID
-
-from foxforge.domain.printers.models import normalize_utc
 
 
 class SpoolAdjustmentKind(StrEnum):
@@ -62,8 +60,8 @@ class Spool:
                 "empty_spool_mass_g",
                 _nonnegative_mass(self.empty_spool_mass_g, field_name="empty_spool_mass_g"),
             )
-        object.__setattr__(self, "created_at", normalize_utc(self.created_at, field_name="created_at"))
-        object.__setattr__(self, "updated_at", normalize_utc(self.updated_at, field_name="updated_at"))
+        object.__setattr__(self, "created_at", _normalize_utc(self.created_at, field_name="created_at"))
+        object.__setattr__(self, "updated_at", _normalize_utc(self.updated_at, field_name="updated_at"))
         if self.updated_at < self.created_at:
             raise ValueError("updated_at must not precede created_at")
 
@@ -92,7 +90,7 @@ class SpoolAdjustment:
         object.__setattr__(self, "delta_filament_mass_g", delta)
         object.__setattr__(self, "idempotency_key", key)
         object.__setattr__(self, "note", _optional_text(self.note))
-        object.__setattr__(self, "created_at", normalize_utc(self.created_at, field_name="created_at"))
+        object.__setattr__(self, "created_at", _normalize_utc(self.created_at, field_name="created_at"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,7 +132,13 @@ class SpoolAssignment:
             raise ValueError("printer_id and slot_id must not be empty")
         object.__setattr__(self, "printer_id", printer_id)
         object.__setattr__(self, "slot_id", slot_id)
-        object.__setattr__(self, "assigned_at", normalize_utc(self.assigned_at, field_name="assigned_at"))
+        object.__setattr__(self, "assigned_at", _normalize_utc(self.assigned_at, field_name="assigned_at"))
+
+
+def _normalize_utc(value: datetime, *, field_name: str) -> datetime:
+    if value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{field_name} must be timezone-aware")
+    return value.astimezone(UTC)
 
 
 def _optional_text(value: str | None) -> str | None:
