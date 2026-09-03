@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import closing
 from datetime import datetime
 from pathlib import Path
 from uuid import UUID
@@ -52,7 +53,7 @@ class SQLiteQueueStore:
     def create(self, entry: QueueEntry) -> None:
         payload = _encode_entry(entry)
         try:
-            with self._connect() as connection:
+            with closing(self._connect()) as connection, connection:
                 connection.execute(
                     "INSERT INTO queue_entries(queue_id, payload, created_at, updated_at) VALUES (?, ?, ?, ?)",
                     (
@@ -67,7 +68,7 @@ class SQLiteQueueStore:
 
     def save(self, entry: QueueEntry) -> None:
         payload = _encode_entry(entry)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             cursor = connection.execute(
                 "UPDATE queue_entries SET payload = ?, updated_at = ? WHERE queue_id = ?",
                 (payload, entry.updated_at.isoformat(), str(entry.queue_id)),
@@ -76,7 +77,7 @@ class SQLiteQueueStore:
                 raise QueueStoreMissingError(entry.queue_id)
 
     def get(self, queue_id: UUID) -> QueueEntry | None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             row = connection.execute(
                 "SELECT payload FROM queue_entries WHERE queue_id = ?",
                 (str(queue_id),),
@@ -84,14 +85,14 @@ class SQLiteQueueStore:
         return None if row is None else _decode_entry(row[0])
 
     def list(self) -> tuple[QueueEntry, ...]:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(
                 "SELECT payload FROM queue_entries ORDER BY created_at ASC, queue_id ASC"
             ).fetchall()
         return tuple(_decode_entry(row[0]) for row in rows)
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute(
                 """
@@ -234,19 +235,18 @@ def _decode_assessment(payload: object) -> PrintExecutionAssessment | None:
     raw_blockers = data.get("blockers", [])
     if not isinstance(raw_blockers, list):
         raise ValueError("assessment blockers must be a list")
+    blockers: list[PrintAssessmentBlocker] = []
+    for blocker in raw_blockers:
+        blocker_data = _require_dict(blocker)
+        blockers.append(
+            PrintAssessmentBlocker(
+                code=PrintAssessmentBlockerCode(str(blocker_data["code"])),
+                message=(None if blocker_data.get("message") is None else str(blocker_data["message"])),
+            )
+        )
     return PrintExecutionAssessment(
         eligible=bool(data["eligible"]),
-        blockers=tuple(
-            PrintAssessmentBlocker(
-                code=PrintAssessmentBlockerCode(str(_require_dict(blocker)["code"])),
-                message=(
-                    None
-                    if _require_dict(blocker).get("message") is None
-                    else str(_require_dict(blocker)["message"])
-                ),
-            )
-            for blocker in raw_blockers
-        ),
+        blockers=tuple(blockers),
         observed_at=_parse_datetime(str(data["observed_at"])),
     )
 
