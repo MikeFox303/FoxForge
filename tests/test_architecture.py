@@ -48,3 +48,11 @@ def test_adapter_registry_has_no_vendor_imports() -> None:
         ("foxforge.adapters", "bambu", "moonraker"),
     )
     assert violations == []
+
+
+def test_queue_storage_has_no_vendor_imports() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/infrastructure/queue"),
+        ("foxforge.adapters", "bambu", "moonraker"),
+    )
+    assert violations == []
