@@ -1,17 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 MikeFox303
 
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
 import { useFleetData } from './data/fleetGateway';
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from './domain';
 import { InventoryView } from './features/inventory/InventoryView';
+import { PrinterDetailView } from './features/printers/PrinterDetailView';
+import { printerRoute } from './features/printers/printerDetailViewModel';
 import { changeInterfaceLanguage } from './i18n';
 import {
   describeMaterialSource,
-  findPrinter,
   formatDuration,
   formatPercent,
   formatRelativeTime,
@@ -19,8 +20,6 @@ import {
   printerTone,
   summarizeFleet,
 } from './viewModel';
-
-type PrinterTab = 'overview' | 'materials' | 'diagnostics';
 
 type NavItem = {
   path: string;
@@ -40,11 +39,11 @@ const navigation: NavItem[] = [
 
 export function FoxForgeApp() {
   const fleet = useFleetData();
-  const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
-  const selectedPrinter = selectedPrinterId ? findPrinter(fleet, selectedPrinterId) : undefined;
   const location = useLocation();
+  const navigate = useNavigate();
   const { t } = useTranslation();
-  const current = navigation.find((item) => item.path === location.pathname) ?? navigation[0];
+  const current = navigation.find((item) => item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)) ?? navigation[0];
+  const openPrinter = (printerId: string) => navigate(printerRoute(printerId));
 
   return (
     <div className="app-shell">
@@ -96,19 +95,18 @@ export function FoxForgeApp() {
 
         <div className="content">
           <Routes>
-            <Route path="/" element={<OverviewView fleet={fleet} onOpenPrinter={setSelectedPrinterId} />} />
-            <Route path="/printers" element={<PrintersView fleet={fleet} onOpenPrinter={setSelectedPrinterId} />} />
+            <Route path="/" element={<OverviewView fleet={fleet} onOpenPrinter={openPrinter} />} />
+            <Route path="/printers" element={<PrintersView fleet={fleet} onOpenPrinter={openPrinter} />} />
+            <Route path="/printers/:printerId" element={<PrinterDetailView fleet={fleet} />} />
             <Route path="/queue" element={<QueueView fleet={fleet} />} />
             <Route path="/materials" element={<MaterialsView fleet={fleet} />} />
             <Route path="/inventory" element={<InventoryView fleet={fleet} />} />
-            <Route path="/farm" element={<FarmView fleet={fleet} onOpenPrinter={setSelectedPrinterId} />} />
+            <Route path="/farm" element={<FarmView fleet={fleet} onOpenPrinter={openPrinter} />} />
             <Route path="/system" element={<SystemView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
       </main>
-
-      {selectedPrinter && <PrinterDrawer fleet={fleet} printer={selectedPrinter} onClose={() => setSelectedPrinterId(null)} />}
     </div>
   );
 }
@@ -256,25 +254,6 @@ function PrinterCard({ printer, onOpen, expanded = false }: { printer: PrinterVi
   );
 }
 
-function PrinterDrawer({ fleet, printer, onClose }: { fleet: FleetData; printer: PrinterViewModel; onClose: () => void }) {
-  const [tab, setTab] = useState<PrinterTab>('overview');
-  const job = printer.snapshot.activeJob;
-  const queueCount = fleet.queue.filter((entry) => entry.printerId === printer.identity.printerId).length;
-  return (
-    <div className="drawer-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <aside className="drawer" role="dialog" aria-modal="true" aria-label={`${printer.identity.displayName} details`}>
-        <div className="drawer-head cockpit-head"><div><div className="eyebrow">{printer.identity.vendor}</div><h2>{printer.identity.displayName}</h2><p>{printer.identity.model ?? 'Unknown model'}</p></div><div className="drawer-head-actions"><StatusBadge printer={printer} /><button className="icon-button" onClick={onClose}>×</button></div></div>
-        <div className="printer-tabs">{(['overview', 'materials', 'diagnostics'] as PrinterTab[]).map((item) => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item[0].toUpperCase() + item.slice(1)}</button>)}</div>
-        <div className="drawer-body stack-lg">
-          {tab === 'overview' && <><div className="cockpit-meta-line"><span>{formatRelativeTime(printer.snapshot.observedAt)}</span><span>{queueCount} queued</span></div><div className="cockpit-kpi-grid"><CockpitKpi label="Connection" value={printer.snapshot.connection} /><CockpitKpi label="State" value={printerStatusLabel(printer)} /><CockpitKpi label="Material" value={describeMaterialSource(printer)} />{job && <><CockpitKpi label="Progress" value={formatPercent(job.progress)} /><CockpitKpi label="Time left" value={formatDuration(job.remainingSeconds)} /><CockpitKpi label="Layer" value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} /></>}</div>{job ? <section className="panel inset active-job-card"><div className="active-job-heading"><div><span>Active job</span><strong>{job.name ?? 'Unnamed job'}</strong></div><strong>{formatPercent(job.progress)}</strong></div><Progress value={job.progress} /></section> : <section className="ready-card panel inset"><div className="ready-indicator"><span className="status-dot good" /></div><div><strong>Ready for the next job</strong><span>No active print reported.</span></div></section>}</>}
-          {tab === 'materials' && <div className="material-units">{printer.materialSystem?.units.map((unit) => <div className="material-unit drawer-unit" key={unit.unitId}><div className="material-unit-head"><div><strong>{unit.label ?? unit.kind}</strong><span>{friendlyUnit(unit.kind)}</span></div></div><div className="slot-grid">{unit.slots.map((slot) => <MaterialSlot key={slot.slotId} slot={slot} />)}</div></div>) ?? <div className="empty-state">Material information is not available.</div>}</div>}
-          {tab === 'diagnostics' && <section className="panel definition-list cockpit-diagnostics"><div><span>Printer ID</span><strong>{printer.identity.printerId}</strong></div><div><span>Adapter</span><strong>{printer.identity.adapterKind}</strong></div><div><span>Observed</span><strong>{printer.snapshot.observedAt}</strong></div>{printer.capabilities.map((capability) => <div key={capability.capabilityId}><span>Capability</span><strong>{capability.capabilityId} · v{capability.majorVersion}</strong></div>)}</section>}
-        </div>
-      </aside>
-    </div>
-  );
-}
-
 function QueueRow({ fleet, entry, compact = false }: { fleet: FleetData; entry: QueueViewModel; compact?: boolean }) {
   const printer = fleet.printers.find((candidate) => candidate.identity.printerId === entry.printerId);
   if (compact) return <div className="compact-row"><div><strong>{entry.requestedName}</strong><span>{printer?.identity.displayName ?? entry.printerId}</span></div><span className={`queue-badge state-${entry.state}`}>{entry.state}</span></div>;
@@ -313,10 +292,6 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
 
 function PageIntro({ eyebrow, title, text, action }: { eyebrow: string; title: string; text: string; action?: string }) {
   return <div className="page-intro"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2><p>{text}</p></div>{action && <button className="primary-button" disabled title="Requires the public API">{action}</button>}</div>;
-}
-
-function CockpitKpi({ label, value }: { label: string; value: string }) {
-  return <div className="cockpit-kpi"><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function slotsFor(printer: PrinterViewModel): MaterialSlotSnapshot[] {
