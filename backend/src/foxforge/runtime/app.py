@@ -128,6 +128,7 @@ async def _connection_supervisor(fleet: FleetService, reconnect_seconds: float) 
 
 def _mount_frontend(app: web.Application, static_dir: Path | None) -> None:
     if static_dir is None or not (static_dir / "index.html").is_file():
+
         async def runtime_info(_: web.Request) -> web.Response:
             return web.json_response(
                 {
