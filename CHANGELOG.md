@@ -44,6 +44,12 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Local fake Moonraker HTTP/WebSocket server tests covering authentication, subscription updates, multipart checksum upload/start, and indeterminate start timeout.
 - Registry-ready `create_moonraker_http_adapter()` production factory so concrete Moonraker wiring remains a composition-root concern rather than a branch inside `AdapterRegistry`.
 - Moonraker HTTP/WebSocket transport design documenting wire semantics, safety boundaries, test coverage, and the remaining physical-printer validation gate.
+- Phase 7 Bambu LAN transport candidate with MQTT 3.1.1 over TLS, QoS-1 request publishing, implicit-FTPS file delivery, and `create_bambu_lan_adapter()` composition factory.
+- Sticky Bambu LAN codec that merges incremental `push_status` reports and retains AMS/AMS 2 Pro/AMS HT typing discovered through `get_version`.
+- Bambu LAN print-start sequence with mandatory busy checks both before file upload and immediately before `project_file` dispatch.
+- Size-aware implicit-FTPS uploads using manual `STOR` data transfer plus `226`/remote-`SIZE` confirmation so a known partial 3MF cannot proceed to print start.
+- Bambu LAN safety tests covering sticky AMS state, plate/material routing, pre-upload busy rejection, upload-race busy rejection, ambiguous MQTT start handling, FTPS confirmation recovery, and partial-file rejection.
+- Bambu LAN production-transport design/provenance documentation with an explicit X2D/N6 hardware-validation boundary.
 
 ### Changed
 
@@ -52,7 +58,8 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Fleet event relays subscribe before fleet-managed connect operations, so connection/reconciliation events are not lost during startup.
 - Queue dispatch persists `DISPATCHING` before invoking the adapter side effect; a process restart from that state requires reconciliation rather than an automatic retry.
 - CI now prints the exact Ruff formatter diff when formatting validation fails.
-- Runtime dependencies now include `aiohttp>=3.12,<4` for Moonraker HTTP/WebSocket transport support.
+- Runtime dependencies now include `aiohttp>=3.12,<4` for Moonraker HTTP/WebSocket transport support and `paho-mqtt>=2.1,<3` for Bambu LAN MQTT support.
+- Bambu FTPS whole-transfer deadlines are derived from file size and a pessimistic transfer floor rather than reusing the short MQTT command timeout.
 
 ### Validation
 
@@ -68,12 +75,15 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 5 Moonraker adapter foundation merged through PR #6.
 - Phase 5 squash commit: `10aa2f5dfa21d46f1eb0b0691caf9814fedc0f4e`.
 - Phase 5 final PR CI run `33807094777` passed Ruff lint, Ruff formatting, the full suite, mixed Bambu/Moonraker fleet tests and architecture guards on Python 3.12 and Python 3.13.
-- Phase 6 Moonraker HTTP/WebSocket transport push gate `33807824445` passed Ruff lint, Ruff formatting, socket-level HTTP/WebSocket integration tests, factory tests, and the full suite on Python 3.12 and Python 3.13.
+- Phase 6 Moonraker HTTP/WebSocket transport merged through PR #7.
+- Phase 6 squash commit: `5ae2a361000ed2864098cb0ca940bf96184fc752`.
+- Phase 6 final PR CI run `33807996066` passed Ruff lint, Ruff formatting, socket-level HTTP/WebSocket integration tests, factory tests, and the full suite on Python 3.12 and Python 3.13.
+- Phase 7 Bambu LAN transport candidate has passed the common lint/format/full-suite gate on intermediate head `51060b891abec1ab18e49cfbbffa0166ad92adcf`; final safety-test and PR gates remain required before merge.
 
 ### Not yet connected
 
-- No production Bambu MQTT/FTP transport has been wired into `BambuAdapter` yet.
-- The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package.
+- Bambu LAN MQTT/implicit-FTPS transport is implemented as the Phase 7 candidate, but physical Bambu connectivity, storage, and print-start validation are still pending.
+- The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package; Phase 7 does not assume X2D uses conventional FTPS storage.
 - Queue scheduling, automatic retry/backoff, event-driven completion tracking and inventory reservations are not yet implemented.
 - Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
 
