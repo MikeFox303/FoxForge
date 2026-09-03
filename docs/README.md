@@ -24,6 +24,7 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [Inventory foundation](design/inventory-foundation.md) — Phase 11 FoxForge-owned spool domain, immutable/idempotent mass ledger, opaque physical-slot assignments, and the durable persistence/API boundary.
 - [Moonraker/Klipper adapter foundation](design/moonraker-adapter-foundation.md) — Phase 5 second real adapter family, native-state boundary, common G-code execution, and external-spool material semantics.
 - [Moonraker HTTP/WebSocket transport](design/moonraker-http-transport.md) — Phase 6 production wire transport, API-key auth, state subscription, checksum upload/start semantics, fail-safe indeterminate handling, and hardware-validation boundary.
+- [Web UI foundation](design/web-ui-foundation.md) — React/TypeScript product structure, normalized UI boundary, printer cockpit, React Router/TanStack Query/i18next composition, queue/material/farm semantics, funding-link policy and API migration seam.
 
 ## Project history
 
