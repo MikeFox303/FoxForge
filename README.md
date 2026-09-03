@@ -59,15 +59,15 @@ The repository already contains more than design documents and experiments.
 | Common printer domain | Implemented with normalized identity, snapshots, events, errors and typed capabilities |
 | PrinterAdapter contracts | Implemented with contract tests and architecture guards |
 | Fleet management | `AdapterRegistry` and vendor-neutral `FleetService` implemented |
-| Print queue | Durable vendor-neutral dispatch state machine implemented |
-| Queue persistence | SQLite store with restart-safe dispatch/idempotency semantics implemented |
+| Print queue | Durable vendor-neutral dispatch plus normalized remote-job lifecycle tracking implemented |
+| Queue persistence | SQLite store with restart-safe dispatch/idempotency and completed-lifecycle persistence implemented |
 | Bambu adapter | Foundation, state mapping, print execution and material-system support implemented |
 | Bambu LAN transport | MQTT/TLS + implicit-FTPS implementation; physical-printer validation pending |
 | Bambu project storage | Bambu-specific storage strategy seam implemented; FTPS is default and future X2D/eMMC storage remains hardware-led work |
 | Moonraker/Klipper adapter | Foundation, state mapping, print execution and external-spool semantics implemented |
 | Moonraker transport | HTTP/WebSocket implementation and CI validation complete; physical-printer validation pending |
 
-The queue deliberately persists `DISPATCHING` before invoking a printer side effect and treats uncertain starts as `INDETERMINATE`, preventing a process restart from blindly starting the same job twice.
+The queue deliberately persists `DISPATCHING` before invoking a printer side effect and treats uncertain starts as `INDETERMINATE`, preventing a process restart from blindly starting the same job twice. Confirmed jobs can then advance through `PREPARING`, `PRINTING`, `PAUSED`, `COMPLETED`, `FAILED` or `CANCELLED` from normalized fleet events when a stable `vendor_job_id` matches.
 
 ## What is not finished yet
 
@@ -77,7 +77,7 @@ Work still includes:
 
 - physical validation of Bambu LAN behavior, especially X2D/N6 storage and print-start paths;
 - physical Moonraker/OpenKE validation;
-- queue scheduling, retry/backoff and event-driven completion tracking;
+- queue scheduling and automatic retry/backoff policy;
 - filament/spool inventory and reservation/consumption workflows;
 - deeper Bambu-only capabilities such as AMS operations, drying, HMS, K profiles and dual-nozzle controls;
 - persisted printer configuration and dynamic fleet management;
@@ -110,6 +110,7 @@ Key documents include:
 - [Bambu project storage strategy](docs/design/bambu-project-storage.md)
 - [AdapterRegistry and FleetService](docs/design/fleet-service.md)
 - [Queue dispatch and durable idempotency](docs/design/queue-dispatch.md)
+- [Queue event-driven print lifecycle](docs/design/queue-event-lifecycle.md)
 - [Moonraker/Klipper adapter foundation](docs/design/moonraker-adapter-foundation.md)
 - [Moonraker HTTP/WebSocket transport](docs/design/moonraker-http-transport.md)
 
