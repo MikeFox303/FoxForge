@@ -19,6 +19,14 @@ Current baseline:
 - [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md)
 - [Printer contracts v1](docs/design/printer-contracts.md) for `PrinterAdapter`, `PrintExecutionCapability`, and `MaterialSystemCapability`
 
+## ❤️ Support FoxForge
+
+FoxForge is free and open-source. If you find the project useful and would like to support its continued development, testing hardware, and infrastructure, you can make a voluntary contribution on Ko-fi.
+
+[☕ Support FoxForge on Ko-fi](https://ko-fi.com/mikefox303)
+
+Support is completely optional and does not affect access to FoxForge or its source code.
+
 ## License
 
 FoxForge is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
