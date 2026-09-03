@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -123,9 +124,7 @@ def _optional_string(value: object, *, field_name: str, index: int) -> str | Non
 def _restrict_permissions(path: Path) -> None:
     if os.name == "nt":
         return
-    try:
+    # Some mounted filesystems do not support chmod. The container/storage
+    # boundary must still restrict access to the application's data volume.
+    with suppress(OSError):
         path.chmod(0o600)
-    except OSError:
-        # Some mounted filesystems do not support chmod. The container/storage
-        # boundary must still restrict access to the application's data volume.
-        pass
