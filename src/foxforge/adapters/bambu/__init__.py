@@ -2,6 +2,9 @@
 # Copyright (C) 2026 MikeFox303
 
 from .adapter import BambuAdapter
+from .factory import create_bambu_lan_adapter
+from .lan_transport import BambuLanTransport
+from .lan_wire import BambuLanSettings
 from .material_system import BambuMaterialSystemCapability
 from .native import (
     BambuMaterialUnitKind,
@@ -18,6 +21,8 @@ from .transport import BambuTransport, BambuTransportError, BambuTransportErrorK
 
 __all__ = [
     "BambuAdapter",
+    "BambuLanSettings",
+    "BambuLanTransport",
     "BambuMaterialSystemCapability",
     "BambuMaterialUnitKind",
     "BambuNativeDispatchResult",
@@ -31,4 +36,5 @@ __all__ = [
     "BambuTransport",
     "BambuTransportError",
     "BambuTransportErrorKind",
+    "create_bambu_lan_adapter",
 ]
