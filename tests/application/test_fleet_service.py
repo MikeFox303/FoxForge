@@ -15,9 +15,15 @@ from foxforge.adapters.bambu import (
     BambuNativePrintRequest,
     BambuNativeState,
 )
+from foxforge.adapters.moonraker import (
+    MoonrakerAdapter,
+    MoonrakerNativeDispatchResult,
+    MoonrakerNativePrintRequest,
+    MoonrakerNativeState,
+)
 from foxforge.application.fleet import DuplicatePrinterIdError, FleetPrinterNotFoundError, FleetService
 from foxforge.domain.printers import ConnectionState, OperationalState, PrinterIdentity, utc_now
-from foxforge.domain.printers.capabilities import PrintExecutionCapability
+from foxforge.domain.printers.capabilities import MaterialSystemCapability, PrintExecutionCapability
 from foxforge.testing import FakePrinterAdapter
 
 
@@ -59,6 +65,42 @@ class _FleetBambuTransport:
         return BambuNativeDispatchResult(accepted_at=utc_now(), vendor_job_id="fleet-bambu-job")
 
 
+class _FleetMoonrakerTransport:
+    def __init__(self) -> None:
+        self._state = MoonrakerNativeState(
+            connected=False,
+            klippy_state="ready",
+            klippy_message=None,
+            print_state="standby",
+            filename=None,
+            progress=None,
+            print_duration_seconds=None,
+            print_message=None,
+            observed_at=utc_now(),
+        )
+        self._events: asyncio.Queue[MoonrakerNativeState | None] = asyncio.Queue()
+
+    async def connect(self) -> None:
+        self._state = replace(self._state, connected=True, observed_at=utc_now())
+
+    async def disconnect(self) -> None:
+        self._state = replace(self._state, connected=False, observed_at=utc_now())
+
+    def snapshot(self) -> MoonrakerNativeState:
+        return self._state
+
+    async def events(self) -> AsyncIterator[MoonrakerNativeState]:
+        while True:
+            item = await self._events.get()
+            if item is None:
+                return
+            self._state = item
+            yield item
+
+    async def submit_print(self, request: MoonrakerNativePrintRequest) -> MoonrakerNativeDispatchResult:
+        return MoonrakerNativeDispatchResult(accepted_at=utc_now(), vendor_job_id=request.filename)
+
+
 def _make_bambu_adapter() -> BambuAdapter:
     identity = PrinterIdentity(
         printer_id="bambu-1",
@@ -69,6 +111,18 @@ def _make_bambu_adapter() -> BambuAdapter:
         adapter_kind="bambu",
     )
     return BambuAdapter(identity, _FleetBambuTransport())
+
+
+def _make_moonraker_adapter() -> MoonrakerAdapter:
+    identity = PrinterIdentity(
+        printer_id="moonraker-1",
+        display_name="Ender 3 V3 KE",
+        vendor="creality",
+        model="Ender-3 V3 KE",
+        serial_number=None,
+        adapter_kind="moonraker",
+    )
+    return MoonrakerAdapter(identity, _FleetMoonrakerTransport())
 
 
 def test_fake_and_bambu_can_coexist_in_one_fleet(printer_identity) -> None:
@@ -91,6 +145,26 @@ def test_fake_and_bambu_can_coexist_in_one_fleet(printer_identity) -> None:
 
             await fleet.disconnect_all()
             assert all(snapshot.connection == ConnectionState.DISCONNECTED for snapshot in fleet.snapshots())
+        finally:
+            await fleet.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_bambu_and_moonraker_share_the_same_fleet_contract() -> None:
+    async def scenario() -> None:
+        fleet = FleetService([_make_bambu_adapter(), _make_moonraker_adapter()])
+        try:
+            assert fleet.printer_ids == ("bambu-1", "moonraker-1")
+            assert [identity.adapter_kind for identity in fleet.identities()] == ["bambu", "moonraker"]
+
+            await fleet.connect_all()
+            assert all(snapshot.connection == ConnectionState.CONNECTED for snapshot in fleet.snapshots())
+            assert all(snapshot.operational_state == OperationalState.IDLE for snapshot in fleet.snapshots())
+
+            for printer_id in fleet.printer_ids:
+                assert fleet.capability(printer_id, PrintExecutionCapability) is not None
+                assert fleet.capability(printer_id, MaterialSystemCapability) is not None
         finally:
             await fleet.aclose()
 

@@ -27,6 +27,16 @@ FoxForge has not published a stable release yet, so development milestones are l
 - `InMemoryQueueStore` for deterministic tests and `SQLiteQueueStore` for durable single-container Docker/ARM64/Umbrel deployments.
 - Restart tests proving accepted queue entries cannot start a second print after a new store/adapter instance and uncertain entries cannot be blindly retried.
 - Queue dispatch design documenting the pre-submit crash boundary and reconciliation semantics.
+- Moonraker/Klipper adapter foundation under `foxforge.adapters.moonraker`.
+- Moonraker-native state/print DTO boundary keeping Klipper/Moonraker fields out of the common printer domain.
+- Moonraker transport protocol and normalized transport error kinds for connection, live state and print submission.
+- Moonraker anti-corruption mapping for Klippy readiness, `print_stats` state/progress, faults and normalized printer/job snapshots.
+- Moonraker `PrintExecutionCapability` for verified local G-code artifacts with explicit rejection of unsupported plate selection.
+- Moonraker `MaterialSystemCapability` exposing one stable external-spool slot without fabricating AMS/CFS semantics.
+- Moonraker lifecycle/event pump with reconnect epochs and normalized connection, printer-state, job-state, progress and material-system events.
+- Mixed real-adapter fleet test proving Bambu and Moonraker can coexist behind the same `FleetService` and common capabilities.
+- Cross-vendor architecture guards preventing Bambu and Moonraker adapter packages from importing each other or preserved Bambuddy/X2D integration code.
+- Moonraker adapter design/provenance documentation and production HTTP/WebSocket transport plan.
 
 ### Changed
 
@@ -34,6 +44,7 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Confirmed Bambu dispatch receipts are idempotently cached by `dispatch_id`; indeterminate starts remain unreconciled until the queue/application layer resolves them.
 - Fleet event relays subscribe before fleet-managed connect operations, so connection/reconciliation events are not lost during startup.
 - Queue dispatch persists `DISPATCHING` before invoking the adapter side effect; a process restart from that state requires reconciliation rather than an automatic retry.
+- CI now prints the exact Ruff formatter diff when formatting validation fails.
 
 ### Validation
 
@@ -43,13 +54,17 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 3 AdapterRegistry/FleetService merged through PR #4.
 - Phase 3 squash commit: `ad2b97008ddaaf4edd506a8a79deae2eb8c89544`.
 - Phase 3 final PR CI passed Ruff and the full suite on Python 3.12 and Python 3.13.
+- Phase 4 durable queue dispatch merged through PR #5.
+- Phase 4 squash commit: `7cfcd57a0a83f7138a8b47454abba82770f51139`.
+- Phase 4 final PR CI passed Ruff lint, Ruff formatting, and the full suite on Python 3.12 and Python 3.13.
+- Phase 5 Moonraker adapter foundation push gate `33806998672` passed Ruff lint, Ruff formatting, the full suite, mixed Bambu/Moonraker fleet tests and architecture guards on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
 - No production Bambu MQTT/FTP transport has been wired into `BambuAdapter` yet.
 - The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package.
 - Queue scheduling, automatic retry/backoff, event-driven completion tracking and inventory reservations are not yet implemented.
-- Moonraker/Klipper is not yet implemented as the second real adapter.
+- Moonraker production HTTP/WebSocket transport and physical Ender/OpenKE validation are not yet connected to `MoonrakerAdapter`.
 
 ## 2026-09-03 — Phase 1: Printer domain foundation
 
