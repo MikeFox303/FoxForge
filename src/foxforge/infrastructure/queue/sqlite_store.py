@@ -146,9 +146,7 @@ def _decode_entry(raw: str) -> QueueEntry:
         error=_decode_error(payload["error"]),
         attempt_count=int(payload["attempt_count"]),
         last_attempt_at=(
-            _parse_datetime(payload["last_attempt_at"])
-            if payload.get("last_attempt_at") is not None
-            else None
+            _parse_datetime(payload["last_attempt_at"]) if payload.get("last_attempt_at") is not None else None
         ),
     )
 
@@ -165,11 +163,7 @@ def _encode_request(request: PrintExecutionRequest) -> dict[str, object]:
             "size_bytes": artifact.size_bytes,
             "sha256": artifact.sha256,
         },
-        "selection": (
-            {"plate_index": request.selection.plate_index}
-            if request.selection is not None
-            else None
-        ),
+        "selection": ({"plate_index": request.selection.plate_index} if request.selection is not None else None),
         "material_bindings": [
             {"material_index": binding.material_index, "slot_id": binding.slot_id}
             for binding in request.material_bindings
@@ -220,10 +214,7 @@ def _encode_assessment(assessment: PrintExecutionAssessment | None) -> dict[str,
         return None
     return {
         "eligible": assessment.eligible,
-        "blockers": [
-            {"code": blocker.code.value, "message": blocker.message}
-            for blocker in assessment.blockers
-        ],
+        "blockers": [{"code": blocker.code.value, "message": blocker.message} for blocker in assessment.blockers],
         "observed_at": assessment.observed_at.isoformat(),
     }
 
