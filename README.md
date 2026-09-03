@@ -10,6 +10,15 @@ FoxForge is an open-source project by MikeFox303 for 3D-printing integrations, t
 
 Current preserved work includes the X2D `BambuTunnelLocal :6000` internal-storage transport, its unit tests/CI, reviewed RU/UK localization notes, and the retired-fork migration record.
 
+## Architecture and design
+
+Durable architecture decisions and interface designs are tracked under [`docs/`](docs/README.md).
+
+Current baseline:
+
+- [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md)
+- [Printer contracts v1](docs/design/printer-contracts.md) for `PrinterAdapter`, `PrintExecutionCapability`, and `MaterialSystemCapability`
+
 ## License
 
 FoxForge is licensed under the **GNU Affero General Public License v3.0 only (AGPL-3.0-only)**.
