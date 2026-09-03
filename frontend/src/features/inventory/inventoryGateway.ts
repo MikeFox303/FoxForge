@@ -3,22 +3,74 @@
 
 import { useQuery } from '@tanstack/react-query';
 
+import { demoModeEnabled, fetchJson } from '../../data/apiClient';
 import { inventoryData } from './mockInventory';
-import type { InventoryData } from './types';
+import type { InventoryData, SpoolInventoryView } from './types';
 
 const inventoryQueryKey = ['inventory', 'spools'] as const;
+const emptyInventory: InventoryData = { spools: [], observedAt: new Date(0).toISOString() };
+
+interface ApiInventoryResponse {
+  apiVersion: '1';
+  spools: Array<{
+    spoolId: string;
+    materialFamily: string;
+    manufacturer: string | null;
+    productName: string | null;
+    rgbaHex: string | null;
+    initialFilamentMassG: string;
+    remainingFilamentMassG: string;
+    usedFilamentMassG: string;
+    usedFraction: string;
+    emptySpoolMassG: string | null;
+    purchaseDate: string | null;
+    archived: boolean;
+    assignment: {
+      printerId: string;
+      slotId: string;
+      assignedAt: string;
+    } | null;
+  }>;
+}
 
 async function loadInventory(): Promise<InventoryData> {
-  // Temporary seam. A future REST client will map InventoryService DTOs here.
-  return inventoryData;
+  if (demoModeEnabled()) {
+    return inventoryData;
+  }
+  const payload = await fetchJson<ApiInventoryResponse>('/api/v1/inventory/spools');
+  return {
+    spools: payload.spools.map(mapSpool),
+    observedAt: new Date().toISOString(),
+  };
 }
 
 export function useInventoryData(): InventoryData {
+  const demo = demoModeEnabled();
   const query = useQuery({
-    queryKey: inventoryQueryKey,
+    queryKey: [...inventoryQueryKey, demo ? 'demo' : 'live'],
     queryFn: loadInventory,
-    initialData: inventoryData,
+    initialData: demo ? inventoryData : undefined,
+    placeholderData: demo ? inventoryData : emptyInventory,
+    refetchInterval: demo ? false : 10_000,
   });
 
-  return query.data;
+  return query.data ?? emptyInventory;
+}
+
+function mapSpool(spool: ApiInventoryResponse['spools'][number]): SpoolInventoryView {
+  return {
+    spoolId: spool.spoolId,
+    materialFamily: spool.materialFamily,
+    manufacturer: spool.manufacturer ?? undefined,
+    productName: spool.productName ?? undefined,
+    rgbaHex: spool.rgbaHex ?? undefined,
+    initialFilamentMassG: spool.initialFilamentMassG,
+    remainingFilamentMassG: spool.remainingFilamentMassG,
+    usedFilamentMassG: spool.usedFilamentMassG,
+    usedFraction: spool.usedFraction,
+    emptySpoolMassG: spool.emptySpoolMassG ?? undefined,
+    purchaseDate: spool.purchaseDate ?? undefined,
+    archived: spool.archived,
+    assignment: spool.assignment ?? undefined,
+  };
 }
