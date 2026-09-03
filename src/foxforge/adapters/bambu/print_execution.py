@@ -117,10 +117,13 @@ class BambuPrintExecutionCapability:
 
         native = self._native_snapshot()
         routes = bambu_slot_routes(native)
+        plate_number = None
+        if request.selection is not None and request.selection.plate_index is not None:
+            plate_number = request.selection.plate_index + 1
         native_request = BambuNativePrintRequest(
             local_path=request.artifact.path,
             filename=request.artifact.filename,
-            plate_number=request.selection.plate_index + 1 if request.selection and request.selection.plate_index is not None else None,
+            plate_number=plate_number,
             material_routes=tuple(
                 BambuNativeMaterialRoute(
                     material_index=binding.material_index,
