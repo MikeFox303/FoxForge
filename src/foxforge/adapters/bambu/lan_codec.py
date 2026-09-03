@@ -10,9 +10,9 @@ adapter package and does not depend on Bambuddy implementation modules.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
 
 from foxforge.domain.printers import utc_now
 
@@ -65,16 +65,17 @@ class BambuLanCodec:
         if not isinstance(payload, dict):
             return None
 
+        version_changed = False
         info = payload.get("info")
         if isinstance(info, dict) and info.get("command") == "get_version":
-            self._apply_version(info)
+            version_changed = self._apply_version(info)
 
         print_data = payload.get("print")
         if not isinstance(print_data, dict):
-            return None
+            return self._state if version_changed else None
         command = print_data.get("command")
         if command not in {None, "push_status"} and not _contains_status_fields(print_data):
-            return None
+            return self._state if version_changed else None
 
         previous = self._state
         updates: dict[str, object] = {"connected": True, "observed_at": utc_now()}
@@ -102,10 +103,10 @@ class BambuLanCodec:
         self._state = current
         return current
 
-    def _apply_version(self, info: dict[str, object]) -> None:
+    def _apply_version(self, info: dict[str, object]) -> bool:
         modules = info.get("module")
         if not isinstance(modules, list):
-            return
+            return False
         changed = False
         for module in modules:
             if not isinstance(module, dict):
@@ -117,7 +118,7 @@ class BambuLanCodec:
                 if not name.startswith(prefix):
                     continue
                 unit_id = _int_value(name.removeprefix(prefix))
-                if unit_id is not None:
+                if unit_id is not None and self._unit_kinds.get(unit_id) != kind:
                     self._unit_kinds[unit_id] = kind
                     changed = True
                 break
@@ -130,6 +131,7 @@ class BambuLanCodec:
                 ),
                 observed_at=utc_now(),
             )
+        return changed
 
     def _parse_material_units(self, print_data: dict[str, object]) -> tuple[BambuNativeMaterialUnit, ...] | None:
         touched = False
@@ -226,7 +228,11 @@ def build_get_version_command(sequence_id: str) -> dict[str, object]:
     return {"info": {"sequence_id": sequence_id, "command": "get_version"}}
 
 
-def build_project_file_command(sequence_id: str, request: BambuNativePrintRequest, remote_filename: str) -> dict[str, object]:
+def build_project_file_command(
+    sequence_id: str,
+    request: BambuNativePrintRequest,
+    remote_filename: str,
+) -> dict[str, object]:
     plate_number = request.plate_number or 1
     routes = tuple(sorted(request.material_routes, key=lambda route: route.material_index))
     ams_mapping = _ams_mapping(routes)
@@ -365,7 +371,7 @@ def _copy_if_present(
     source_key: str,
     target: dict[str, object],
     target_key: str,
-    converter: Any,
+    converter: Callable[[object], object],
 ) -> None:
     if source_key in source:
         target[target_key] = converter(source.get(source_key))
