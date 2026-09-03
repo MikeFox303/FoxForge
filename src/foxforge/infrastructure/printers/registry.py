@@ -32,8 +32,7 @@ class AdapterFactoryIdentityError(AdapterRegistryError):
         self.expected = expected
         self.actual = actual
         super().__init__(
-            f"adapter factory returned identity {actual.printer_id!r} "
-            f"for requested printer {expected.printer_id!r}"
+            f"adapter factory returned identity {actual.printer_id!r} for requested printer {expected.printer_id!r}"
         )
 
 
@@ -51,13 +50,7 @@ class AdapterRegistry:
     def adapter_kinds(self) -> tuple[str, ...]:
         return tuple(sorted(self._factories))
 
-    def register(
-        self,
-        adapter_kind: str,
-        factory: AdapterFactory,
-        *,
-        replace: bool = False,
-    ) -> None:
+    def register(self, adapter_kind: str, factory: AdapterFactory, *, replace: bool = False) -> None:
         kind = adapter_kind.strip()
         if not kind:
             raise ValueError("adapter_kind must not be empty")
