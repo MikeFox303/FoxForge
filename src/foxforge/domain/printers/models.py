@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Literal
 
@@ -17,14 +17,14 @@ FaultSeverity = Literal["info", "warning", "error", "critical"]
 
 def utc_now() -> datetime:
     """Return a timezone-aware UTC timestamp."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def normalize_utc(value: datetime, *, field_name: str = "timestamp") -> datetime:
     """Validate an aware instant and normalize it to UTC."""
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError(f"{field_name} must be timezone-aware")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 def validate_fraction(value: float | None, *, field_name: str) -> None:
