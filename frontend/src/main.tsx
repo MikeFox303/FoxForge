@@ -4,15 +4,16 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { App } from './App';
 import { AppProviders } from './app/providers';
+import { FoxForgeApp } from './FoxForgeApp';
 import './styles.css';
 import './refinements.css';
+import './inventory.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProviders>
-      <App />
+      <FoxForgeApp />
     </AppProviders>
   </StrictMode>,
 );
