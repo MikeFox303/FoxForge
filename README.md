@@ -59,7 +59,7 @@ The repository already contains more than design documents and experiments.
 | Common printer domain | Implemented with normalized identity, snapshots, events, errors and typed capabilities |
 | PrinterAdapter contracts | Implemented with contract tests and architecture guards |
 | Fleet management | `AdapterRegistry` and vendor-neutral `FleetService` implemented |
-| Print queue | Durable vendor-neutral dispatch plus normalized remote-job lifecycle tracking implemented |
+| Print queue | Durable vendor-neutral dispatch, normalized remote-job lifecycle tracking, and safe single-pass retry/backoff runner implemented |
 | Queue persistence | SQLite store with restart-safe dispatch/idempotency and completed-lifecycle persistence implemented |
 | Bambu adapter | Foundation, state mapping, print execution and material-system support implemented |
 | Bambu LAN transport | MQTT/TLS + implicit-FTPS implementation; physical-printer validation pending |
@@ -69,6 +69,8 @@ The repository already contains more than design documents and experiments.
 
 The queue deliberately persists `DISPATCHING` before invoking a printer side effect and treats uncertain starts as `INDETERMINATE`, preventing a process restart from blindly starting the same job twice. Confirmed jobs can then advance through `PREPARING`, `PRINTING`, `PAUSED`, `COMPLETED`, `FAILED` or `CANCELLED` from normalized fleet events when a stable `vendor_job_id` matches.
 
+`QueueRunner` adds a deterministic one-pass scheduling primitive. It may retry only confirmed pre-start failures explicitly marked `retryable`, after exponential backoff and within an attempt limit. It never retries `DISPATCHING`, `INDETERMINATE`, or any receipt-bearing job, and it processes at most one candidate per printer in a pass.
+
 ## What is not finished yet
 
 FoxForge should not currently be presented as a ready replacement for Bambuddy, Moonraker frontends, or a complete printer-farm application.
@@ -77,7 +79,7 @@ Work still includes:
 
 - physical validation of Bambu LAN behavior, especially X2D/N6 storage and print-start paths;
 - physical Moonraker/OpenKE validation;
-- queue scheduling and automatic retry/backoff policy;
+- a persistent scheduler/timer and farm-level printer selection/priority policy above the single-pass queue runner;
 - filament/spool inventory and reservation/consumption workflows;
 - deeper Bambu-only capabilities such as AMS operations, drying, HMS, K profiles and dual-nozzle controls;
 - persisted printer configuration and dynamic fleet management;
@@ -111,6 +113,7 @@ Key documents include:
 - [AdapterRegistry and FleetService](docs/design/fleet-service.md)
 - [Queue dispatch and durable idempotency](docs/design/queue-dispatch.md)
 - [Queue event-driven print lifecycle](docs/design/queue-event-lifecycle.md)
+- [Queue retry and single-pass runner policy](docs/design/queue-retry-policy.md)
 - [Moonraker/Klipper adapter foundation](docs/design/moonraker-adapter-foundation.md)
 - [Moonraker HTTP/WebSocket transport](docs/design/moonraker-http-transport.md)
 
