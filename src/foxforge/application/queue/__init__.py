@@ -2,6 +2,7 @@
 # Copyright (C) 2026 MikeFox303
 
 from .models import QueueDispatchError, QueueEntry, QueueEntryState
+from .runner import QueueRetryPolicy, QueueRunner
 from .service import (
     QueueEntryNotFoundError,
     QueueReconciliationRequiredError,
@@ -16,6 +17,8 @@ __all__ = [
     "QueueEntryNotFoundError",
     "QueueEntryState",
     "QueueReconciliationRequiredError",
+    "QueueRetryPolicy",
+    "QueueRunner",
     "QueueService",
     "QueueStore",
     "QueueStoreConflictError",
