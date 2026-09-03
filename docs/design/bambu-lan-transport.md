@@ -1,17 +1,18 @@
 # Bambu LAN production transport
 
-- **Status:** Implementation candidate; CI validated, physical-printer validation pending
+- **Status:** Implemented; CI validated, physical-printer validation pending
 - **Related ADR:** [ADR 0001: PrinterAdapter architecture](../adr/0001-printer-adapter-architecture.md)
 - **Related foundation:** [Bambu adapter foundation](bambu-adapter-foundation.md)
+- **Related storage seam:** [Bambu project storage strategy](bambu-project-storage.md)
 - **Date:** 2026-09-04
 
 ## Purpose
 
-This document records the first production-oriented Bambu LAN transport behind FoxForge's existing `BambuTransport` boundary.
+This document records the production-oriented Bambu LAN transport behind FoxForge's `BambuTransport` boundary.
 
-The implementation provides standard Bambu LAN MQTT status/control plus implicit-FTPS file delivery without exposing Bambu protocol details to the common printer domain, fleet service, queue, or inventory layers.
+The implementation provides standard Bambu LAN MQTT status/control plus project delivery through a Bambu-specific storage strategy without exposing Bambu protocol details to the common printer domain, fleet service, queue, or inventory layers.
 
-Physical validation remains a separate gate. In particular, this document does not claim that the conventional implicit-FTPS storage path is valid for every Bambu model or firmware family, including the X2D/N6 storage behavior being researched separately under `integrations/bambuddy/x2d_port6000/`.
+Physical validation remains a separate gate. Conventional implicit FTPS is the current default storage strategy, but FoxForge does not assume it is valid for every Bambu model or firmware family. If X2D/N6 requires a different internal-eMMC transport, that transport will be implemented as new production FoxForge code behind `BambuProjectStorage` after physical validation.
 
 ## Provenance
 
@@ -23,7 +24,9 @@ Protocol behavior was informed by public Bambu LAN behavior and by the upstream 
 - `backend/app/services/bambu_ftp.py` for field experience around implicit FTPS, manual `STOR` transfers, delayed `226` confirmation, and firmware variants that may return a transfer error despite a complete server-side file;
 - Bambuddy scheduler regression tests documenting why a second busy check immediately before `project_file` is necessary.
 
-No Bambuddy service file is copied into FoxForge. FoxForge uses its own native DTOs, codec, transport protocols, error model, async integration, tests, and queue semantics. The upstream behavior above is recorded here so future maintainers can distinguish implementation inspiration from copied code.
+No Bambuddy service file is copied into FoxForge. FoxForge uses its own native DTOs, codec, transport protocols, error model, async integration, tests, and queue semantics.
+
+A former X2D port-6000 experiment was removed from the current repository tree on 2026-09-04 rather than being carried forward as dormant implementation code. Git history retains the historical record. Any future X2D/eMMC implementation must carry fresh provenance appropriate to the implementation actually adopted.
 
 ## Layering
 
@@ -40,12 +43,14 @@ QueueService / FleetService / common domain
           BambuLanTransport
            /           \
           v             v
- BambuLanCodec     Bambu LAN wire
- sticky native     |-- MQTT/TLS :8883
- state mapping     `-- implicit FTPS :990
+ BambuLanCodec      BambuProjectStorage
+ sticky native      |-- FTPS today
+ state mapping      `-- future validated storage
+        |
+        `-- MQTT/TLS :8883 control/status
 ```
 
-Only `foxforge.adapters.bambu` knows Bambu MQTT keys, AMS ids, tray ids, `project_file`, or implicit-FTPS details.
+Only `foxforge.adapters.bambu` knows Bambu MQTT keys, AMS ids, tray ids, `project_file`, or Bambu-specific project-storage details.
 
 ## MQTT wire semantics
 
@@ -76,11 +81,11 @@ Bambu firmware can send partial `push_status` messages. A partial message must n
 
 `BambuLanCodec` therefore merges only fields present in each report. For example, a progress-only update cannot erase previously observed AMS trays or material identity.
 
-Module information received through `get_version` is also retained and applied to existing material units so an AMS 2 Pro remains typed as `AMS_2_PRO` across later partial reports.
+Module information received through `get_version` is retained and applied to existing material units so an AMS 2 Pro remains typed as `AMS_2_PRO` across later partial reports.
 
-## Standard implicit-FTPS upload
+## Standard implicit-FTPS storage
 
-`ImplicitFtpsBambuWire` uses implicit TLS on the control connection, normally port 990.
+`FtpsBambuProjectStorage` wraps `ImplicitFtpsBambuWire`, which uses implicit TLS on the control connection, normally port 990.
 
 The upload path intentionally does not use `ftplib.storbinary()`. Instead it:
 
@@ -108,7 +113,7 @@ normalized queue request
 busy guard #1
         |
         v
-confirmed FTPS upload
+confirmed Bambu project storage
         |
         v
 busy guard #2
@@ -120,7 +125,7 @@ MQTT QoS1 project_file
 matching command response
 ```
 
-The second busy guard is mandatory. A printer may become busy while a large 3MF is uploading; sending another `project_file` after that transition can interfere with an already active job on some firmware.
+The second busy guard is mandatory. A printer may become busy while a large project is uploading; sending another `project_file` after that transition can interfere with an already active job on some firmware.
 
 Busy states currently treated as unsafe start targets are:
 
@@ -134,7 +139,7 @@ Busy states currently treated as unsafe start targets are:
 The Bambu adapter translates the common request into Bambu-native fields only at the adapter boundary:
 
 - zero-based common plate selection becomes a one-based Bambu plate number;
-- the uploaded basename becomes `file` and `ftp:///...` URL fields;
+- the storage strategy supplies the remote basename and exact Bambu-native project URL;
 - common opaque material slot bindings become Bambu `ams_mapping` and `ams_mapping2` routes;
 - AMS use is enabled only when routed AMS slots are present.
 
@@ -144,7 +149,7 @@ These wire fields remain Bambu-only and must not be promoted into the common que
 
 The critical safety boundary is the MQTT `project_file` publish.
 
-Before that publish, failures are retryable transport/upload failures because no print start has been requested.
+Before that publish, failures are retryable transport/storage failures because no print start has been requested.
 
 After the publish may have reached the printer, FoxForge must not guess. A QoS acknowledgement timeout, connection loss, or missing matching command response is surfaced as `BambuTransportErrorKind.INDETERMINATE`. `BambuPrintExecutionCapability` converts that into common `PrinterErrorCode.INDETERMINATE`, and the durable queue requires reconciliation instead of an automatic duplicate start.
 
@@ -156,25 +161,25 @@ This is a transport trust decision, not application authentication. LAN access s
 
 ## X2D/N6 boundary
 
-The standard LAN transport and the preserved X2D/N6 port-6000 experiment are deliberately separate.
+FoxForge no longer contains the former port-6000 experimental implementation.
+
+The production architecture is instead:
 
 ```text
 BambuAdapter
     |
-    +-- standard LAN candidate
-    |     MQTT :8883 + implicit FTPS :990
-    |
-    `-- X2D/N6 experimental storage work
-          integrations/bambuddy/x2d_port6000/
+    `-- BambuLanTransport
+          |-- MQTT control/status
+          `-- BambuProjectStorage
+                |-- FTPS default
+                `-- future hardware-validated X2D/eMMC strategy
 ```
 
-Phase 7 does not import the experimental port-6000 package into production code and does not silently fall back to it.
-
-A future storage-strategy slice may place validated FTPS and X2D storage implementations behind a Bambu-specific project-storage protocol. Promotion of the X2D path requires a physical upload + print-start test first.
+There is no hidden fallback to an experimental transport. A future X2D/eMMC strategy must be implemented deliberately after physical validation and selected explicitly by composition/configuration logic.
 
 ## Acceptance criteria
 
-Phase 7 is ready to merge when all of the following are true:
+The merged Phase 7 transport is considered software-complete when:
 
 1. MQTT status is reconciled through `get_version` + `pushall` and incremental reports remain sticky.
 2. MQTT command publishes use QoS 1.
@@ -194,10 +199,10 @@ The first physical validation should be non-destructive and model-specific:
 
 1. connect and observe status only;
 2. verify model/AMS discovery and incremental status stability;
-3. verify a small 3MF upload without issuing `project_file`;
+3. verify a small project upload without issuing `project_file`;
 4. verify remote file completeness;
 5. perform one controlled print-start test while the printer is known idle;
 6. repeat connection-loss handling without allowing automatic re-dispatch;
 7. record printer model, firmware, storage path, and observed protocol differences in the repository.
 
-For X2D/N6, conventional implicit FTPS and the port-6000 storage path must be tested independently rather than assuming behavior from older Bambu families.
+For X2D/N6, test the storage mechanisms actually exposed by the printer rather than assuming behavior from older Bambu families. If standard FTPS is insufficient, implement a new `BambuProjectStorage` strategy only from validated observations.
