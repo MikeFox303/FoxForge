@@ -21,24 +21,34 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Application-level `FleetService` for normalized identity/snapshot/capability lookup, printer lifecycle operations and merged printer event delivery.
 - Mixed-fleet tests proving `FakePrinterAdapter` and `BambuAdapter` can coexist behind the same fleet service.
 - Architecture tests preventing the application layer and generic adapter registry from importing Bambu, Moonraker or concrete adapter packages.
+- Application-level `QueueService` routing automated dispatch exclusively through `FleetService` and common `PrintExecutionCapability`.
+- Persisted queue state machine with `PENDING`, `BLOCKED`, `DISPATCHING`, `ACCEPTED`, `INDETERMINATE`, and `FAILED` states.
+- Durable queue-owned `dispatch_id`, assessment, receipt/error, dispatch-attempt metadata, and explicit reconciliation API.
+- `InMemoryQueueStore` for deterministic tests and `SQLiteQueueStore` for durable single-container Docker/ARM64/Umbrel deployments.
+- Restart tests proving accepted queue entries cannot start a second print after a new store/adapter instance and uncertain entries cannot be blindly retried.
+- Queue dispatch design documenting the pre-submit crash boundary and reconciliation semantics.
 
 ### Changed
 
 - Material system freshness is explicitly observable across Bambu disconnect/reconnect through normalized `material_system_changed` events.
 - Confirmed Bambu dispatch receipts are idempotently cached by `dispatch_id`; indeterminate starts remain unreconciled until the queue/application layer resolves them.
 - Fleet event relays subscribe before fleet-managed connect operations, so connection/reconciliation events are not lost during startup.
+- Queue dispatch persists `DISPATCHING` before invoking the adapter side effect; a process restart from that state requires reconciliation rather than an automatic retry.
 
 ### Validation
 
 - Phase 2 Bambu adapter foundation merged through PR #3.
 - Phase 2 squash commit: `e5568affd7af3d72f6020f2734c9f7c448ff1a26`.
 - Phase 2 final PR CI passed Ruff and the full suite on Python 3.12 and Python 3.13.
+- Phase 3 AdapterRegistry/FleetService merged through PR #4.
+- Phase 3 squash commit: `ad2b97008ddaaf4edd506a8a79deae2eb8c89544`.
+- Phase 3 final PR CI passed Ruff and the full suite on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
 - No production Bambu MQTT/FTP transport has been wired into `BambuAdapter` yet.
 - The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package.
-- Queue dispatch/orchestration is not yet implemented on top of `FleetService`.
+- Queue scheduling, automatic retry/backoff, event-driven completion tracking and inventory reservations are not yet implemented.
 - Moonraker/Klipper is not yet implemented as the second real adapter.
 
 ## 2026-09-03 — Phase 1: Printer domain foundation
