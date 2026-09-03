@@ -12,7 +12,8 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [Bambu adapter foundation](design/bambu-adapter-foundation.md) — implementation boundary and provenance for the first Bambu anti-corruption adapter slice, including native-state mapping, common capabilities, and transport separation.
 - [AdapterRegistry and FleetService](design/fleet-service.md) — Phase 3 composition/application boundary for vendor-neutral adapter creation, fleet snapshots/capabilities, lifecycle, and merged normalized events.
 - [Queue dispatch and durable idempotency](design/queue-dispatch.md) — Phase 4 queue state machine, persisted dispatch crash boundary, reconciliation semantics, and SQLite restart durability.
-- [Moonraker/Klipper adapter foundation](design/moonraker-adapter-foundation.md) — Phase 5 second real adapter family, native-state boundary, common G-code execution, external-spool material semantics, and the production HTTP/WebSocket transport plan.
+- [Moonraker/Klipper adapter foundation](design/moonraker-adapter-foundation.md) — Phase 5 second real adapter family, native-state boundary, common G-code execution, and external-spool material semantics.
+- [Moonraker HTTP/WebSocket transport](design/moonraker-http-transport.md) — Phase 6 production wire transport, API-key auth, state subscription, checksum upload/start semantics, fail-safe indeterminate handling, and hardware-validation boundary.
 
 ## Project history
 
