@@ -4,7 +4,7 @@
 
 The project is building a common printer-management core for Bambu Lab, Moonraker/Klipper, print queues, material systems, inventory, and future farm-management workflows. FoxForge uses vendor-neutral contracts for genuinely common behavior while keeping advanced platform features available through typed vendor capabilities instead of reducing every printer to a lowest-common-denominator API.
 
-> **Development status:** pre-alpha (`0.1.0.dev0`). FoxForge does not have a stable release or a complete end-user application yet. The core architecture, printer adapters, queue lifecycle, inventory foundation and a runnable web-UI foundation are implemented and tested. Live API integration, production hardware validation and higher-level application features are still in progress.
+> **Development status:** pre-alpha (`0.1.0.dev0`). FoxForge does not have a stable release or a complete end-user application yet. The core architecture, printer adapters, queue lifecycle, inventory foundation and runnable web UI are implemented and tested. Live API integration, production hardware validation and higher-level application features are still in progress.
 
 ## Project goals
 
@@ -82,7 +82,7 @@ The repository already contains more than design documents and experiments.
 | Bambu project storage | Bambu-specific storage strategy seam implemented; FTPS is default and future X2D/eMMC storage remains hardware-led work |
 | Moonraker/Klipper adapter | Foundation, state mapping, print execution and external-spool semantics implemented |
 | Moonraker transport | HTTP/WebSocket implementation and CI validation complete; physical-printer validation pending |
-| Web UI foundation | React/TypeScript/Vite interface with React Router, TanStack Query, i18next, printer cockpit, queue/material/farm views and responsive layout; public API/realtime wiring pending |
+| Web UI | React/TypeScript/Vite with React Router, TanStack Query, i18next, responsive fleet/queue/material/farm/system views, Spool Inventory and `/printers/:printerId` cockpit; public API/realtime wiring pending |
 
 The queue deliberately persists `DISPATCHING` before invoking a printer side effect and treats uncertain starts as `INDETERMINATE`, preventing a process restart from blindly starting the same job twice. Confirmed jobs can then advance through `PREPARING`, `PRINTING`, `PAUSED`, `COMPLETED`, `FAILED` or `CANCELLED` from normalized fleet events when a stable `vendor_job_id` matches.
 
@@ -100,7 +100,8 @@ Work still includes:
 - inventory persistence plus automated reservation/consumption integration with completed print jobs and material systems;
 - deeper Bambu-only capabilities such as AMS operations, drying, HMS, K profiles and dual-nozzle controls;
 - persisted printer configuration and dynamic fleet management;
-- public REST/WebSocket API and live web-UI integration replacing the current demo gateway;
+- public REST/WebSocket API and live web-UI integration replacing the current demo gateways;
+- real UI mutations for printer, queue and inventory commands once the public API exists;
 - production Docker/Umbrel deployment packaging;
 - additional vendor adapters after the common contracts are proven.
 
@@ -136,6 +137,8 @@ Key documents include:
 - [Moonraker/Klipper adapter foundation](docs/design/moonraker-adapter-foundation.md)
 - [Moonraker HTTP/WebSocket transport](docs/design/moonraker-http-transport.md)
 - [Web UI foundation](docs/design/web-ui-foundation.md)
+- [Frontend parallel development policy](docs/design/frontend-parallel-development.md)
+- [Current project status](docs/project-status.md)
 
 ## Development
 
@@ -167,6 +170,8 @@ npm run build
 ```
 
 The production frontend builds to static assets; deployment packaging lives under `deployment/`.
+
+Frontend and backend development may proceed in parallel. Frontend feature branches use merged `main` as the authoritative backend contract state, keep server state behind typed query gateways, and are reconciled with current `main` plus a fresh Web UI gate before merge.
 
 Implementation changes should respect the dependency boundaries defined by the ADR/design documents and include tests for new contracts, adapters and failure semantics.
 
