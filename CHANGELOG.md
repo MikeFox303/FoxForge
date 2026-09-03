@@ -42,6 +42,8 @@ FoxForge has not published a stable release yet, so development milestones are l
 - G-code upload to Moonraker's `gcodes` root with SHA-256 checksum and explicit print start after a confirmed upload.
 - Fail-safe print-start error semantics that surface post-request timeout/network ambiguity as `INDETERMINATE` instead of permitting an automatic duplicate start.
 - Local fake Moonraker HTTP/WebSocket server tests covering authentication, subscription updates, multipart checksum upload/start, and indeterminate start timeout.
+- Registry-ready `create_moonraker_http_adapter()` production factory so concrete Moonraker wiring remains a composition-root concern rather than a branch inside `AdapterRegistry`.
+- Moonraker HTTP/WebSocket transport design documenting wire semantics, safety boundaries, test coverage, and the remaining physical-printer validation gate.
 
 ### Changed
 
@@ -66,14 +68,14 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 5 Moonraker adapter foundation merged through PR #6.
 - Phase 5 squash commit: `10aa2f5dfa21d46f1eb0b0691caf9814fedc0f4e`.
 - Phase 5 final PR CI run `33807094777` passed Ruff lint, Ruff formatting, the full suite, mixed Bambu/Moonraker fleet tests and architecture guards on Python 3.12 and Python 3.13.
-- Phase 6 Moonraker HTTP/WebSocket transport integration tests are in progress on `feat/moonraker-http-transport`.
+- Phase 6 Moonraker HTTP/WebSocket transport push gate `33807824445` passed Ruff lint, Ruff formatting, socket-level HTTP/WebSocket integration tests, factory tests, and the full suite on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
 - No production Bambu MQTT/FTP transport has been wired into `BambuAdapter` yet.
 - The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package.
 - Queue scheduling, automatic retry/backoff, event-driven completion tracking and inventory reservations are not yet implemented.
-- Moonraker HTTP/WebSocket transport is implemented and under CI validation, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
+- Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
 
 ## 2026-09-03 — Phase 1: Printer domain foundation
 
