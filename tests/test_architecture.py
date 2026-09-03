@@ -56,3 +56,19 @@ def test_queue_storage_has_no_vendor_imports() -> None:
         ("foxforge.adapters", "bambu", "moonraker"),
     )
     assert violations == []
+
+
+def test_bambu_adapter_does_not_import_moonraker() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/adapters/bambu"),
+        ("moonraker",),
+    )
+    assert violations == []
+
+
+def test_moonraker_adapter_does_not_import_bambu_or_preserved_integrations() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/adapters/moonraker"),
+        ("bambu", "integrations.bambuddy", "x2d_port6000"),
+    )
+    assert violations == []
