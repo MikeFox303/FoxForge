@@ -126,7 +126,9 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 10 safe queue retry runner merged through PR #12.
 - Phase 10 squash commit: `6cb3332cc20d9a7ddfb416077c73d0ebba0cb61e`.
 - Phase 10 final PR CI run `33813103049` passed Ruff lint, Ruff formatting, retry/backoff/concurrency tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 11 inventory foundation push gate run `33814252832` passed Ruff lint, Ruff formatting, inventory model/service/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13; final pull-request gate remains required before merge.
+- Phase 11 inventory foundation merged through PR #13.
+- Phase 11 squash commit: `eeacb8fcd12f704b0d97d1dce02874f12d103a2d`.
+- Phase 11 final PR CI run `33814461673` passed Ruff lint, Ruff formatting, inventory model/service/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
