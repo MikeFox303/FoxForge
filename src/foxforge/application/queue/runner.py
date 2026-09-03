@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -50,27 +51,29 @@ class QueueRunner:
     def __init__(self, queue: QueueService, *, retry_policy: QueueRetryPolicy | None = None) -> None:
         self._queue = queue
         self._retry_policy = retry_policy or QueueRetryPolicy()
+        self._run_lock = asyncio.Lock()
 
     @property
     def retry_policy(self) -> QueueRetryPolicy:
         return self._retry_policy
 
     async def run_once(self, *, now: datetime | None = None) -> tuple[QueueEntry, ...]:
-        observed_now = normalize_utc(now or utc_now(), field_name="now")
-        await self._queue.start()
+        async with self._run_lock:
+            observed_now = normalize_utc(now or utc_now(), field_name="now")
+            await self._queue.start()
 
-        processed: list[QueueEntry] = []
-        reserved_printers: set[str] = set()
-        for entry in self._queue.list():
-            if entry.printer_id in reserved_printers:
-                continue
-            if not self._is_candidate(entry, observed_now):
-                continue
+            processed: list[QueueEntry] = []
+            reserved_printers: set[str] = set()
+            for entry in self._queue.list():
+                if entry.printer_id in reserved_printers:
+                    continue
+                if not self._is_candidate(entry, observed_now):
+                    continue
 
-            reserved_printers.add(entry.printer_id)
-            processed.append(await self._queue.dispatch(entry.queue_id))
+                reserved_printers.add(entry.printer_id)
+                processed.append(await self._queue.dispatch(entry.queue_id))
 
-        return tuple(processed)
+            return tuple(processed)
 
     def _is_candidate(self, entry: QueueEntry, now: datetime) -> bool:
         if entry.receipt is not None:
