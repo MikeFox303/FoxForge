@@ -57,6 +57,7 @@ class FleetService:
         self._adapters: dict[str, PrinterAdapter] = {}
         self._subscribers: set[asyncio.Queue[PrinterEvent]] = set()
         self._relay_tasks: dict[str, asyncio.Task[None]] = {}
+        self._relay_ready: dict[str, asyncio.Event] = {}
         self._closed = False
 
         for adapter in adapters:
@@ -83,7 +84,9 @@ class FleetService:
 
     async def connect(self, printer_id: str) -> None:
         self._ensure_open()
-        await self._require_adapter(printer_id).connect()
+        adapter = self._require_adapter(printer_id)
+        await self._ensure_relays_ready()
+        await adapter.connect()
 
     async def disconnect(self, printer_id: str) -> None:
         self._ensure_open()
@@ -91,6 +94,7 @@ class FleetService:
 
     async def connect_all(self) -> None:
         self._ensure_open()
+        await self._ensure_relays_ready()
         for printer_id in self.printer_ids:
             await self._adapters[printer_id].connect()
 
@@ -117,6 +121,7 @@ class FleetService:
 
         tasks = tuple(self._relay_tasks.values())
         self._relay_tasks.clear()
+        self._relay_ready.clear()
         for task in tasks:
             task.cancel()
         if tasks:
@@ -137,10 +142,18 @@ class FleetService:
         for printer_id, adapter in self._adapters.items():
             task = self._relay_tasks.get(printer_id)
             if task is None or task.done():
-                self._relay_tasks[printer_id] = asyncio.create_task(self._relay_events(adapter))
+                ready = asyncio.Event()
+                self._relay_ready[printer_id] = ready
+                self._relay_tasks[printer_id] = asyncio.create_task(self._relay_events(adapter, ready))
 
-    async def _relay_events(self, adapter: PrinterAdapter) -> None:
+    async def _ensure_relays_ready(self) -> None:
+        self._ensure_relays()
+        if self._relay_ready:
+            await asyncio.gather(*(ready.wait() for ready in self._relay_ready.values()))
+
+    async def _relay_events(self, adapter: PrinterAdapter, ready: asyncio.Event) -> None:
         stream = adapter.events()
+        ready.set()
         try:
             async for event in stream:
                 self._emit(event)
