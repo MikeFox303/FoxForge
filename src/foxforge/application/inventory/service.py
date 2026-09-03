@@ -243,10 +243,10 @@ class InventoryService:
         note: str | None,
     ) -> SpoolAdjustment:
         spool = self.get_spool(spool_id)
-        if spool.archived:
-            raise ArchivedSpoolError("archived spool cannot receive new mass adjustments")
-
         key = idempotency_key.strip()
+        if not key:
+            raise ValueError("idempotency_key must not be empty")
+
         existing = self._store.get_adjustment_by_key(key)
         if existing is not None:
             if (
@@ -257,6 +257,9 @@ class InventoryService:
             ):
                 return existing
             raise InventoryIdempotencyConflictError(f"idempotency key already used with different data: {key}")
+
+        if spool.archived:
+            raise ArchivedSpoolError("archived spool cannot receive new mass adjustments")
 
         current = self.balance(spool_id).remaining_filament_mass_g
         next_remaining = current + delta
