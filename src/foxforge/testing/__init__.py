@@ -3,8 +3,8 @@
 
 from .fake_printer import (
     FakeMaterialSystemCapability,
-    FakePrintExecutionCapability,
     FakePrinterAdapter,
+    FakePrintExecutionCapability,
     build_fake_printer,
 )
 
