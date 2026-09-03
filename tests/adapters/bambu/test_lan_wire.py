@@ -9,8 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from foxforge.adapters.bambu import BambuLanSettings, BambuTransportError
-from foxforge.adapters.bambu import lan_wire
+from foxforge.adapters.bambu import BambuLanSettings, BambuTransportError, lan_wire
 
 
 class _FakeSocket:
