@@ -34,6 +34,14 @@ def test_printer_domain_has_no_vendor_adapter_imports() -> None:
     assert violations == []
 
 
+def test_inventory_domain_is_independent_from_printer_and_vendor_packages() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/domain/inventory"),
+        ("foxforge.domain.printers", "foxforge.adapters", "bambu", "moonraker"),
+    )
+    assert violations == []
+
+
 def test_application_layer_has_no_vendor_adapter_imports() -> None:
     violations = _forbidden_imports(
         Path("src/foxforge/application"),
