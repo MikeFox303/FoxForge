@@ -75,6 +75,12 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Editable empty-spool mass, purchase date, manufacturer/product/color metadata, archive rules and remaining/used filament balance calculation.
 - Inventory contract tests covering balance limits, correction audit history, idempotency, archive behavior, assignment conflicts and movement between multi-slot/external material sources.
 - Inventory foundation design documenting backend/UI coordination, the future API read-model boundary and the next durable SQLite slice.
+- Phase 12 `SQLiteInventoryStore` implementing the existing `InventoryStore` port under `backend/src/foxforge/infrastructure/inventory`.
+- Versioned SQLite persistence for spool metadata, append-only adjustments and physical slot assignments with exact `Decimal`-as-string serialization.
+- Database-level unique adjustment idempotency keys, spool/slot uniqueness, foreign keys, WAL mode and a five-second busy timeout for the current single-container runtime.
+- SQLite restart tests proving spool metadata, editable empty-spool weight, ledger balance, archived adjustment replay and physical slot assignments survive store/process recreation.
+- Inventory infrastructure architecture guard preventing printer or vendor dependencies from leaking into persistence code.
+- Phase 12 design documenting persistence schema, restart/idempotency guarantees, backend/frontend isolation and the future public API boundary.
 
 ### Changed
 
@@ -84,12 +90,14 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Queue dispatch persists `DISPATCHING` before invoking the adapter side effect; a process restart from that state requires reconciliation rather than an automatic retry.
 - Confirmed queue receipts are now retained through preparing, printing, pause/resume, completion, cancellation and remotely observed failure for future accounting/reconciliation.
 - `FAILED` queue entries may now retain a receipt when the confirmed remote print failed; pre/at-dispatch failures still have no receipt.
-- Queue lifecycle correlation never guesses by filename or printer alone; entries without a confirmed remote `vendor_job_id` remain at the last safely known state.
+- Queue lifecycle correlation never guesses by filename or printer alone; entries without a confirmed `vendor_job_id` remain at the last safely known state.
 - Safe automatic retry is now limited to receipt-free `FAILED` entries whose normalized error explicitly sets `retryable=True`; the retry uses the original durable `dispatch_id`.
 - `BLOCKED` entries may be reassessed by the runner without incrementing `attempt_count`; attempts are counted only after QueueService persists the `DISPATCHING` boundary.
 - Inventory mass history is append-only: manual fixes create `CORRECTION` adjustments instead of rewriting prior consumption records.
 - Inventory assignment treats `slot_id` as opaque and vendor-independent; AMS/CFS/external-spool semantics remain in printer capabilities rather than inventory production code.
 - Phase 11 intentionally does not modify `frontend/`, `README.md` or `docs/README.md`, allowing the parallel web-interface PR to continue without backend/UI file conflicts. Future HTTP DTOs will adapt `InventoryService` read models rather than making current frontend mock types authoritative.
+- Repository layout now follows ADR 0002: Python runtime code/tests/packaging live under `backend/`, the web UI owns `frontend/`, and Docker/Umbrel packaging belongs under `deployment/`.
+- Phase 12 follows the `backend/` ownership boundary and leaves `frontend/` untouched while the web-interface stream develops in parallel.
 - CI now prints the exact Ruff formatter diff when formatting validation fails.
 - Runtime dependencies now include `aiohttp>=3.12,<4` for Moonraker HTTP/WebSocket transport support and `paho-mqtt>=2.1,<3` for Bambu LAN MQTT support.
 - Bambu FTPS whole-transfer deadlines are derived from file size and a pessimistic transfer floor rather than reusing the short MQTT command timeout.
@@ -129,13 +137,21 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 11 inventory foundation merged through PR #13.
 - Phase 11 squash commit: `eeacb8fcd12f704b0d97d1dce02874f12d103a2d`.
 - Phase 11 final PR CI run `33814461673` passed Ruff lint, Ruff formatting, inventory model/service/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
+- ADR 0002 repository-layout migration merged through PR #14.
+- Repository-layout squash commit: `294ebc652504dc488a35740ff92c6c98ad20d0df`.
+- Repository-layout validation run `33814488172` passed installation, Ruff lint/format and the existing pytest suite from `backend/` on Python 3.12 and Python 3.13.
+- Current project-status documentation merged through PR #16 at `69ed3f2567de466799c3da626778a94289f135ba`.
+- Phase 11 merge validation was corrected in changelog through PR #17 at `cc9232992ee9fee598ef9e4e8a65717b225487b6`.
+- Phase 12 durable SQLite inventory merged through PR #18.
+- Phase 12 squash commit: `5f150b130679e572e057da3210f28b6ccad1f8ec`.
+- Phase 12 final PR CI run `33815207238` passed Ruff lint, Ruff formatting, SQLite restart/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
 - Bambu LAN MQTT/implicit-FTPS transport is merged and CI validated, but physical Bambu connectivity, storage, and print-start validation are still pending.
 - X2D/N6-specific internal-eMMC storage remains a hardware-led future implementation behind `BambuProjectStorage`; the former port-6000 experiment is no longer present in the current source tree.
 - A persistent scheduler/timer, farm-level printer selection, priorities/deadlines, and multi-process queue leases are not yet implemented above the deterministic single-pass runner.
-- Durable SQLite inventory persistence, queue-driven automatic consumption, reservations and material-estimate reconciliation are not yet implemented above the Phase 11 inventory contracts.
+- Queue-driven automatic consumption, material reservations and trustworthy per-material usage-estimate reconciliation are not yet connected to the durable inventory store.
 - Public HTTP/API DTOs for inventory are not yet implemented; the parallel frontend continues to use its independent mock gateway until a stable API boundary is added.
 - Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
 
