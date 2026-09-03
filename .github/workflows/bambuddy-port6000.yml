@@ -1,0 +1,35 @@
+name: Bambuddy X2D port 6000
+
+on:
+  push:
+    paths:
+      - 'integrations/bambuddy/x2d_port6000/**'
+      - '.github/workflows/bambuddy-port6000.yml'
+  pull_request:
+    paths:
+      - 'integrations/bambuddy/x2d_port6000/**'
+      - '.github/workflows/bambuddy-port6000.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  transport:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: integrations/bambuddy/x2d_port6000
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install checks
+        run: python -m pip install pytest ruff
+      - name: Ruff
+        run: |
+          ruff check bambu_tunnel_local.py test_bambu_tunnel_local.py
+          ruff format --check bambu_tunnel_local.py test_bambu_tunnel_local.py
+      - name: Unit tests
+        run: pytest -q test_bambu_tunnel_local.py
