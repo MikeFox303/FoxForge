@@ -5,13 +5,13 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from dataclasses import replace
 from typing import TypeVar, cast
 from uuid import uuid4
 
 from foxforge.domain.printers import (
     ConnectionState,
-    PrinterAdapterError,
     PrinterEvent,
     PrinterEventKind,
     PrinterIdentity,
@@ -100,10 +100,8 @@ class BambuAdapter:
         self._pump_task = None
         if task is not None:
             task.cancel()
-            try:
+            with suppress(asyncio.CancelledError):
                 await task
-            except asyncio.CancelledError:
-                pass
         try:
             await self._transport.disconnect()
         except BambuTransportError as error:
