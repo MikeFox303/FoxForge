@@ -9,7 +9,6 @@ from uuid import uuid4
 
 import pytest
 
-from conftest import make_artifact
 from foxforge.domain.printers import OperationalState, PrinterAdapterError, PrinterErrorCode
 from foxforge.domain.printers.capabilities import (
     MaterialBinding,
@@ -19,6 +18,7 @@ from foxforge.domain.printers.capabilities import (
     PrintExecutionRequest,
 )
 from foxforge.testing import build_fake_printer
+from tests.helpers import make_artifact
 
 
 def test_assess_is_side_effect_free_and_validates_ready_request(tmp_path, printer_identity, material_snapshot) -> None:
