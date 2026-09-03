@@ -157,8 +157,8 @@ def test_runner_skips_nonretryable_and_exhausted_failures(tmp_path, printer_iden
             state=QueueEntryState.FAILED,
             error=replace(nonretryable.error, retryable=True),
             attempt_count=2,
-            last_attempt_at=nonretryable.last_attempt_at,
-            updated_at=nonretryable.updated_at,
+            last_attempt_at=retryable_entry.updated_at,
+            updated_at=retryable_entry.updated_at,
         )
         store.save(exhausted)
 
