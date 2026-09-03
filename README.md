@@ -21,6 +21,21 @@ FoxForge is intended to become a self-hosted 3D-printer management platform with
 
 Bambu-specific capabilities such as AMS-family behavior, drying, HMS, K profiles, dual-nozzle control, Virtual Printer and future X2D-specific transport can remain first-class Bambu features without leaking Bambu concepts into Moonraker or other adapters.
 
+## Repository layout
+
+FoxForge separates its implementation into explicit top-level areas:
+
+```text
+FoxForge/
+├── backend/       Python 3.12+ core, adapters, queue, persistence and future REST/WebSocket API
+├── frontend/      TypeScript/React web application
+├── deployment/    Docker and Umbrel packaging
+├── docs/          ADRs and durable design specifications
+└── integrations/  isolated upstream migration/provenance material
+```
+
+The layout is governed by [ADR 0002: Repository layout](docs/adr/0002-repository-layout.md). Backend, frontend and deployment remain independently testable but ship as one FoxForge application.
+
 ## Architecture
 
 FoxForge follows a ports-and-adapters design.
@@ -106,6 +121,7 @@ Durable architecture and implementation decisions live in [`docs/`](docs/README.
 Key documents include:
 
 - [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md)
+- [ADR 0002: Repository layout](docs/adr/0002-repository-layout.md)
 - [Printer contracts v1](docs/design/printer-contracts.md)
 - [Bambu adapter foundation](docs/design/bambu-adapter-foundation.md)
 - [Bambu LAN production transport](docs/design/bambu-lan-transport.md)
@@ -119,19 +135,21 @@ Key documents include:
 
 ## Development
 
-FoxForge currently targets **Python 3.12+**.
+FoxForge backend currently targets **Python 3.12+**.
 
 ```bash
 git clone https://github.com/MikeFox303/FoxForge.git
-cd FoxForge
+cd FoxForge/backend
 python -m venv .venv
 
 # Activate the virtual environment, then:
 pip install -e ".[dev]"
 pytest
-ruff check .
-ruff format --check .
+ruff check src tests
+ruff format --check src tests
 ```
+
+Frontend development uses its own Node/Vite toolchain under `frontend/`; deployment packaging lives under `deployment/`.
 
 Implementation changes should respect the dependency boundaries defined by the ADR/design documents and include tests for new contracts, adapters and failure semantics.
 
