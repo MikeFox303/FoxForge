@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+from dataclasses import replace
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -19,6 +21,7 @@ from foxforge.adapters.bambu import (
     BambuTransportError,
 )
 from foxforge.domain.printers import PrinterIdentity, utc_now
+from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat
 
 
 class FakeBambuTransport:
@@ -61,9 +64,6 @@ class FakeBambuTransport:
 
     async def push(self, state: BambuNativeState) -> None:
         await self._events.put(state)
-
-    async def close_events(self) -> None:
-        await self._events.put(None)
 
 
 @pytest.fixture
@@ -132,11 +132,12 @@ def fake_bambu_transport(bambu_idle_state) -> FakeBambuTransport:
     return FakeBambuTransport(bambu_idle_state)
 
 
-def make_3mf(path: Path):
-    from hashlib import sha256
+@pytest.fixture
+def bambu_3mf(tmp_path: Path) -> LocalPrintArtifact:
+    return make_3mf(tmp_path / "job.3mf")
 
-    from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat
 
+def make_3mf(path: Path) -> LocalPrintArtifact:
     payload = b"PK\x03\x04foxforge-test-3mf"
     path.write_bytes(payload)
     return LocalPrintArtifact(
@@ -150,6 +151,4 @@ def make_3mf(path: Path):
 
 
 def _with_connection(state: BambuNativeState, connected: bool) -> BambuNativeState:
-    from dataclasses import replace
-
     return replace(state, connected=connected, observed_at=utc_now())
