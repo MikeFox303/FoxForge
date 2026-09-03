@@ -32,7 +32,7 @@ class BambuStoredProject:
     storage_kind: BambuProjectStorageKind
 
     def __post_init__(self) -> None:
-        filename = _safe_remote_filename(self.remote_filename)
+        filename = _validated_remote_filename(self.remote_filename)
         url = self.project_url.strip()
         parts = urlsplit(url)
         if parts.scheme not in {"ftp", "brtc"}:
@@ -61,7 +61,10 @@ class FtpsBambuProjectStorage:
         self._wire = wire
 
     async def upload(self, local_path: Path, remote_filename: str) -> BambuStoredProject:
-        filename = _safe_remote_filename(remote_filename)
+        try:
+            filename = _validated_remote_filename(remote_filename)
+        except ValueError as error:
+            raise BambuTransportError(BambuTransportErrorKind.REJECTED, str(error)) from error
         await self._wire.upload(local_path, filename)
         return BambuStoredProject(
             remote_filename=filename,
@@ -70,11 +73,8 @@ class FtpsBambuProjectStorage:
         )
 
 
-def _safe_remote_filename(filename: str) -> str:
+def _validated_remote_filename(filename: str) -> str:
     basename = Path(filename).name
     if not basename or basename != filename or basename in {".", ".."}:
-        raise BambuTransportError(
-            BambuTransportErrorKind.REJECTED,
-            "Bambu remote filename must be a plain basename",
-        )
+        raise ValueError("Bambu remote filename must be a plain basename")
     return basename
