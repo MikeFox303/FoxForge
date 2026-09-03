@@ -5,20 +5,24 @@ import { useQuery } from '@tanstack/react-query';
 
 import type { FleetData } from '../domain';
 import { fleetData } from '../mockData';
+import { demoModeEnabled, loadFleetFromApi } from './apiClient';
 
 const fleetQueryKey = ['fleet', 'snapshot'] as const;
+const emptyFleet: FleetData = { printers: [], queue: [] };
 
 async function loadFleetSnapshot(): Promise<FleetData> {
-  // Temporary seam: the public HTTP API will replace this in-memory gateway.
-  return fleetData;
+  return demoModeEnabled() ? fleetData : loadFleetFromApi();
 }
 
 export function useFleetData(): FleetData {
+  const demo = demoModeEnabled();
   const query = useQuery({
-    queryKey: fleetQueryKey,
+    queryKey: [...fleetQueryKey, demo ? 'demo' : 'live'],
     queryFn: loadFleetSnapshot,
-    initialData: fleetData,
+    initialData: demo ? fleetData : undefined,
+    placeholderData: demo ? fleetData : emptyFleet,
+    refetchInterval: demo ? false : 5_000,
   });
 
-  return query.data;
+  return query.data ?? emptyFleet;
 }

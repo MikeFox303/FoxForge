@@ -1,0 +1,21 @@
+services:
+  foxforge:
+    image: ghcr.io/mikefox303/foxforge:main
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile
+    restart: unless-stopped
+    init: true
+    ports:
+      - "8420:8000"
+    environment:
+      TZ: Europe/Kyiv
+      FOXFORGE_PORT: "8000"
+      FOXFORGE_DATA_DIR: /data
+      FOXFORGE_CONFIG: /data/config.json
+      FOXFORGE_RECONNECT_SECONDS: "15"
+    volumes:
+      - foxforge_data:/data
+
+volumes:
+  foxforge_data:

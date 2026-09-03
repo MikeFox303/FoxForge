@@ -1,0 +1,101 @@
+name: FoxForge container
+
+on:
+  push:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/docker/**'
+      - '.github/workflows/container.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/docker/**'
+      - '.github/workflows/container.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Build test image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/Dockerfile
+          load: true
+          push: false
+          tags: foxforge:ci
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            VERSION=0.1.0.dev0
+      - name: Smoke test unified server
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-data"
+          docker run -d --name foxforge-smoke \
+            -p 18080:8000 \
+            -v "${RUNNER_TEMP}/foxforge-data:/data" \
+            foxforge:ci
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/healthz > /tmp/health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/health.json
+          grep -q '"status": "ok"' /tmp/health.json
+          curl --fail --silent http://127.0.0.1:18080/ | grep -q 'FoxForge'
+          test -f "${RUNNER_TEMP}/foxforge-data/config.json"
+          test -f "${RUNNER_TEMP}/foxforge-data/foxforge.sqlite3"
+      - name: Container logs
+        if: always()
+        run: docker logs foxforge-smoke || true
+      - name: Stop smoke container
+        if: always()
+        run: docker rm -f foxforge-smoke || true
+
+  publish-image:
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    needs: verify-image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Container metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/mikefox303/foxforge
+          tags: |
+            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=sha,prefix=sha-
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - name: Publish multi-architecture image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ github.ref_name }}
+          provenance: mode=max
+          sbom: true
