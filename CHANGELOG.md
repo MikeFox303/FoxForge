@@ -67,6 +67,14 @@ FoxForge has not published a stable release yet, so development milestones are l
 - One-entry-per-printer processing per runner pass plus serialization of concurrent `run_once()` calls inside one runner instance.
 - Queue retry tests covering backoff deadlines, stable `dispatch_id`, maximum attempts, blocked reassessment, `INDETERMINATE`, remote failed jobs, and concurrent runner calls.
 - Queue retry/single-pass runner design documenting the current single-container concurrency boundary and future scheduler requirements.
+- Phase 11 independent `domain.inventory` bounded context for spool metadata, mass accounting, archive state and physical slot assignment.
+- Phase 11 `InventoryService` and `InventoryStore` application boundary with deterministic `InMemoryInventoryStore` contract implementation.
+- Immutable spool-adjustment ledger using `Decimal` mass accounting for consumption, waste, returns and manual corrections.
+- Per-adjustment idempotency keys with conflicting-replay detection and exactly-once replay semantics that remain valid after a spool is later archived.
+- Inventory-owned `(printer_id, slot_id) -> spool_id` assignment state while keeping `spool_id` out of `MaterialSystemCapability` and printer adapter snapshots.
+- Editable empty-spool mass, purchase date, manufacturer/product/color metadata, archive rules and remaining/used filament balance calculation.
+- Inventory contract tests covering balance limits, correction audit history, idempotency, archive behavior, assignment conflicts and movement between multi-slot/external material sources.
+- Inventory foundation design documenting backend/UI coordination, the future API read-model boundary and the next durable SQLite slice.
 
 ### Changed
 
@@ -79,6 +87,9 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Queue lifecycle correlation never guesses by filename or printer alone; entries without a confirmed remote `vendor_job_id` remain at the last safely known state.
 - Safe automatic retry is now limited to receipt-free `FAILED` entries whose normalized error explicitly sets `retryable=True`; the retry uses the original durable `dispatch_id`.
 - `BLOCKED` entries may be reassessed by the runner without incrementing `attempt_count`; attempts are counted only after QueueService persists the `DISPATCHING` boundary.
+- Inventory mass history is append-only: manual fixes create `CORRECTION` adjustments instead of rewriting prior consumption records.
+- Inventory assignment treats `slot_id` as opaque and vendor-independent; AMS/CFS/external-spool semantics remain in printer capabilities rather than inventory production code.
+- Phase 11 intentionally does not modify `frontend/`, `README.md` or `docs/README.md`, allowing the parallel web-interface PR to continue without backend/UI file conflicts. Future HTTP DTOs will adapt `InventoryService` read models rather than making current frontend mock types authoritative.
 - CI now prints the exact Ruff formatter diff when formatting validation fails.
 - Runtime dependencies now include `aiohttp>=3.12,<4` for Moonraker HTTP/WebSocket transport support and `paho-mqtt>=2.1,<3` for Bambu LAN MQTT support.
 - Bambu FTPS whole-transfer deadlines are derived from file size and a pessimistic transfer floor rather than reusing the short MQTT command timeout.
@@ -112,14 +123,18 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 9 queue event lifecycle and port-6000 retirement merged through PR #11.
 - Phase 9 squash commit: `0fde0c7da472f29764b1ca37822e934f983015f4`.
 - Phase 9 final PR CI run `33812534681` passed Ruff lint, Ruff formatting, lifecycle/restart/SQLite tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 10 safe queue retry runner push gate run `33812903458` passed Ruff lint, Ruff formatting, retry/backoff/concurrency tests, architecture checks, and the full suite on Python 3.12 and Python 3.13; final pull-request gate remains required before merge.
+- Phase 10 safe queue retry runner merged through PR #12.
+- Phase 10 squash commit: `6cb3332cc20d9a7ddfb416077c73d0ebba0cb61e`.
+- Phase 10 final PR CI run `33813103049` passed Ruff lint, Ruff formatting, retry/backoff/concurrency tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
+- Phase 11 inventory foundation push gate run `33814252832` passed Ruff lint, Ruff formatting, inventory model/service/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13; final pull-request gate remains required before merge.
 
 ### Not yet connected
 
 - Bambu LAN MQTT/implicit-FTPS transport is merged and CI validated, but physical Bambu connectivity, storage, and print-start validation are still pending.
 - X2D/N6-specific internal-eMMC storage remains a hardware-led future implementation behind `BambuProjectStorage`; the former port-6000 experiment is no longer present in the current source tree.
 - A persistent scheduler/timer, farm-level printer selection, priorities/deadlines, and multi-process queue leases are not yet implemented above the deterministic single-pass runner.
-- Inventory reservations and automatic consumption accounting are not yet implemented.
+- Durable SQLite inventory persistence, queue-driven automatic consumption, reservations and material-estimate reconciliation are not yet implemented above the Phase 11 inventory contracts.
+- Public HTTP/API DTOs for inventory are not yet implemented; the parallel frontend continues to use its independent mock gateway until a stable API boundary is added.
 - Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
 
 ## 2026-09-03 — Phase 1: Printer domain foundation
