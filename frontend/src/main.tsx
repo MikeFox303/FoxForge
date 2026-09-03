@@ -9,6 +9,7 @@ import { FoxForgeApp } from './FoxForgeApp';
 import './styles.css';
 import './refinements.css';
 import './inventory.css';
+import './printer-detail.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
