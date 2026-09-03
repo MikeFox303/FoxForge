@@ -1,20 +1,16 @@
 # Bambuddy integration work
 
-FoxForge keeps only Bambuddy-related work that is useful for future upstream contributions or local integration experiments. It is **not** a replacement Bambuddy distribution.
+FoxForge keeps only Bambuddy-related records that are useful for future upstream contributions or migration/provenance history. It is **not** a replacement Bambuddy distribution.
 
 Production on Umbrel must continue to consume official stable releases from `maziggy/bambuddy` through `MikeFox303/umbrel-3d-printing-store`.
 
-## X2D native internal-storage transport
+## X2D storage experiment retired
 
-`x2d-port6000/` preserves the tested `BambuTunnelLocal :6000` transport work for X2D/N6-style internal eMMC uploads. The transport is intentionally isolated from Bambuddy's scheduler and MQTT print dispatch until hardware validation is completed.
+The former `integrations/bambuddy/x2d_port6000/` implementation and its dedicated CI workflow were removed on 2026-09-04.
 
-Origin before migration:
+FoxForge no longer keeps or plans to promote that experimental implementation. If X2D/N6 internal-eMMC storage requires a transport different from standard implicit FTPS, it will be implemented as new production FoxForge code behind the Bambu-specific `BambuProjectStorage` boundary, based on fresh physical validation and with any required upstream/reverse-engineering provenance documented at that time.
 
-- former fork branch: `MikeFox303/bambuddy:contrib/x2d-port6000`
-- upstream base at migration: `maziggy/bambuddy@2d16ed9ad01ec705d7e746d2ee48797ac20218c1`
-- fork transport CI result: Ruff + unit tests PASS
-
-The protocol implementation was derived from independently reverse-engineered AGPL work in `ClusterM/open-bamboo-networking`; attribution is retained in the source module.
+The historical experiment originated from the former `MikeFox303/bambuddy:contrib/x2d-port6000` branch and was informed by AGPL-compatible reverse-engineering work in `ClusterM/open-bamboo-networking`. Git history remains the canonical historical record; the experimental source itself is intentionally no longer present in the current tree.
 
 ## Russian / Ukrainian Bambuddy localization
 
@@ -27,4 +23,4 @@ The original contribution was one commit (`2b96bc7ee920402e8290fc7d3fa62fb2ae8c3
 
 ## Retired fork
 
-The former `MikeFox303/bambuddy` repository was used temporarily for X2D/FilaMan production development. Its production role ended on 2026-09-03 when the Umbrel Store moved to official `maziggy/bambuddy` releases. FoxForge is the new home for any future experimental work.
+The former `MikeFox303/bambuddy` repository was used temporarily for X2D/FilaMan production development. Its production role ended on 2026-09-03 when the Umbrel Store moved to official `maziggy/bambuddy` releases. FoxForge is the home for durable architecture, newly written printer-management code, and selected migration/upstream records.
