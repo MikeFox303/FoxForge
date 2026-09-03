@@ -11,6 +11,7 @@ import json
 import socket
 import ssl
 from collections.abc import AsyncIterator
+from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -124,7 +125,7 @@ class PahoBambuMqttWire:
         except BambuTransportError:
             await self.disconnect()
             raise
-        except (OSError, mqtt.WebsocketConnectionError) as error:
+        except OSError as error:
             await self.disconnect()
             raise BambuTransportError(BambuTransportErrorKind.UNAVAILABLE, str(error)) from error
         except Exception as error:
@@ -137,7 +138,7 @@ class PahoBambuMqttWire:
             return
         self._closing = True
         self._client = None
-        with _ignore_runtime_error():
+        with suppress(RuntimeError):
             await asyncio.to_thread(client.disconnect)
         await asyncio.to_thread(client.loop_stop)
         self._messages.put_nowait(None)
@@ -175,12 +176,20 @@ class PahoBambuMqttWire:
                 raise item
             yield item
 
-    def _on_connect(self, client, userdata, flags, reason_code, properties) -> None:  # noqa: ANN001
+    def _on_connect(self, client, userdata, flags, reason_code, properties) -> None:
         code = _reason_code_value(reason_code)
         if code not in {0, None}:
-            kind = BambuTransportErrorKind.AUTHENTICATION if code in {4, 5, 134, 135} else BambuTransportErrorKind.REJECTED
+            kind = (
+                BambuTransportErrorKind.AUTHENTICATION
+                if code in {4, 5, 134, 135}
+                else BambuTransportErrorKind.REJECTED
+            )
             self._finish_connect(
-                BambuTransportError(kind, f"Bambu MQTT connection rejected: {reason_code}", vendor_code=str(code))
+                BambuTransportError(
+                    kind,
+                    f"Bambu MQTT connection rejected: {reason_code}",
+                    vendor_code=str(code),
+                )
             )
             return
         result, _mid = client.subscribe(self._settings.report_topic, qos=1)
@@ -195,7 +204,7 @@ class PahoBambuMqttWire:
             return
         self._finish_connect(None)
 
-    def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:  # noqa: ANN001
+    def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:
         if self._closing:
             return
         code = _reason_code_value(reason_code)
@@ -207,7 +216,7 @@ class PahoBambuMqttWire:
             )
         )
 
-    def _on_message(self, client, userdata, message) -> None:  # noqa: ANN001
+    def _on_message(self, client, userdata, message) -> None:
         try:
             payload = json.loads(message.payload.decode("utf-8"))
         except (UnicodeDecodeError, json.JSONDecodeError):
@@ -257,9 +266,13 @@ class ImplicitFtpsBambuWire:
             raise
         except ftplib.error_perm as error:
             message = str(error)
-            kind = BambuTransportErrorKind.AUTHENTICATION if message.startswith("530") else BambuTransportErrorKind.REJECTED
+            kind = (
+                BambuTransportErrorKind.AUTHENTICATION
+                if message.startswith("530")
+                else BambuTransportErrorKind.REJECTED
+            )
             raise BambuTransportError(kind, message) from error
-        except (OSError, ssl.SSLError, EOFError, ftplib.Error) as error:
+        except ftplib.all_errors as error:
             raise BambuTransportError(BambuTransportErrorKind.UNAVAILABLE, str(error)) from error
 
     def _upload_sync(self, local_path: Path, remote_filename: str) -> None:
@@ -275,10 +288,10 @@ class ImplicitFtpsBambuWire:
             ftp.prot_p()
             with local_path.open("rb") as handle:
                 ftp.storbinary(f"STOR {remote_filename}", handle, blocksize=1024 * 1024)
-            with _ignore_ftp_error():
+            with suppress(*ftplib.all_errors):
                 ftp.quit()
         finally:
-            with _ignore_ftp_error():
+            with suppress(*ftplib.all_errors):
                 ftp.close()
 
 
@@ -324,19 +337,3 @@ def _tls_context(verify: bool) -> ssl.SSLContext:
 def _reason_code_value(reason_code: object) -> int | None:
     value = getattr(reason_code, "value", reason_code)
     return value if isinstance(value, int) else None
-
-
-class _ignore_runtime_error:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):  # noqa: ANN001
-        return exc_type is not None and issubclass(exc_type, RuntimeError)
-
-
-class _ignore_ftp_error:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):  # noqa: ANN001
-        return exc_type is not None and issubclass(exc_type, (OSError, EOFError, ftplib.Error))
