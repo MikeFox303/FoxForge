@@ -15,10 +15,37 @@ from foxforge.application.queue import (
     QueueReconciliationRequiredError,
     QueueService,
 )
-from foxforge.domain.printers import PrinterErrorCode, utc_now
+from foxforge.domain.printers import (
+    ActiveJobSnapshot,
+    JobState,
+    OperationalState,
+    PrinterErrorCode,
+    utc_now,
+)
 from foxforge.domain.printers.capabilities import PrintAssessmentBlockerCode
 from foxforge.testing import FakePrinterAdapter, build_fake_printer
 from tests.helpers import make_artifact
+
+
+async def _wait_for_state(queue: QueueService, queue_id, state: QueueEntryState) -> None:
+    for _ in range(100):
+        if queue.get(queue_id).state == state:
+            return
+        await asyncio.sleep(0.005)
+    assert queue.get(queue_id).state == state
+
+
+def _job(vendor_job_id: str, state: JobState, *, progress: float | None = None) -> ActiveJobSnapshot:
+    return ActiveJobSnapshot(
+        vendor_job_id=vendor_job_id,
+        name="job.gcode",
+        state=state,
+        progress=progress,
+        elapsed_seconds=None,
+        remaining_seconds=None,
+        current_layer=None,
+        total_layers=None,
+    )
 
 
 def test_enqueue_persists_dispatch_id_before_submit(tmp_path, printer_identity) -> None:
@@ -169,5 +196,135 @@ def test_printer_without_print_execution_is_blocked_not_vendor_special_cased(tmp
         assert blocked.state == QueueEntryState.BLOCKED
         assert blocked.assessment is not None
         assert blocked.assessment.blockers[0].code == PrintAssessmentBlockerCode.UNKNOWN
+
+    asyncio.run(scenario())
+
+
+def test_queue_tracks_confirmed_job_lifecycle_from_normalized_fleet_events(tmp_path, printer_identity) -> None:
+    async def scenario() -> None:
+        adapter, _, _ = build_fake_printer(printer_identity, supports_material_bindings=False)
+        await adapter.connect()
+        queue = QueueService(FleetService([adapter]), InMemoryQueueStore())
+        entry = queue.enqueue(printer_identity.printer_id, make_artifact(tmp_path / "job.gcode"))
+        accepted = await queue.dispatch(entry.queue_id)
+        assert accepted.receipt is not None
+        vendor_job_id = accepted.receipt.vendor_job_id
+        assert vendor_job_id is not None
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.PREPARING),
+            operational_state=OperationalState.PREPARING,
+        )
+        await _wait_for_state(queue, entry.queue_id, QueueEntryState.PREPARING)
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.PRINTING, progress=0.25),
+            operational_state=OperationalState.PRINTING,
+        )
+        await _wait_for_state(queue, entry.queue_id, QueueEntryState.PRINTING)
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.PAUSED, progress=0.25),
+            operational_state=OperationalState.PAUSED,
+        )
+        await _wait_for_state(queue, entry.queue_id, QueueEntryState.PAUSED)
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.PRINTING, progress=0.5),
+            operational_state=OperationalState.PRINTING,
+        )
+        await _wait_for_state(queue, entry.queue_id, QueueEntryState.PRINTING)
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.COMPLETED, progress=1.0),
+            operational_state=OperationalState.COMPLETED,
+        )
+        await _wait_for_state(queue, entry.queue_id, QueueEntryState.COMPLETED)
+
+        completed = queue.get(entry.queue_id)
+        assert completed.receipt == accepted.receipt
+        assert completed.terminal is True
+
+    asyncio.run(scenario())
+
+
+def test_queue_ignores_unrelated_job_ids_and_terminal_state_cannot_regress(tmp_path, printer_identity) -> None:
+    async def scenario() -> None:
+        adapter, _, _ = build_fake_printer(printer_identity, supports_material_bindings=False)
+        await adapter.connect()
+        queue = QueueService(FleetService([adapter]), InMemoryQueueStore())
+        entry = queue.enqueue(printer_identity.printer_id, make_artifact(tmp_path / "job.gcode"))
+        accepted = await queue.dispatch(entry.queue_id)
+        assert accepted.receipt is not None
+        vendor_job_id = accepted.receipt.vendor_job_id
+        assert vendor_job_id is not None
+
+        adapter.set_active_job(
+            _job("someone-elses-job", JobState.PRINTING, progress=0.5),
+            operational_state=OperationalState.PRINTING,
+        )
+        await asyncio.sleep(0.02)
+        assert queue.get(entry.queue_id).state == QueueEntryState.ACCEPTED
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.COMPLETED, progress=1.0),
+            operational_state=OperationalState.COMPLETED,
+        )
+        await _wait_for_state(queue, entry.queue_id, QueueEntryState.COMPLETED)
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.PRINTING, progress=0.75),
+            operational_state=OperationalState.PRINTING,
+        )
+        await asyncio.sleep(0.02)
+        assert queue.get(entry.queue_id).state == QueueEntryState.COMPLETED
+
+    asyncio.run(scenario())
+
+
+def test_queue_start_reconciles_restored_accepted_entry_from_current_snapshot(tmp_path, printer_identity) -> None:
+    async def scenario() -> None:
+        adapter, _, _ = build_fake_printer(printer_identity, supports_material_bindings=False)
+        await adapter.connect()
+        fleet = FleetService([adapter])
+        store = InMemoryQueueStore()
+        first = QueueService(fleet, store)
+        entry = first.enqueue(printer_identity.printer_id, make_artifact(tmp_path / "job.gcode"))
+        accepted = await first.dispatch(entry.queue_id)
+        assert accepted.receipt is not None
+        vendor_job_id = accepted.receipt.vendor_job_id
+        assert vendor_job_id is not None
+        await first.aclose()
+
+        adapter.set_active_job(
+            _job(vendor_job_id, JobState.PRINTING, progress=0.4),
+            operational_state=OperationalState.PRINTING,
+        )
+
+        restored = QueueService(fleet, store)
+        await restored.start()
+        assert restored.get(entry.queue_id).state == QueueEntryState.PRINTING
+        await restored.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_indeterminate_entry_is_never_auto_reconciled_from_job_events(tmp_path, printer_identity) -> None:
+    async def scenario() -> None:
+        adapter, printing, _ = build_fake_printer(printer_identity, supports_material_bindings=False)
+        printing.make_next_submit_indeterminate()
+        await adapter.connect()
+        queue = QueueService(FleetService([adapter]), InMemoryQueueStore())
+        entry = queue.enqueue(printer_identity.printer_id, make_artifact(tmp_path / "job.gcode"))
+        uncertain = await queue.dispatch(entry.queue_id)
+        assert uncertain.state == QueueEntryState.INDETERMINATE
+
+        adapter.set_active_job(
+            _job(f"fake:{uncertain.request.dispatch_id}", JobState.PRINTING, progress=0.1),
+            operational_state=OperationalState.PRINTING,
+        )
+        await asyncio.sleep(0.02)
+        assert queue.get(entry.queue_id).state == QueueEntryState.INDETERMINATE
+        assert queue.get(entry.queue_id).receipt is None
 
     asyncio.run(scenario())

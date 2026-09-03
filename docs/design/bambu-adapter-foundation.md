@@ -9,7 +9,7 @@
 
 This document records the first Bambu-specific implementation slice built on top of the vendor-neutral FoxForge printer contracts.
 
-The goal is to prove the anti-corruption boundary before FoxForge connects real MQTT, FTP, cloud, camera, or X2D port-6000 transports.
+The goal is to prove the anti-corruption boundary before FoxForge connects concrete MQTT, project-storage, cloud, camera, or other Bambu-specific transports.
 
 ## Provenance
 
@@ -23,7 +23,7 @@ Its behavior and field selection are informed by public Bambu/Bambuddy behavior,
 
 No Bambuddy source file is copied into this adapter foundation.
 
-FoxForge also preserves a separate X2D `BambuTunnelLocal :6000` experiment under `integrations/bambuddy/x2d_port6000/`. That implementation has its own provenance notice because it was derived from AGPL-compatible reverse-engineering work in `ClusterM/open-bamboo-networking`. It remains intentionally isolated from print dispatch until hardware validation is complete.
+A former X2D port-6000 experiment was kept temporarily under `integrations/bambuddy/` during early migration work but was removed from the current tree on 2026-09-04. FoxForge will not promote that implementation. Future X2D/eMMC support, if required, will be newly written behind the Bambu-specific project-storage boundary after physical validation, with provenance documented for the implementation actually adopted.
 
 ## Layering
 
@@ -41,10 +41,10 @@ BambuAdapter
         v
 BambuTransport protocol
         |
-        +-- future MQTT transport
-        +-- future FTP/internal-storage transport
+        +-- LAN MQTT transport
+        +-- BambuProjectStorage strategies
         +-- future cloud/camera transports
-        +-- future validated X2D BambuTunnelLocal integration
+        `-- future validated X2D/eMMC storage strategy
 ```
 
 The application layer never receives `BambuNativeState`, AMS ids, tray ids, Bambu gcode-state strings, or Bambu transport exceptions.
@@ -59,7 +59,7 @@ The application layer never receives `BambuNativeState`, AMS ids, tray ids, Bamb
 - `BambuNativePrintRequest`
 - `BambuNativeMaterialRoute`
 
-These types are legal inside `foxforge.adapters.bambu` and concrete Bambu transport packages. They MUST NOT be imported by `foxforge.domain` or vendor-neutral application services.
+These types are legal inside `foxforge.adapters.bambu` and concrete Bambu transport modules. They MUST NOT be imported by `foxforge.domain` or vendor-neutral application services.
 
 ## State mapping
 
@@ -97,7 +97,7 @@ bambu:unit:0:tray:1
 
 Only the Bambu adapter parses or constructs this value. Common code treats it as an opaque `MaterialSlotId`.
 
-AMS, AMS 2 Pro, and AMS HT currently map to common `MaterialUnitKind.MULTI_SLOT`; external feed maps to `EXTERNAL`. Rich Bambu-only operations such as drying, filament backup, RFID-specific commands, and K-profile operations remain future Bambu extension capabilities.
+AMS, AMS 2 Pro, and AMS HT currently map to common `MaterialUnitKind.MULTI_SLOT`; external feed maps to `EXTERNAL`. Rich Bambu-only operations such as drying, filament backup, RFID-specific commands, and K-profile operations remain Bambu extension capabilities.
 
 Inventory `spool_id` remains outside the adapter exactly as required by Printer contracts v1.
 
@@ -113,21 +113,21 @@ Inventory `spool_id` remains outside the adapter exactly as required by Printer 
 - caches only confirmed `PrintDispatchReceipt` values for in-process idempotency;
 - translates Bambu transport errors into normalized `PrinterAdapterError` codes.
 
-The capability does not know whether the eventual transport uses legacy FTP, X2D internal eMMC transfer, MQTT, cloud, or another Bambu-specific mechanism.
+The capability does not know whether project delivery uses standard FTPS, a future X2D internal-eMMC strategy, cloud, or another Bambu-specific mechanism.
 
 ## `INDETERMINATE` semantics
 
 If the transport cannot prove whether a side-effecting start request was accepted, it raises a Bambu-native `INDETERMINATE` error which becomes common `PrinterErrorCode.INDETERMINATE`.
 
-The capability does not add a vendor-specific reconciliation method to the common contract. The future queue owns durable reconciliation and retry policy as specified in Printer contracts v1. Confirmed receipts are cached; ambiguous outcomes are not misrepresented as confirmed success.
+The capability does not add a vendor-specific reconciliation method to the common contract. The queue owns durable reconciliation and retry policy as specified in Printer contracts v1. Confirmed receipts are cached; ambiguous outcomes are not misrepresented as confirmed success.
 
-## Deliberately out of scope
+## Current and future scope
 
-This foundation does **not** yet provide:
+The foundation has since been extended with production-oriented LAN MQTT/TLS, standard FTPS project storage, the `BambuProjectStorage` seam, and production composition factories.
 
-- real Paho MQTT connectivity;
-- real Bambu FTP/FTPS uploads;
-- production X2D `:6000` uploads;
+Still outside the implemented production surface:
+
+- physically validated X2D/eMMC-specific project storage;
 - cloud authentication;
 - camera transport;
 - HMS detail capability;
@@ -152,6 +152,6 @@ The foundation is acceptable when:
 8. Existing common printer contract tests remain green.
 9. Python 3.12 and 3.13 CI plus Ruff remain green.
 
-## Next implementation step
+## Next Bambu implementation principle
 
-After this foundation is stable, the next Bambu work should implement a concrete LAN transport composition behind `BambuTransport`, starting with state ingestion and command dispatch while keeping file-transfer strategy pluggable. The X2D `BambuTunnelLocal :6000` path should only be promoted from `integrations/` after hardware validation proves the upload and print-start sequence end to end.
+New Bambu features should extend the existing typed adapter boundaries rather than reintroducing preserved experimental integration code. In particular, any X2D-specific storage behavior should be discovered on hardware and then implemented as a production `BambuProjectStorage` strategy with acceptance tests and explicit provenance.
