@@ -61,6 +61,12 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Terminal-state replay protection so completed, failed, or cancelled queue entries cannot regress from stale later events.
 - SQLite lifecycle test proving a completed remote job and its original dispatch receipt survive a store/process restart.
 - Queue event-lifecycle design documenting identity matching, restart reconciliation, replay safety, and the rule that `INDETERMINATE` is never auto-resolved.
+- Phase 10 `QueueRetryPolicy` with configurable initial delay, exponential multiplier, capped delay, and maximum attempt count.
+- Phase 10 `QueueRunner.run_once()` deterministic scheduling pass for pending/blocked entries and safe retryable pre-start failures.
+- Queue-runner protection that never retries `DISPATCHING`, `INDETERMINATE`, non-retryable failures, exhausted failures, or any receipt-bearing remote job.
+- One-entry-per-printer processing per runner pass plus serialization of concurrent `run_once()` calls inside one runner instance.
+- Queue retry tests covering backoff deadlines, stable `dispatch_id`, maximum attempts, blocked reassessment, `INDETERMINATE`, remote failed jobs, and concurrent runner calls.
+- Queue retry/single-pass runner design documenting the current single-container concurrency boundary and future scheduler requirements.
 
 ### Changed
 
@@ -71,6 +77,8 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Confirmed queue receipts are now retained through preparing, printing, pause/resume, completion, cancellation and remotely observed failure for future accounting/reconciliation.
 - `FAILED` queue entries may now retain a receipt when the confirmed remote print failed; pre/at-dispatch failures still have no receipt.
 - Queue lifecycle correlation never guesses by filename or printer alone; entries without a confirmed remote `vendor_job_id` remain at the last safely known state.
+- Safe automatic retry is now limited to receipt-free `FAILED` entries whose normalized error explicitly sets `retryable=True`; the retry uses the original durable `dispatch_id`.
+- `BLOCKED` entries may be reassessed by the runner without incrementing `attempt_count`; attempts are counted only after QueueService persists the `DISPATCHING` boundary.
 - CI now prints the exact Ruff formatter diff when formatting validation fails.
 - Runtime dependencies now include `aiohttp>=3.12,<4` for Moonraker HTTP/WebSocket transport support and `paho-mqtt>=2.1,<3` for Bambu LAN MQTT support.
 - Bambu FTPS whole-transfer deadlines are derived from file size and a pessimistic transfer floor rather than reusing the short MQTT command timeout.
@@ -101,13 +109,16 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Phase 8 Bambu project-storage separation merged through PR #9.
 - Phase 8 squash commit: `05522b5c3b8c99676eaa7adda59659261d115bea`.
 - Phase 8 final PR CI run `33811264258` passed Ruff lint, Ruff formatting, Bambu project-storage tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 9 queue event-lifecycle push gate run `33812314917` passed Ruff lint, Ruff formatting, lifecycle/restart/SQLite tests, architecture checks, and the full suite on Python 3.12 and Python 3.13; final pull-request gate remains required before merge.
+- Phase 9 queue event lifecycle and port-6000 retirement merged through PR #11.
+- Phase 9 squash commit: `0fde0c7da472f29764b1ca37822e934f983015f4`.
+- Phase 9 final PR CI run `33812534681` passed Ruff lint, Ruff formatting, lifecycle/restart/SQLite tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
+- Phase 10 safe queue retry runner push gate run `33812903458` passed Ruff lint, Ruff formatting, retry/backoff/concurrency tests, architecture checks, and the full suite on Python 3.12 and Python 3.13; final pull-request gate remains required before merge.
 
 ### Not yet connected
 
 - Bambu LAN MQTT/implicit-FTPS transport is merged and CI validated, but physical Bambu connectivity, storage, and print-start validation are still pending.
 - X2D/N6-specific internal-eMMC storage remains a hardware-led future implementation behind `BambuProjectStorage`; the former port-6000 experiment is no longer present in the current source tree.
-- Queue scheduling, farm-level printer selection, and automatic retry/backoff policy are not yet implemented.
+- A persistent scheduler/timer, farm-level printer selection, priorities/deadlines, and multi-process queue leases are not yet implemented above the deterministic single-pass runner.
 - Inventory reservations and automatic consumption accounting are not yet implemented.
 - Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
 
