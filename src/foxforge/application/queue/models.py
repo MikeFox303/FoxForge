@@ -22,8 +22,40 @@ class QueueEntryState(StrEnum):
     BLOCKED = "blocked"
     DISPATCHING = "dispatching"
     ACCEPTED = "accepted"
+    PREPARING = "preparing"
+    PRINTING = "printing"
+    PAUSED = "paused"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
     INDETERMINATE = "indeterminate"
     FAILED = "failed"
+
+
+_RECEIPT_REQUIRED_STATES = frozenset(
+    {
+        QueueEntryState.ACCEPTED,
+        QueueEntryState.PREPARING,
+        QueueEntryState.PRINTING,
+        QueueEntryState.PAUSED,
+        QueueEntryState.COMPLETED,
+        QueueEntryState.CANCELLED,
+    }
+)
+_RECEIPT_FORBIDDEN_STATES = frozenset(
+    {
+        QueueEntryState.PENDING,
+        QueueEntryState.BLOCKED,
+        QueueEntryState.DISPATCHING,
+        QueueEntryState.INDETERMINATE,
+    }
+)
+_TERMINAL_STATES = frozenset(
+    {
+        QueueEntryState.COMPLETED,
+        QueueEntryState.CANCELLED,
+        QueueEntryState.FAILED,
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,11 +112,18 @@ class QueueEntry:
             if self.receipt.artifact_sha256 != self.request.artifact.sha256:
                 raise ValueError("receipt artifact fingerprint must match queue request")
 
-        if self.state == QueueEntryState.ACCEPTED and self.receipt is None:
-            raise ValueError("accepted queue entries require a dispatch receipt")
-        if self.state != QueueEntryState.ACCEPTED and self.receipt is not None:
-            raise ValueError("dispatch receipt is only valid for accepted queue entries")
+        if self.state in _RECEIPT_REQUIRED_STATES and self.receipt is None:
+            raise ValueError(f"{self.state.value} queue entries require a dispatch receipt")
+        if self.state in _RECEIPT_FORBIDDEN_STATES and self.receipt is not None:
+            raise ValueError(f"dispatch receipt is invalid for {self.state.value} queue entries")
+        # FAILED is intentionally dual-purpose: a pre/at-dispatch failure has no
+        # receipt, while a remotely observed print failure retains the confirmed
+        # receipt that identifies which accepted job failed.
         if self.state == QueueEntryState.INDETERMINATE and (
             self.error is None or self.error.code != PrinterErrorCode.INDETERMINATE
         ):
             raise ValueError("indeterminate queue entries require an INDETERMINATE error")
+
+    @property
+    def terminal(self) -> bool:
+        return self.state in _TERMINAL_STATES
