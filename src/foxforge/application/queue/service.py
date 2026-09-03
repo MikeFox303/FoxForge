@@ -3,12 +3,22 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
 from uuid import UUID, uuid4
 
 from foxforge.application.fleet import FleetService
-from foxforge.domain.printers import PrinterAdapterError, PrinterErrorCode, utc_now
+from foxforge.domain.printers import (
+    ActiveJobSnapshot,
+    JobState,
+    PrinterAdapterError,
+    PrinterErrorCode,
+    PrinterEvent,
+    PrinterEventKind,
+    utc_now,
+)
 from foxforge.domain.printers.capabilities import (
     LocalPrintArtifact,
     MaterialBinding,
@@ -39,17 +49,100 @@ class QueueReconciliationRequiredError(RuntimeError):
         )
 
 
+_JOB_STATE_TO_QUEUE_STATE = {
+    JobState.ACCEPTED: QueueEntryState.ACCEPTED,
+    JobState.PREPARING: QueueEntryState.PREPARING,
+    JobState.PRINTING: QueueEntryState.PRINTING,
+    JobState.PAUSED: QueueEntryState.PAUSED,
+    JobState.COMPLETED: QueueEntryState.COMPLETED,
+    JobState.FAILED: QueueEntryState.FAILED,
+    JobState.CANCELLED: QueueEntryState.CANCELLED,
+}
+_ALLOWED_LIFECYCLE_TRANSITIONS = {
+    QueueEntryState.ACCEPTED: frozenset(
+        {
+            QueueEntryState.ACCEPTED,
+            QueueEntryState.PREPARING,
+            QueueEntryState.PRINTING,
+            QueueEntryState.PAUSED,
+            QueueEntryState.COMPLETED,
+            QueueEntryState.FAILED,
+            QueueEntryState.CANCELLED,
+        }
+    ),
+    QueueEntryState.PREPARING: frozenset(
+        {
+            QueueEntryState.PREPARING,
+            QueueEntryState.PRINTING,
+            QueueEntryState.PAUSED,
+            QueueEntryState.COMPLETED,
+            QueueEntryState.FAILED,
+            QueueEntryState.CANCELLED,
+        }
+    ),
+    QueueEntryState.PRINTING: frozenset(
+        {
+            QueueEntryState.PRINTING,
+            QueueEntryState.PAUSED,
+            QueueEntryState.COMPLETED,
+            QueueEntryState.FAILED,
+            QueueEntryState.CANCELLED,
+        }
+    ),
+    QueueEntryState.PAUSED: frozenset(
+        {
+            QueueEntryState.PAUSED,
+            QueueEntryState.PRINTING,
+            QueueEntryState.COMPLETED,
+            QueueEntryState.FAILED,
+            QueueEntryState.CANCELLED,
+        }
+    ),
+    QueueEntryState.COMPLETED: frozenset({QueueEntryState.COMPLETED}),
+    QueueEntryState.CANCELLED: frozenset({QueueEntryState.CANCELLED}),
+    QueueEntryState.FAILED: frozenset({QueueEntryState.FAILED}),
+}
+
+
 class QueueService:
     """Durable-idempotency state machine for automated print dispatch.
 
     QueueService never sees a concrete printer adapter. It resolves the common
-    PrintExecutionCapability through FleetService and persists the dispatch
-    state before any submit side effect can occur.
+    PrintExecutionCapability through FleetService, persists dispatch state
+    before any submit side effect can occur, and tracks confirmed remote jobs
+    only through normalized fleet events.
     """
 
     def __init__(self, fleet: FleetService, store: QueueStore) -> None:
         self._fleet = fleet
         self._store = store
+        self._event_task: asyncio.Task[None] | None = None
+        self._event_ready: asyncio.Event | None = None
+
+    async def start(self) -> None:
+        """Start normalized fleet-event tracking and reconcile live snapshots.
+
+        Composition roots should call this during application startup so queue
+        entries restored from durable storage resume lifecycle tracking without
+        requiring a new dispatch call. dispatch() also calls start() lazily.
+        """
+
+        task = self._event_task
+        if task is None or task.done():
+            self._event_ready = asyncio.Event()
+            self._event_task = asyncio.create_task(self._track_fleet_events())
+        assert self._event_ready is not None
+        await self._event_ready.wait()
+        self._reconcile_current_snapshots()
+
+    async def aclose(self) -> None:
+        task = self._event_task
+        self._event_task = None
+        self._event_ready = None
+        if task is not None:
+            task.cancel()
+            with suppress(asyncio.CancelledError):
+                await task
 
     def enqueue(
         self,
@@ -93,7 +186,7 @@ class QueueService:
         entry = self._require_entry(queue_id)
         if entry.state in {QueueEntryState.DISPATCHING, QueueEntryState.INDETERMINATE}:
             raise QueueReconciliationRequiredError(entry)
-        if entry.state == QueueEntryState.ACCEPTED:
+        if entry.receipt is not None:
             return entry
 
         capability = self._fleet.capability(entry.printer_id, PrintExecutionCapability)
@@ -123,8 +216,9 @@ class QueueService:
         return updated
 
     async def dispatch(self, queue_id: UUID) -> QueueEntry:
+        await self.start()
         entry = self._require_entry(queue_id)
-        if entry.state == QueueEntryState.ACCEPTED:
+        if entry.receipt is not None:
             return entry
         if entry.state in {QueueEntryState.DISPATCHING, QueueEntryState.INDETERMINATE}:
             raise QueueReconciliationRequiredError(entry)
@@ -187,7 +281,11 @@ class QueueService:
             updated_at=utc_now(),
         )
         self._store.save(accepted)
-        return accepted
+        # submit() may have emitted ACCEPTED before the durable receipt was
+        # stored. Reconcile the current common snapshot now so later tracking
+        # starts from a known job identity without relying on event timing.
+        self._reconcile_printer_snapshot(accepted.printer_id)
+        return self._require_entry(queue_id)
 
     def resolve_reconciliation(
         self,
@@ -234,7 +332,89 @@ class QueueService:
             )
 
         self._store.save(resolved)
+        if resolved.receipt is not None:
+            self._reconcile_printer_snapshot(resolved.printer_id)
+            return self._require_entry(queue_id)
         return resolved
+
+    async def _track_fleet_events(self) -> None:
+        stream = self._fleet.events()
+        assert self._event_ready is not None
+        self._event_ready.set()
+        try:
+            async for event in stream:
+                self._process_event(event)
+        except asyncio.CancelledError:
+            raise
+        finally:
+            close = getattr(stream, "aclose", None)
+            if close is not None:
+                await close()
+
+    def _process_event(self, event: PrinterEvent) -> tuple[QueueEntry, ...]:
+        if event.kind != PrinterEventKind.JOB_STATE_CHANGED:
+            return ()
+        job = event.payload
+        if not isinstance(job, ActiveJobSnapshot) or job.vendor_job_id is None:
+            return ()
+        return self._apply_job_observation(event.printer_id, job, event.observed_at)
+
+    def _reconcile_current_snapshots(self) -> None:
+        tracked_printers = {
+            entry.printer_id
+            for entry in self._store.list()
+            if entry.receipt is not None and entry.receipt.vendor_job_id is not None and not entry.terminal
+        }
+        for printer_id in sorted(tracked_printers):
+            self._reconcile_printer_snapshot(printer_id)
+
+    def _reconcile_printer_snapshot(self, printer_id: str) -> tuple[QueueEntry, ...]:
+        if printer_id not in self._fleet.printer_ids:
+            return ()
+        snapshot = self._fleet.snapshot(printer_id)
+        job = snapshot.active_job
+        if job is None or job.vendor_job_id is None:
+            return ()
+        return self._apply_job_observation(printer_id, job, snapshot.observed_at)
+
+    def _apply_job_observation(
+        self,
+        printer_id: str,
+        job: ActiveJobSnapshot,
+        observed_at: datetime,
+    ) -> tuple[QueueEntry, ...]:
+        if job.vendor_job_id is None:
+            return ()
+        target_state = _JOB_STATE_TO_QUEUE_STATE.get(job.state)
+        if target_state is None:
+            return ()
+
+        changed: list[QueueEntry] = []
+        for entry in self._store.list():
+            receipt = entry.receipt
+            if entry.printer_id != printer_id or receipt is None:
+                continue
+            if receipt.vendor_job_id is None or receipt.vendor_job_id != job.vendor_job_id:
+                continue
+            if observed_at < receipt.accepted_at or observed_at < entry.updated_at:
+                continue
+
+            allowed = _ALLOWED_LIFECYCLE_TRANSITIONS.get(entry.state)
+            if allowed is None or target_state not in allowed:
+                continue
+
+            updated = replace(
+                entry,
+                state=target_state,
+                error=None if target_state != QueueEntryState.FAILED else entry.error,
+                updated_at=observed_at,
+            )
+            if updated == entry:
+                continue
+            self._store.save(updated)
+            changed.append(updated)
+
+        return tuple(changed)
 
     def _require_entry(self, queue_id: UUID) -> QueueEntry:
         entry = self._store.get(queue_id)
