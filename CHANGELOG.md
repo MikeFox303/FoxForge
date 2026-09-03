@@ -17,17 +17,29 @@ FoxForge has not published a stable release yet, so development milestones are l
 - Bambu lifecycle/event pump with reconnect epochs and normalized connection, printer-state, job-progress and material-system events.
 - Bambu adapter architecture/provenance documentation and architecture tests that prevent direct dependencies on Bambuddy backend code or the experimental integration tree.
 - Package-qualified test layout and reusable test helpers to avoid nested `conftest.py` and duplicate-module-name collection collisions.
+- Vendor-neutral `AdapterRegistry` that maps persisted `adapter_kind` values to composition-root factories without importing concrete vendor adapters.
+- Application-level `FleetService` for normalized identity/snapshot/capability lookup, printer lifecycle operations and merged printer event delivery.
+- Mixed-fleet tests proving `FakePrinterAdapter` and `BambuAdapter` can coexist behind the same fleet service.
+- Architecture tests preventing the application layer and generic adapter registry from importing Bambu, Moonraker or concrete adapter packages.
 
 ### Changed
 
-- Material system freshness is now explicitly observable across Bambu disconnect/reconnect through normalized `material_system_changed` events.
+- Material system freshness is explicitly observable across Bambu disconnect/reconnect through normalized `material_system_changed` events.
 - Confirmed Bambu dispatch receipts are idempotently cached by `dispatch_id`; indeterminate starts remain unreconciled until the queue/application layer resolves them.
+- Fleet event relays subscribe before fleet-managed connect operations, so connection/reconciliation events are not lost during startup.
+
+### Validation
+
+- Phase 2 Bambu adapter foundation merged through PR #3.
+- Phase 2 squash commit: `e5568affd7af3d72f6020f2734c9f7c448ff1a26`.
+- Phase 2 final PR CI passed Ruff and the full suite on Python 3.12 and Python 3.13.
 
 ### Not yet connected
 
 - No production Bambu MQTT/FTP transport has been wired into `BambuAdapter` yet.
 - The preserved X2D/N6 port-6000 transport remains isolated pending hardware validation and is not imported by the production adapter package.
-- Queue/fleet orchestration is not yet implemented.
+- Queue dispatch/orchestration is not yet implemented on top of `FleetService`.
+- Moonraker/Klipper is not yet implemented as the second real adapter.
 
 ## 2026-09-03 — Phase 1: Printer domain foundation
 

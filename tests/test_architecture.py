@@ -7,12 +7,10 @@ import ast
 from pathlib import Path
 
 
-def test_printer_domain_has_no_vendor_adapter_imports() -> None:
-    domain_root = Path("src/foxforge/domain/printers")
-    forbidden = ("foxforge.adapters", "bambu", "moonraker")
+def _forbidden_imports(root: Path, forbidden: tuple[str, ...]) -> list[str]:
     violations: list[str] = []
 
-    for path in domain_root.rglob("*.py"):
+    for path in root.rglob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -25,4 +23,28 @@ def test_printer_domain_has_no_vendor_adapter_imports() -> None:
                 if any(token in name.lower() for token in forbidden):
                     violations.append(f"{path}: {name}")
 
+    return violations
+
+
+def test_printer_domain_has_no_vendor_adapter_imports() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/domain/printers"),
+        ("foxforge.adapters", "bambu", "moonraker"),
+    )
+    assert violations == []
+
+
+def test_application_layer_has_no_vendor_adapter_imports() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/application"),
+        ("foxforge.adapters", "bambu", "moonraker"),
+    )
+    assert violations == []
+
+
+def test_adapter_registry_has_no_vendor_imports() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/infrastructure/printers"),
+        ("foxforge.adapters", "bambu", "moonraker"),
+    )
     assert violations == []
