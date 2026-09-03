@@ -43,9 +43,10 @@ class BambuStoredProject:
             raise ValueError("Bambu project_url path must end with remote_filename")
         if self.storage_kind == BambuProjectStorageKind.FTPS and parts.scheme != "ftp":
             raise ValueError("FTPS storage requires an ftp:// project_url")
-        if self.storage_kind == BambuProjectStorageKind.INTERNAL_EMMC:
-            if parts.scheme != "brtc" or parts.netloc.lower() != "emmc":
-                raise ValueError("internal eMMC storage requires a brtc://emmc/... project_url")
+        if self.storage_kind == BambuProjectStorageKind.INTERNAL_EMMC and (
+            parts.scheme != "brtc" or parts.netloc.lower() != "emmc"
+        ):
+            raise ValueError("internal eMMC storage requires a brtc://emmc/... project_url")
         object.__setattr__(self, "remote_filename", filename)
         object.__setattr__(self, "project_url", url)
 
