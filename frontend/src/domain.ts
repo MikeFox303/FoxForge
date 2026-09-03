@@ -23,7 +23,18 @@ export type JobState =
   | 'failed'
   | 'cancelled'
   | 'unknown';
-export type QueueEntryState = 'pending' | 'blocked' | 'dispatching' | 'accepted' | 'indeterminate' | 'failed';
+export type QueueEntryState =
+  | 'pending'
+  | 'blocked'
+  | 'dispatching'
+  | 'accepted'
+  | 'preparing'
+  | 'printing'
+  | 'paused'
+  | 'completed'
+  | 'cancelled'
+  | 'indeterminate'
+  | 'failed';
 export type FaultSeverity = 'info' | 'warning' | 'error' | 'critical';
 export type MaterialUnitKind = 'multi_slot' | 'external' | 'toolhead' | 'other';
 export type MaterialPresence = 'empty' | 'loaded' | 'unknown';
