@@ -84,8 +84,7 @@ class QueueEntry:
             raise ValueError("accepted queue entries require a dispatch receipt")
         if self.state != QueueEntryState.ACCEPTED and self.receipt is not None:
             raise ValueError("dispatch receipt is only valid for accepted queue entries")
-        if (
-            self.state == QueueEntryState.INDETERMINATE
-            and (self.error is None or self.error.code != PrinterErrorCode.INDETERMINATE)
+        if self.state == QueueEntryState.INDETERMINATE and (
+            self.error is None or self.error.code != PrinterErrorCode.INDETERMINATE
         ):
             raise ValueError("indeterminate queue entries require an INDETERMINATE error")
