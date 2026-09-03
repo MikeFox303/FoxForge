@@ -179,11 +179,7 @@ class PahoBambuMqttWire:
     def _on_connect(self, client, userdata, flags, reason_code, properties) -> None:
         code = _reason_code_value(reason_code)
         if code not in {0, None}:
-            kind = (
-                BambuTransportErrorKind.AUTHENTICATION
-                if code in {4, 5, 134, 135}
-                else BambuTransportErrorKind.REJECTED
-            )
+            kind = BambuTransportErrorKind.AUTHENTICATION if code in {4, 5, 134, 135} else BambuTransportErrorKind.REJECTED
             self._finish_connect(
                 BambuTransportError(
                     kind,
