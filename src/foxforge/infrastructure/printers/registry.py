@@ -51,7 +51,13 @@ class AdapterRegistry:
     def adapter_kinds(self) -> tuple[str, ...]:
         return tuple(sorted(self._factories))
 
-    def register(self, adapter_kind: str, factory: AdapterFactory, *, replace: bool = False) -> None:
+    def register(
+        self,
+        adapter_kind: str,
+        factory: AdapterFactory,
+        *,
+        replace: bool = False,
+    ) -> None:
         kind = adapter_kind.strip()
         if not kind:
             raise ValueError("adapter_kind must not be empty")
