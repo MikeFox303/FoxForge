@@ -34,13 +34,18 @@ def test_registry_creates_adapter_from_registered_factory(printer_identity) -> N
 
 def test_registry_rejects_duplicate_adapter_kind(printer_identity) -> None:
     registry = AdapterRegistry()
-    factory = lambda identity, settings: FakePrinterAdapter(identity)
+
+    def factory(identity, settings):
+        return FakePrinterAdapter(identity)
+
     registry.register("fake", factory)
 
     with pytest.raises(AdapterKindAlreadyRegisteredError):
         registry.register("fake", factory)
 
-    replacement = lambda identity, settings: FakePrinterAdapter(identity)
+    def replacement(identity, settings):
+        return FakePrinterAdapter(identity)
+
     registry.register("fake", replacement, replace=True)
     assert registry.create(printer_identity).identity == printer_identity
 
