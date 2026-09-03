@@ -29,19 +29,24 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 COPY backend/ /tmp/foxforge-backend/
-RUN python -m pip install --no-cache-dir /tmp/foxforge-backend \
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends gosu \
+    && rm -rf /var/lib/apt/lists/* \
+    && python -m pip install --no-cache-dir /tmp/foxforge-backend \
     && rm -rf /tmp/foxforge-backend \
     && groupadd --gid 1000 foxforge \
     && useradd --uid 1000 --gid 1000 --create-home --shell /usr/sbin/nologin foxforge \
     && mkdir -p /data /app/static \
     && chown -R foxforge:foxforge /data /app
 COPY --from=frontend --chown=foxforge:foxforge /src/frontend/dist/ /app/static/
+COPY deployment/docker/entrypoint.sh /usr/local/bin/foxforge-entrypoint
+RUN chmod 0755 /usr/local/bin/foxforge-entrypoint
 
-USER foxforge:foxforge
 EXPOSE 8000
 VOLUME ["/data"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3).read()" || exit 1
 
-ENTRYPOINT ["foxforge"]
+ENTRYPOINT ["foxforge-entrypoint"]
+CMD ["foxforge"]
