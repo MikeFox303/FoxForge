@@ -15,6 +15,7 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [AdapterRegistry and FleetService](design/fleet-service.md) — Phase 3 composition/application boundary for vendor-neutral adapter creation, fleet snapshots/capabilities, lifecycle, and merged normalized events.
 - [Queue dispatch and durable idempotency](design/queue-dispatch.md) — Phase 4 queue state machine, persisted dispatch crash boundary, reconciliation semantics, and SQLite restart durability.
 - [Queue event-driven print lifecycle](design/queue-event-lifecycle.md) — Phase 9 normalized remote-job tracking from accepted dispatch through preparing, printing, pause/resume and terminal states with strict vendor-job identity matching.
+- [Queue retry and single-pass runner policy](design/queue-retry-policy.md) — Phase 10 safe pre-start retry/backoff rules, one-entry-per-printer passes, and explicit protection of `DISPATCHING`, `INDETERMINATE`, and receipt-bearing jobs.
 - [Moonraker/Klipper adapter foundation](design/moonraker-adapter-foundation.md) — Phase 5 second real adapter family, native-state boundary, common G-code execution, and external-spool material semantics.
 - [Moonraker HTTP/WebSocket transport](design/moonraker-http-transport.md) — Phase 6 production wire transport, API-key auth, state subscription, checksum upload/start semantics, fail-safe indeterminate handling, and hardware-validation boundary.
 
