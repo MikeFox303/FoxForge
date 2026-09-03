@@ -5,6 +5,7 @@ FoxForge treats the Git repository as the canonical source for durable architect
 ## Architecture Decision Records
 
 - [ADR 0001: PrinterAdapter architecture](adr/0001-printer-adapter-architecture.md) — accepted. Defines the vendor-independent printer boundary, typed capability model, and migration sequence for deep Bambu plus multi-vendor support.
+- [ADR 0002: Repository layout](adr/0002-repository-layout.md) — accepted. Defines the top-level `backend/`, `frontend/` and `deployment/` ownership boundaries and the migration of the Python package into `backend/`.
 
 ## Design specifications
 
