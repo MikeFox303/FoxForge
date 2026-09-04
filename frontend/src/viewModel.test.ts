@@ -7,6 +7,7 @@ import { fleetData } from './mockData';
 import {
   describeMaterialSource,
   findPrinter,
+  fleetAvailability,
   formatDuration,
   formatPercent,
   formatRelativeTime,
@@ -15,6 +16,19 @@ import {
 } from './viewModel';
 
 describe('fleet presentation model', () => {
+  it('distinguishes empty runtime collections from partially configured data', () => {
+    expect(fleetAvailability({ printers: [], queue: [] })).toEqual({
+      hasPrinters: false,
+      hasQueueEntries: false,
+      hasMaterialSystems: false,
+    });
+    expect(fleetAvailability({ printers: [], queue: fleetData.queue })).toEqual({
+      hasPrinters: false,
+      hasQueueEntries: true,
+      hasMaterialSystems: false,
+    });
+  });
+
   it('summarizes the representative mixed fleet', () => {
     expect(summarizeFleet(fleetData)).toEqual({
       totalPrinters: 2,

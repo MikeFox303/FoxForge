@@ -12,7 +12,7 @@ import { InventoryView } from './features/inventory/InventoryView';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
 import { printerRoute } from './features/printers/printerDetailViewModel';
 import { changeInterfaceLanguage } from './i18n';
-import { formatDuration, formatPercent, printerTone, summarizeFleet } from './viewModel';
+import { fleetAvailability, formatDuration, formatPercent, printerTone, summarizeFleet } from './viewModel';
 
 type NavItem = {
   path: string;
@@ -132,6 +132,7 @@ function FleetRuntimeNotice({ runtime }: { runtime: FleetRuntimeState }) {
 
 function OverviewView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinter: (printerId: string) => void }) {
   const summary = useMemo(() => summarizeFleet(fleet), [fleet]);
+  const availability = useMemo(() => fleetAvailability(fleet), [fleet]);
   const { t } = useTranslation();
   return (
     <div className="stack-xl">
@@ -152,23 +153,27 @@ function OverviewView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinte
 
       <SectionHeader title={t('alpha.overview.fleet')} subtitle={t('alpha.overview.fleetSubtitle')} />
       <div className="printer-grid">
-        {fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} onOpen={() => onOpenPrinter(printer.identity.printerId)} />)}
+        {availability.hasPrinters
+          ? fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} onOpen={() => onOpenPrinter(printer.identity.printerId)} />)
+          : <WorkspaceEmptyState icon="PR" title={t('alpha.empty.noPrintersTitle')} text={t('alpha.empty.noPrintersText')} />}
       </div>
 
       <div className="two-column">
         <section className="panel">
           <SectionHeader title={t('alpha.overview.queuePulse')} subtitle={t('alpha.overview.queuePulseSubtitle')} />
-          <div className="compact-list">{fleet.queue.map((entry) => <QueueRow key={entry.queueId} fleet={fleet} entry={entry} compact />)}</div>
+          <div className="compact-list">{availability.hasQueueEntries
+            ? fleet.queue.map((entry) => <QueueRow key={entry.queueId} fleet={fleet} entry={entry} compact />)
+            : <WorkspaceEmptyState icon="QU" title={t('alpha.empty.noQueueTitle')} text={t('alpha.empty.noQueueText')} compact />}</div>
         </section>
         <section className="panel">
           <SectionHeader title={t('alpha.overview.materialSystems')} subtitle={t('alpha.overview.materialSystemsSubtitle')} />
           <div className="compact-list">
-            {fleet.printers.map((printer) => (
+            {availability.hasMaterialSystems ? fleet.printers.filter((printer) => printer.materialSystem).map((printer) => (
               <div className="material-summary" key={printer.identity.printerId}>
                 <div><strong>{printer.identity.displayName}</strong><span>{materialSourceLabel(printer, t)}</span></div>
                 <div className="slot-dots">{slotsFor(printer).map((slot) => <MaterialDot key={slot.slotId} slot={slot} />)}</div>
               </div>
-            ))}
+            )) : <WorkspaceEmptyState icon="MT" title={t('alpha.empty.noMaterialsTitle')} text={t('alpha.empty.noMaterialsText')} compact />}
           </div>
         </section>
       </div>
@@ -182,7 +187,9 @@ function PrintersView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinte
     <div className="stack-lg">
       <SectionHeader title={t('alpha.printers.title')} subtitle={t('alpha.printers.subtitle')} />
       <div className="printer-grid">
-        {fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} onOpen={() => onOpenPrinter(printer.identity.printerId)} expanded />)}
+        {fleet.printers.length > 0
+          ? fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} onOpen={() => onOpenPrinter(printer.identity.printerId)} expanded />)
+          : <WorkspaceEmptyState icon="PR" title={t('alpha.empty.noPrintersTitle')} text={t('alpha.empty.noPrintersText')} />}
       </div>
     </div>
   );
@@ -194,8 +201,10 @@ function QueueView({ fleet }: { fleet: FleetData }) {
     <div className="stack-lg">
       <PageIntro eyebrow={t('alpha.queue.eyebrow')} title={t('alpha.queue.title')} text={t('alpha.queue.text')} action={t('alpha.queue.addJob')} />
       <section className="panel table-panel">
-        <div className="table-head queue-grid"><span>{t('alpha.queue.job')}</span><span>{t('alpha.queue.printer')}</span><span>{t('alpha.queue.state')}</span><span>{t('alpha.queue.attempts')}</span><span>{t('alpha.queue.updated')}</span></div>
-        {fleet.queue.map((entry) => <QueueRow key={entry.queueId} fleet={fleet} entry={entry} />)}
+        {fleet.queue.length > 0 ? <>
+          <div className="table-head queue-grid"><span>{t('alpha.queue.job')}</span><span>{t('alpha.queue.printer')}</span><span>{t('alpha.queue.state')}</span><span>{t('alpha.queue.attempts')}</span><span>{t('alpha.queue.updated')}</span></div>
+          {fleet.queue.map((entry) => <QueueRow key={entry.queueId} fleet={fleet} entry={entry} />)}
+        </> : <WorkspaceEmptyState icon="QU" title={t('alpha.empty.noQueueTitle')} text={t('alpha.empty.noQueueText')} />}
       </section>
       <section className="callout warning"><strong>{t('alpha.queue.indeterminateTitle')}</strong><span>{t('alpha.queue.indeterminateText')}</span></section>
     </div>
@@ -207,7 +216,7 @@ function MaterialsView({ fleet }: { fleet: FleetData }) {
   return (
     <div className="stack-lg">
       <PageIntro eyebrow={t('alpha.materials.eyebrow')} title={t('alpha.materials.title')} text={t('alpha.materials.text')} />
-      {fleet.printers.map((printer) => (
+      {fleet.printers.length > 0 ? fleet.printers.map((printer) => (
         <section className="panel" key={printer.identity.printerId}>
           <SectionHeader title={printer.identity.displayName} subtitle={`${printer.identity.vendor} ${printer.identity.model ?? ''}`} />
           {printer.materialSystem ? (
@@ -221,7 +230,7 @@ function MaterialsView({ fleet }: { fleet: FleetData }) {
             </div>
           ) : <div className="empty-state">{t('alpha.materials.unavailable')}</div>}
         </section>
-      ))}
+      )) : <WorkspaceEmptyState icon="MT" title={t('alpha.empty.noMaterialsTitle')} text={t('alpha.empty.noMaterialsText')} />}
     </div>
   );
 }
@@ -237,14 +246,14 @@ function FarmView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinter: (
         <div className="farm-utilization"><span>{t('alpha.farm.utilization')}</span><strong>{utilization}%</strong></div>
       </section>
       <div className="farm-grid">
-        {fleet.printers.map((printer) => (
+        {fleet.printers.length > 0 ? fleet.printers.map((printer) => (
           <article className="farm-tile" key={printer.identity.printerId}>
             <div className="farm-tile-head"><div><strong>{printer.identity.displayName}</strong><span>{printer.identity.vendor} · {printer.identity.model}</span></div><StatusBadge printer={printer} /></div>
             <div className="farm-info-row"><span>{materialSourceLabel(printer, t)}</span><span>{t('alpha.farm.queued', { count: fleet.queue.filter((entry) => entry.printerId === printer.identity.printerId).length })}</span></div>
             {printer.snapshot.activeJob ? <><div className="farm-job">{printer.snapshot.activeJob.name}</div><Progress value={printer.snapshot.activeJob.progress} /><div className="farm-job-meta"><span>{formatPercent(printer.snapshot.activeJob.progress)}</span><span>{formatDuration(printer.snapshot.activeJob.remainingSeconds)} {t('alpha.farm.left')}</span></div></> : <div className="idle-surface">{t('alpha.farm.ready')}</div>}
             <div className="farm-tile-footer"><div className="slot-dots">{slotsFor(printer).map((slot) => <MaterialDot key={slot.slotId} slot={slot} />)}</div><button className="text-button" onClick={() => onOpenPrinter(printer.identity.printerId)}>{t('alpha.farm.openPrinter')}</button></div>
           </article>
-        ))}
+        )) : <WorkspaceEmptyState icon="FM" title={t('alpha.empty.noPrintersTitle')} text={t('alpha.empty.noPrintersText')} />}
       </div>
     </div>
   );
@@ -324,6 +333,15 @@ function SectionHeader({ title, subtitle }: { title: string; subtitle: string })
 function PageIntro({ eyebrow, title, text, action }: { eyebrow: string; title: string; text: string; action?: string }) {
   const { t } = useTranslation();
   return <div className="page-intro"><div><div className="eyebrow">{eyebrow}</div><h2>{title}</h2><p>{text}</p></div>{action && <button className="primary-button" disabled title={t('alpha.shell.unavailableAlpha')}>{action}</button>}</div>;
+}
+
+function WorkspaceEmptyState({ icon, title, text, compact = false }: { icon: string; title: string; text: string; compact?: boolean }) {
+  return (
+    <div className={`workspace-empty ${compact ? 'compact' : ''}`} role="status">
+      <span className="workspace-empty-icon" aria-hidden="true">{icon}</span>
+      <div><strong>{title}</strong><span>{text}</span></div>
+    </div>
+  );
 }
 
 function slotsFor(printer: PrinterViewModel): MaterialSlotSnapshot[] {
