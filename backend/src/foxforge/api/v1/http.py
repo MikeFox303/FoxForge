@@ -140,7 +140,9 @@ def command_idempotency_store(request: web.Request) -> CommandIdempotencyStore:
 @web.middleware
 async def _request_context(request: web.Request, handler: _JSON_HANDLER) -> web.StreamResponse:
     candidate = request.headers.get("X-Request-Id")
-    request[_REQUEST_ID_KEY] = candidate if candidate is not None and _REQUEST_ID_RE.fullmatch(candidate) else str(uuid4())
+    request[_REQUEST_ID_KEY] = (
+        candidate if candidate is not None and _REQUEST_ID_RE.fullmatch(candidate) else str(uuid4())
+    )
     return await handler(request)
 
 
