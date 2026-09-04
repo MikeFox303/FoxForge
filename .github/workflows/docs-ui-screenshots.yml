@@ -1,0 +1,81 @@
+name: Capture real UI screenshots
+
+on:
+  push:
+    branches:
+      - docs/publish-real-ui-screenshots
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  capture:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[ui screenshots]')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.ref_name }}
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Install screenshot browser
+        working-directory: frontend
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify and build current frontend
+        working-directory: frontend
+        run: |
+          npm run check
+          npm test
+          npm run build
+
+      - name: Start built FoxForge UI
+        working-directory: frontend
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 > /tmp/foxforge-vite.log 2>&1 &
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:4173/?demo=1 > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/foxforge-vite.log
+          exit 1
+
+      - name: Capture real application screenshots
+        working-directory: frontend
+        run: node scripts/capture-docs-screenshots.mjs
+
+      - name: Verify screenshot set
+        run: |
+          test -s docs/images/ui/overview.png
+          test -s docs/images/ui/printers.png
+          test -s docs/images/ui/printer-x2d.png
+          test -s docs/images/ui/inventory.png
+          test -s docs/images/ui/queue.png
+          test -s docs/images/ui/farm.png
+          test -s docs/images/ui/overview-mobile.png
+          ls -lh docs/images/ui
+
+      - name: Commit captured screenshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/images/ui/*.png
+          if git diff --cached --quiet; then
+            echo "Screenshots are already current."
+            exit 0
+          fi
+          git commit -m "docs: capture real FoxForge interface [ui screenshots]"
+          git push origin HEAD:${GITHUB_REF_NAME}
