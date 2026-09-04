@@ -14,7 +14,6 @@ from foxforge.application.inventory import (
     ArchivedSpoolError,
     InventoryIdempotencyConflictError,
     InventoryService,
-    InventoryStoreConflictError,
     SpoolAssignmentConflictError,
 )
 from foxforge.domain.inventory import SpoolColor
@@ -115,7 +114,7 @@ def test_sqlite_assignment_uniqueness_and_explicit_move_survive_restart(tmp_path
     assert final.assignment_for_slot("x2d-main", slot_id) == second_assignment
 
 
-def test_sqlite_store_enforces_unique_adjustment_key_below_service_layer(tmp_path) -> None:
+def test_sqlite_store_returns_existing_adjustment_for_duplicate_key_below_service_layer(tmp_path) -> None:
     database = tmp_path / "inventory.db"
     store = SQLiteInventoryStore(database)
     inventory = InventoryService(store)
@@ -127,8 +126,9 @@ def test_sqlite_store_enforces_unique_adjustment_key_below_service_layer(tmp_pat
     )
 
     duplicate = replace(adjustment, adjustment_id=uuid4())
-    with pytest.raises(InventoryStoreConflictError, match="idempotency key"):
-        store.append_adjustment(duplicate)
+    result = store.append_adjustment(duplicate)
 
+    assert result.created is False
+    assert result.adjustment == adjustment
     assert store.get_adjustment_by_key("queue:completed:99") == adjustment
     assert store.list_adjustments(spool.spool_id) == (adjustment,)
