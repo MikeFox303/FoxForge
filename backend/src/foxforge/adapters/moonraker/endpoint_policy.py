@@ -10,6 +10,13 @@ from dataclasses import dataclass
 import aiohttp
 from aiohttp.resolver import DefaultResolver
 
+_RFC1918_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
+_IPV6_ULA = ipaddress.ip_network("fc00::/7")
+
 
 class MoonrakerEndpointSecurityError(aiohttp.ClientError):
     """Raised when a configured or resolved Moonraker endpoint violates policy."""
@@ -19,6 +26,7 @@ class MoonrakerEndpointSecurityError(aiohttp.ClientError):
 class MoonrakerEndpointPolicy:
     allow_public_endpoint: bool = False
     allow_loopback_endpoint: bool = False
+    allow_link_local_endpoint: bool = False
 
     def validate_ip(self, value: str) -> None:
         raw = value.split("%", 1)[0]
@@ -33,21 +41,32 @@ class MoonrakerEndpointPolicy:
 
         if address.is_unspecified or address.is_multicast or address.is_reserved:
             raise MoonrakerEndpointSecurityError(f"Moonraker endpoint address is not permitted: {address}")
-        if address.is_link_local:
-            raise MoonrakerEndpointSecurityError(f"Moonraker link-local endpoint is not permitted: {address}")
         if address.is_loopback:
             if self.allow_loopback_endpoint:
                 return
             raise MoonrakerEndpointSecurityError(
                 "Moonraker loopback endpoint requires allow_loopback_endpoint=true"
             )
-        if address.is_private:
+        if address.is_link_local:
+            if self.allow_link_local_endpoint:
+                return
+            raise MoonrakerEndpointSecurityError(
+                "Moonraker link-local endpoint requires allow_link_local_endpoint=true"
+            )
+        if _is_private_lan(address):
             return
         if address.is_global and self.allow_public_endpoint:
             return
         raise MoonrakerEndpointSecurityError(
-            "Moonraker endpoint resolved outside private LAN space; set allow_public_endpoint=true only for a trusted target"
+            "Moonraker endpoint resolved outside RFC1918/ULA LAN space; "
+            "set an explicit advanced endpoint override only for a trusted target"
         )
+
+
+def _is_private_lan(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(address, ipaddress.IPv4Address):
+        return any(address in network for network in _RFC1918_NETWORKS)
+    return address in _IPV6_ULA
 
 
 class MoonrakerPolicyResolver:
