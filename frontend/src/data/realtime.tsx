@@ -21,6 +21,7 @@ interface ApplicationEventPayload {
 export type RealtimeQueryKey = readonly ['fleet'] | readonly ['queue'] | readonly ['inventory'];
 
 const resyncKeys: readonly RealtimeQueryKey[] = [['fleet'], ['queue'], ['inventory']];
+const INVALIDATION_BATCH_MS = 250;
 
 export function realtimeInvalidationKeys(
   eventType: 'change' | 'resync_required',
@@ -59,20 +60,37 @@ export function RealtimeQueryBridge() {
     if (demoModeEnabled() || typeof EventSource === 'undefined') return undefined;
 
     const source = new EventSource('/api/v1/events');
+    const pending = new Map<string, RealtimeQueryKey>();
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const invalidate = (eventType: 'change' | 'resync_required', rawData: string) => {
-      for (const queryKey of realtimeInvalidationKeys(eventType, rawData)) {
+    const flush = () => {
+      timer = undefined;
+      const keys = [...pending.values()];
+      pending.clear();
+      for (const queryKey of keys) {
         void queryClient.invalidateQueries({ queryKey });
       }
     };
 
+    const schedule = (eventType: 'change' | 'resync_required', rawData: string) => {
+      for (const queryKey of realtimeInvalidationKeys(eventType, rawData)) {
+        pending.set(queryKey[0], queryKey);
+      }
+      if (eventType === 'resync_required') {
+        if (timer !== undefined) clearTimeout(timer);
+        flush();
+        return;
+      }
+      if (timer === undefined) timer = setTimeout(flush, INVALIDATION_BATCH_MS);
+    };
+
     const onChange = (event: Event) => {
       const message = event as MessageEvent<string>;
-      invalidate('change', message.data);
+      schedule('change', message.data);
     };
     const onResyncRequired = (event: Event) => {
       const message = event as MessageEvent<string>;
-      invalidate('resync_required', message.data);
+      schedule('resync_required', message.data);
     };
 
     source.addEventListener('change', onChange);
@@ -82,6 +100,8 @@ export function RealtimeQueryBridge() {
       source.removeEventListener('change', onChange);
       source.removeEventListener('resync_required', onResyncRequired);
       source.close();
+      if (timer !== undefined) clearTimeout(timer);
+      pending.clear();
     };
   }, [queryClient]);
 
