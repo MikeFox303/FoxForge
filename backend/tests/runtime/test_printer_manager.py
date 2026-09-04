@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 
+from foxforge.application.events import ApplicationEventJournal, ApplicationEventTopic, ApplicationStreamItemKind
 from foxforge.application.fleet import FleetService
 from foxforge.application.printer_management import PrinterConfiguration
 from foxforge.domain.printers import ConnectionState, PrinterIdentity
@@ -95,6 +96,54 @@ def test_remove_updates_persistence_and_live_fleet(tmp_path) -> None:
             assert fleet.printer_ids == ()
             assert load_runtime_config(config_path).printers == ()
         finally:
+            await fleet.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_configuration_mutations_publish_p2_events_but_test_connection_does_not(tmp_path) -> None:
+    async def scenario() -> None:
+        config_path = tmp_path / "config.json"
+        fleet = FleetService()
+        registry = AdapterRegistry()
+        registry.register("fake-ui", lambda identity, settings: FakePrinterAdapter(identity))
+        journal = ApplicationEventJournal()
+        manager = RuntimePrinterManager(
+            fleet=fleet,
+            registry=registry,
+            config_path=config_path,
+            config=RuntimeConfig(schema_version=1, printers=()),
+            events=journal,
+        )
+        stream = journal.subscribe()
+        try:
+            assert (await anext(stream)).kind == ApplicationStreamItemKind.RESYNC_REQUIRED
+
+            await manager.test_connection(_configuration())
+            assert journal.sequence == 0
+
+            await manager.add(_configuration())
+            added = await anext(stream)
+            assert added.topic == ApplicationEventTopic.PRINTER_CONFIGURATION
+            assert added.change == "printer_added"
+            assert added.resource_id == "printer-ui"
+
+            updated_configuration = PrinterConfiguration(
+                identity=_configuration().identity,
+                settings={"endpoint": "updated"},
+            )
+            await manager.update("printer-ui", updated_configuration)
+            updated = await anext(stream)
+            assert updated.topic == ApplicationEventTopic.PRINTER_CONFIGURATION
+            assert updated.change == "printer_updated"
+
+            await manager.remove("printer-ui")
+            removed = await anext(stream)
+            assert removed.topic == ApplicationEventTopic.PRINTER_CONFIGURATION
+            assert removed.change == "printer_removed"
+            assert journal.sequence == 3
+        finally:
+            await stream.aclose()  # type: ignore[attr-defined]
             await fleet.aclose()
 
     asyncio.run(scenario())
