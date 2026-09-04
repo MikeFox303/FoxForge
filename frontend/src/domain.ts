@@ -134,6 +134,7 @@ export interface QueueViewModel {
   updatedAt: string;
   attemptCount: number;
   blocker?: string;
+  retryable?: boolean;
 }
 
 export interface FleetData {

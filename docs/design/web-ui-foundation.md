@@ -1,12 +1,12 @@
 # FoxForge web UI foundation
 
-Status: implemented foundation, evolving in pre-alpha
+**Status:** implemented and evolving post-`v0.1.0-alpha.2`
 
 ## Purpose
 
-FoxForge needs a user interface that can evolve in parallel with the printer-domain and application layers without coupling presentation code to vendor protocols or forcing common UI screens to understand Bambu/Moonraker payloads.
+FoxForge needs a user interface that can evolve in parallel with printer/application work without coupling presentation code to vendor protocols or forcing common screens to understand Bambu/Moonraker payloads.
 
-The frontend lives under `frontend/` and uses the following application stack:
+The frontend lives under `frontend/` and uses:
 
 - TypeScript;
 - React;
@@ -16,17 +16,21 @@ The frontend lives under `frontend/` and uses the following application stack:
 - i18next + react-i18next;
 - responsive CSS.
 
-It currently consumes representative in-memory query gateways whose types mirror stable FoxForge concepts such as printer identity/snapshots, active jobs, faults, material systems, typed capability descriptors, durable queue states, and the merged inventory domain.
-
-The demo gateways are temporary. They remain separated from view rendering so future public APIs can replace them without redesigning the screens.
+Normal runtime consumes live FoxForge HTTP read models and guarded command APIs. Representative demo data remains available only through explicit `?demo=1` mode for documentation/testing; demo objects are not the normal production data source.
 
 ## Frontend composition
 
 `src/app/providers.tsx` owns application-level providers. React Router is the navigation boundary and TanStack Query is the server-state/cache boundary.
 
-`src/data/fleetGateway.ts` currently resolves the representative fleet through TanStack Query. `src/features/inventory/inventoryGateway.ts` does the same for the inventory read model. Eventual HTTP clients replace those query functions; page components should not know whether data came from demo memory, REST, realtime cache updates, or another transport.
+Current data/command seams include:
 
-`src/i18n.ts` initializes i18next. English, Russian and Ukrainian are registered from the beginning. Translation coverage is intentionally incremental: the application shell/navigation and newer stabilized product screens are localized first, then remaining copy follows as it stabilizes.
+- `src/data/fleetGateway.ts` — live fleet and queue reads;
+- `src/features/inventory/inventoryGateway.ts` — live spool inventory reads;
+- `src/data/commandClient.ts` — shared browser operator-session/authentication/idempotency/error plumbing;
+- `src/data/printerSetupClient.ts` — printer configuration commands;
+- `src/features/queue/queueCommandClient.ts` — typed artifact/enqueue/dispatch/reconciliation commands.
+
+Feature components do not receive raw Bambu MQTT payloads, Moonraker JSON-RPC responses, Python domain objects or local server paths.
 
 Top-level and printer-detail pages are URL-addressable:
 
@@ -41,145 +45,174 @@ Top-level and printer-detail pages are URL-addressable:
 
 ## Product structure
 
-The navigation is deliberately smaller than Bambuddy, PrintBuddy and PrintOps:
-
 1. **Overview** — fleet KPIs, active jobs, queue pulse and material-system summary.
-2. **Printers** — common fleet cards plus a route-based printer cockpit.
-3. **Print queue** — durable queue state including blocked and indeterminate outcomes.
+2. **Printers** — common fleet cards, printer setup and route-based printer cockpit.
+3. **Print queue** — durable queue state plus safe file staging/enqueue/dispatch/reconciliation.
 4. **Materials** — capability-driven physical multi-slot/external material systems.
 5. **Spool inventory** — FoxForge-owned spool state, remaining mass and opaque physical assignments.
 6. **Farm** — dense operational command-center view for multi-printer use.
-7. **System** — user-facing runtime/deployment status and preferences with developer diagnostics kept secondary.
+7. **System** — runtime/deployment status, language and diagnostics.
 
-Additional product areas (archives, files, maintenance, projects, finance/business operations, camera wall, warehouse, etc.) should be added only when FoxForge owns the corresponding domain/application capability rather than cloning another project's navigation breadth prematurely.
+Additional areas should be added only when FoxForge owns the corresponding domain/application capability rather than cloning another project's navigation breadth.
 
 ## Upstream design influence
 
-Bambuddy, PrintBuddy and PrintOps were reviewed for information architecture and workflow ideas.
+Bambuddy, PrintBuddy and PrintOps are reviewed for information architecture and workflow ideas:
 
-Useful patterns retained conceptually:
+- Bambuddy for deep Bambu behavior/product workflows;
+- PrintBuddy for multi-vendor/provider isolation;
+- PrintOps for queue/farm/operations patterns.
 
-- printer-first fleet visibility;
-- real-time-first status presentation;
-- queue and inventory as first-class areas;
-- farm-oriented dense monitoring;
-- separating general fleet workflows from deeper printer controls.
-
-FoxForge frontend source is newly written. No upstream component, stylesheet or application source was copied into FoxForge.
+FoxForge frontend source is newly written. Upstream components/styles/application source are not copied into FoxForge unless explicitly documented with compatible provenance/license treatment.
 
 ## Architecture rules
 
 ### Common screens consume normalized FoxForge contracts
 
-Printer cards and cockpit views may render identity, connection state, operational state, active job, faults, material systems and advertised capability descriptors. They must not import raw Bambu MQTT payloads, Moonraker JSON responses or adapter implementation modules.
+Printer cards/cockpits may render identity, connection state, operational state, active job, faults, material systems, queue state and advertised capabilities. They must not import raw vendor transports or adapter implementation modules.
 
-### React Query owns server state
+### TanStack Query owns remote read state
 
-Remote application state must enter the frontend through typed query/mutation gateways rather than page-local fetch calls. Pages may keep local presentation state such as the selected cockpit tab, but fleet, queue, inventory and printer state belong to the query/data layer.
+Fleet, queue and inventory reads enter through typed query/data gateways. Query invalidation/refetch is the current synchronization mechanism after commands. Future realtime delivery should update the same cache instead of creating a second presentation state model.
+
+### Command plumbing is shared; feature semantics are not
+
+`commandClient.ts` owns only cross-cutting browser command concerns:
+
+- operator-session bootstrap;
+- bearer-token attachment;
+- `Idempotency-Key` header support;
+- normalized command errors;
+- cached-token reset after HTTP 401.
+
+It must not learn printer-, queue- or inventory-specific business rules. Feature clients remain typed and independent.
 
 ### Routes are product URLs
 
-Top-level product areas use React Router rather than component-local navigation state. Browser refresh/back/forward navigation must keep the selected product area stable.
-
-A printer cockpit is a first-class deep link at `/printers/:printerId`, not only a transient drawer. The `printerId` is encoded as an opaque route parameter and resolved against the current normalized fleet read model; routing must not infer vendor/model semantics from it.
+A printer cockpit is a first-class deep link at `/printers/:printerId`. The route parameter is opaque and resolved against normalized fleet data; routing never infers vendor/model semantics from it.
 
 ### Printer cockpit keeps technical details secondary
 
-The default route-based printer cockpit is user-facing: connection, state, job progress, ETA, layers, loaded materials and printer-specific queue context. Raw capability IDs, adapter names and exact observation timestamps belong in a dedicated **Diagnostics** tab instead of the default printer view.
-
-This keeps the interface useful to normal users without hiding information needed during development and hardware validation.
+The default cockpit is user-facing: connection, state, job progress, ETA, layers, materials and printer queue context. Raw capability IDs, adapter names and exact observation timestamps belong in Diagnostics.
 
 ### Vendor-specific UI mounts through typed capabilities
 
-Deep Bambu controls such as AMS operations, drying, HMS, K profiles, dual-nozzle workflows and Virtual Printer should become capability panels once the corresponding typed domain/application capability exists in merged FoxForge contracts.
+Deep Bambu controls such as AMS operations/drying, HMS, K profiles, dual-nozzle workflows and Virtual Printer should become capability panels only after corresponding typed domain/application capabilities exist.
 
-A Moonraker printer must never receive placeholder Bambu controls simply because the Bambu adapter supports them. Empty “vendor extension” placeholders are not rendered; capability panels should appear only when there is real functionality behind them.
+A Moonraker printer must never receive placeholder Bambu controls simply because another adapter supports them.
 
 ### Material systems stay vendor-neutral
 
-The existing `foxforge.material_system` capability is sufficient to render both an AMS-family multi-slot unit and a single external spool. UI copy may display adapter-provided labels (for example `AMS 2 Pro`) while layout and behavior remain based on `MaterialUnitKind`, slots, activity, presence and detected material.
+`foxforge.material_system` is sufficient to render both an AMS-family multi-slot unit and a single external spool. UI layout/behavior is based on normalized units/slots/activity/presence/detected material.
 
-Physical printer material state and FoxForge spool inventory remain separate contexts. Inventory may resolve a friendly physical slot label by matching opaque `printer_id + slot_id`; the UI must not parse `slot_id`, and printer snapshots must not gain `spool_id` for presentation convenience.
+Inventory identity remains separate. The UI may associate an opaque `printer_id + slot_id` with a FoxForge spool, but it must not parse `slot_id` or force `spool_id` into printer snapshots.
 
 ### Queue safety semantics remain visible
 
-The frontend preserves `blocked`, `dispatching`, `accepted`, `indeterminate` and `failed` as distinct states. In particular, `indeterminate` must not be collapsed into a generic failure because it represents a safety-relevant uncertainty about whether printer-side effects occurred.
+`PENDING`, `BLOCKED`, `DISPATCHING`, `ACCEPTED`, lifecycle states, `FAILED` and `INDETERMINATE` remain distinct.
 
-### Localization starts as infrastructure, not a fork
+The browser queue workflow follows [queue-command-ui.md](queue-command-ui.md):
 
-English, Russian and Ukrainian use one component tree and one set of typed application data. There must not be language-specific page forks. Translation keys are added incrementally as UI copy stabilizes.
+- hash the selected file in browser;
+- stage bytes + expected hash, never a client path;
+- enqueue separately from dispatch;
+- keep queue `dispatch_id` distinct from HTTP idempotency identity;
+- preserve the same HTTP key across an uncertain replay of one command;
+- use a new HTTP key after a conclusive `BLOCKED`/retryable pre-start failure when the operator intentionally tries again;
+- never expose blind retry for `INDETERMINATE`;
+- expose failed-entry retry only when backend read state marks it retryable.
+
+### Localization uses one component tree
+
+English, Russian and Ukrainian share one component/data model. Translation parity tests prevent one locale from silently missing command/safety copy.
 
 ### Funding links remain secondary
 
-FoxForge may expose the repository's configured Ko-fi funding destination in the application shell, but it must remain visually secondary to printer controls and operational status. The current UI uses a small low-contrast sidebar-footer link rather than a banner, modal, badge or repeated call-to-action.
+Ko-fi remains a small sidebar-footer link, not a banner/modal or repeated operational distraction.
 
 ### Parallel development follows merged main
 
-`docs/design/frontend-parallel-development.md` defines the mandatory rule for UI work that happens while backend work proceeds in parallel: `main` is the only authoritative backend contract state, data access stays behind gateways, unavailable writes remain disabled, and the final UI head is reconciled with current `main` and revalidated before merge.
+`frontend-parallel-development.md` remains mandatory: `main` is the authoritative backend contract; feature branches reconcile with current `main` before merge; unavailable capabilities must not be fabricated.
 
-## UI refinement sequence
+## Implemented refinement sequence
 
-The implemented UI refinements make the foundation progressively more product-like without adding fake backend behavior:
+The UI has progressed from static/demo foundation to functional alpha:
 
-- widened the original printer detail surface and moved technical metadata into Diagnostics;
-- added React Router, TanStack Query and i18next infrastructure;
-- added a restrained Ko-fi link in the sidebar footer;
-- added the Spool Inventory workspace from merged Phase 11 semantics;
-- moved the printer cockpit to `/printers/:printerId` so it is refreshable, bookmarkable and large enough for future capability panels;
-- gave the route-based cockpit Overview / Materials / Queue / Diagnostics tabs using only merged normalized contracts;
-- keeps Pause / Stop / Add job and other missing mutations disabled until a real API write path exists;
-- keeps temperature, camera, HMS, drying, dual-nozzle and other deeper controls absent until the corresponding typed capability is implemented.
+- route-based printer cockpit and diagnostics separation;
+- TanStack Query/i18next/React Router infrastructure;
+- live fleet, queue and inventory reads in normal runtime;
+- explicit loading/refresh/recoverable-error states;
+- truthful stale/degraded/offline presentation;
+- printer configuration launcher/dialog using authenticated commands;
+- shared browser command-session infrastructure;
+- safe queue file hashing/staging/enqueue/dispatch workflow;
+- explicit blocked/retryable failure semantics;
+- explicit `INDETERMINATE` started/not-started reconciliation;
+- restrained Ko-fi support link;
+- responsive/mobile layout.
+
+Still absent until real contracts exist:
+
+- common pause/resume/cancel UI;
+- realtime WebSocket/SSE delivery;
+- inventory mutation controls for every already-available backend inventory command;
+- deeper Bambu capability panels;
+- trustworthy automatic material accounting;
+- persistent farm scheduling controls.
 
 ## API integration seam
 
-The intended progression is:
+Current layering is:
 
-1. expose vendor-independent application reads/writes through an HTTP API;
-2. replace demo query functions with typed REST clients;
-3. add query mutations for printer/queue/inventory commands;
-4. add a WebSocket or SSE event stream for printer snapshots, jobs and queue events and feed updates into the query cache;
-5. mount vendor capability panels using descriptors returned by the API.
+```text
+React views
+   |
+feature query/command gateways
+   |
+FoxForge REST read DTOs + ADR 0004 command DTOs
+   |
+FleetService / QueueService / InventoryService / typed capabilities
+   |
+PrinterAdapter implementations
+```
 
-The backend API must call `FleetService`, `QueueService`, `InventoryService` and typed capabilities rather than bypassing them to talk directly to adapters.
+The backend API must continue to call application services/capabilities rather than bypassing them to reach adapters.
+
+Future realtime delivery should carry FoxForge application events and update TanStack Query caches; it must not expose vendor transport payloads to the frontend.
 
 ## Deployment
 
-The frontend builds to static assets. This keeps the runtime suitable for Docker, ARM64 and Umbrel and avoids requiring a separate Node process in production. A later application server/reverse proxy can serve the compiled assets beside the public FoxForge API.
-
-The repository layout is already separated into `backend/`, `frontend/` and `deployment/` under ADR 0002 so frontend feature work can evolve independently from Python runtime changes.
+The frontend builds to static assets and runs inside the unified FoxForge server/container. Production does not require a separate Node process. This keeps deployment suitable for Docker, ARM64 and Umbrel.
 
 ## Acceptance criteria
 
-The web UI foundation is acceptable when:
+The current web UI foundation is acceptable when:
 
-- a production frontend build completes from `frontend/`;
-- type checking passes in strict TypeScript mode;
-- unit tests validate normalized fleet, inventory and printer-detail presentation helpers;
-- React Router owns top-level product navigation and route-based printer deep links;
-- TanStack Query owns fleet/inventory data seams even while they still resolve demo data;
-- i18next initializes English, Russian and Ukrainian without language-specific component forks;
-- the overview renders a mixed Bambu + Moonraker fleet without vendor payload types;
-- `/printers/:printerId` resolves normalized printers without parsing vendor identity;
-- the default printer cockpit contains no raw capability IDs or empty vendor placeholders;
-- raw adapter/capability metadata remains reachable in the Diagnostics tab;
-- the materials view renders both multi-slot and external material-unit shapes;
-- spool inventory preserves Decimal-string/opaque-slot boundaries from the merged inventory design;
-- the queue view exposes FoxForge queue states without reducing `indeterminate` to `failed`;
-- Farm uses the same normalized contracts and exposes queue/material context without vendor branching;
-- Ko-fi appears only as a secondary, non-blocking application-shell link;
+- production frontend build and strict TypeScript checking pass;
+- Vitest covers stable view/data/command helper behavior;
+- React Router owns product navigation and printer deep links;
+- TanStack Query owns remote read/cache state;
+- live runtime is the default and demo data requires `?demo=1`;
+- EN/RU/UK key parity passes;
+- mixed Bambu + Moonraker views use only normalized contracts;
+- queue state preserves `INDETERMINATE` instead of reducing it to failure;
+- selected print files are staged without leaking client paths;
+- queue command UI preserves backend idempotency/reconciliation rules;
+- printer setup uses guarded command APIs rather than local mock mutations;
+- unavailable printer controls are not fabricated;
 - responsive layout remains usable on desktop and narrow/mobile widths;
-- upstream code provenance is clear: concepts were studied, source was not copied;
-- backend Python dependencies remain unchanged.
+- upstream provenance remains clear;
+- unified-container smoke proves compiled UI and API still ship together.
 
 ## Tests
-
-`frontend/src/viewModel.test.ts`, inventory presentation tests and printer-detail presentation tests cover logic that should remain stable when demo gateways are replaced by the public API.
 
 `.github/workflows/web-ui.yml` runs:
 
 - dependency installation;
-- TypeScript type checking;
+- TypeScript typecheck;
 - Vitest unit tests;
 - Vite production build.
 
-Future API work should add contract tests that serialize backend application/domain objects into the JSON DTOs consumed by this frontend.
+The unified container workflow independently builds the production application image and smoke-tests server startup/health/UI delivery.
+
+Queue command client tests cover browser hashing, byte-only staging and separation of durable queue identities from HTTP command idempotency keys. Translation parity tests cover EN/RU/UK command copy.

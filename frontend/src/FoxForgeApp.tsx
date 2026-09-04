@@ -10,7 +10,9 @@ import { fleetRuntimeTone, type FleetRuntimeState, useFleetData } from './data/f
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from './domain';
 import { InventoryView } from './features/inventory/InventoryView';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
+import { PrinterSetupLauncher } from './features/printers/PrinterSetupLauncher';
 import { printerRoute } from './features/printers/printerDetailViewModel';
+import { QueueCommandPanel, QueueEntryActions } from './features/queue/QueueCommandPanel';
 import { changeInterfaceLanguage } from './i18n';
 import { fleetAvailability, formatDuration, formatPercent, printerTone, summarizeFleet } from './viewModel';
 
@@ -85,7 +87,7 @@ export function FoxForgeApp() {
           </div>
           <div className="topbar-actions">
             <div className={`live-pill tone-${runtimeTone}`} aria-live="polite"><span className={`status-dot ${runtimeTone}`} /> {runtimeLabel}</div>
-            <button className="secondary-button" disabled title={t('alpha.shell.unavailableAlpha')}>{t('alpha.shell.addPrinter')}</button>
+            <PrinterSetupLauncher />
           </div>
         </header>
 
@@ -199,7 +201,8 @@ function QueueView({ fleet }: { fleet: FleetData }) {
   const { t } = useTranslation();
   return (
     <div className="stack-lg">
-      <PageIntro eyebrow={t('alpha.queue.eyebrow')} title={t('alpha.queue.title')} text={t('alpha.queue.text')} action={t('alpha.queue.addJob')} />
+      <PageIntro eyebrow={t('alpha.queue.eyebrow')} title={t('alpha.queue.title')} text={t('alpha.queue.text')} />
+      <QueueCommandPanel fleet={fleet} />
       <section className="panel table-panel">
         {fleet.queue.length > 0 ? <>
           <div className="table-head queue-grid"><span>{t('alpha.queue.job')}</span><span>{t('alpha.queue.printer')}</span><span>{t('alpha.queue.state')}</span><span>{t('alpha.queue.attempts')}</span><span>{t('alpha.queue.updated')}</span></div>
@@ -296,7 +299,7 @@ function QueueRow({ fleet, entry, compact = false }: { fleet: FleetData; entry: 
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const state = t(`alpha.status.${entry.state}`);
   if (compact) return <div className="compact-row"><div><strong>{entry.requestedName}</strong><span>{printer?.identity.displayName ?? entry.printerId}</span></div><span className={`queue-badge state-${entry.state}`}>{state}</span></div>;
-  return <div className="table-row queue-grid"><div><strong>{entry.requestedName}</strong><span>{entry.filename} · {entry.format.toUpperCase()}</span>{entry.blocker && <small className="warning-text">{entry.blocker}</small>}</div><div><strong>{printer?.identity.displayName ?? entry.printerId}</strong><span>{printer?.identity.adapterKind ?? t('alpha.status.unknown')}</span></div><div><span className={`queue-badge state-${entry.state}`}>{state}</span></div><div><strong>{entry.attemptCount}</strong><span>{t('alpha.queue.dispatchAttempts')}</span></div><div><strong>{new Date(entry.updatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</strong><span>{new Date(entry.updatedAt).toLocaleDateString(locale)}</span></div></div>;
+  return <div className="table-row queue-grid"><div><strong>{entry.requestedName}</strong><span>{entry.filename} · {entry.format.toUpperCase()}</span>{entry.blocker && <small className="warning-text">{entry.blocker}</small>}<QueueEntryActions entry={entry} /></div><div><strong>{printer?.identity.displayName ?? entry.printerId}</strong><span>{printer?.identity.adapterKind ?? t('alpha.status.unknown')}</span></div><div><span className={`queue-badge state-${entry.state}`}>{state}</span></div><div><strong>{entry.attemptCount}</strong><span>{t('alpha.queue.dispatchAttempts')}</span></div><div><strong>{new Date(entry.updatedAt).toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' })}</strong><span>{new Date(entry.updatedAt).toLocaleDateString(locale)}</span></div></div>;
 }
 
 function MaterialSlot({ slot }: { slot: MaterialSlotSnapshot }) {

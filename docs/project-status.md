@@ -1,14 +1,14 @@
 # FoxForge project status
 
 **Snapshot date:** 2026-09-04  
-**Canonical branch:** `main`  
+**Canonical branch:** `main` after merge of the current queue-UI candidate  
 **Published pre-release:** `v0.1.0-alpha.2` (`0.1.0a2` backend package)  
 **Umbrel Community App:** `my3d-foxforge` in `MikeFox303/umbrel-3d-printing-store`  
 **Maturity:** runnable/installable alpha; not production-ready
 
-This document is the concise current-state snapshot for FoxForge. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains implementation history; `release/` contains durable release metadata and notes.
+This document is the concise current-source snapshot for FoxForge. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains implementation history; `release/` contains durable release metadata and notes.
 
-The published `alpha.2` image is immutable. Features described below as post-`alpha.2` are present in repository `main` only after their merge and require a later guarded release before Docker/Umbrel users receive them.
+The published `alpha.2` image is immutable. Features described below as post-`alpha.2` require a later guarded release before Docker/Umbrel users receive them.
 
 ## Current implementation status
 
@@ -22,54 +22,78 @@ The published `alpha.2` image is immutable. Features described below as post-`al
 | Filament/spool inventory | Durable foundation implemented | Exact `Decimal` ledger, idempotent adjustments, physical assignments and restart durability. |
 | Public HTTP API v1 reads | Implemented | Health, fleet, queue and inventory read models without raw vendor payloads or local paths. |
 | Command API security | Implemented foundation | Fail-closed command auth, permissions, request IDs, normalized errors, durable idempotency and audit. |
-| Printer configuration writes | Implemented post-alpha.2 | Authenticated add/update/remove/test/reconnect flows. |
+| Printer configuration writes | Implemented post-alpha.2 | Authenticated add/update/remove/test/reconnect flows plus browser setup UI. |
 | Inventory writes | Implemented post-alpha.2 | Authenticated/idempotent create/correct/empty-mass/move/unassign/archive commands. |
 | Queue write API | Implemented post-alpha.2 | Content-addressed artifact staging plus authenticated/idempotent enqueue, dispatch and explicit reconciliation. |
+| Queue command UI | Implemented post-alpha.2 | Browser SHA-256, byte-only staging, durable enqueue, explicit dispatch, safe retryability and `INDETERMINATE` reconciliation. |
 | Command audit | Implemented post-alpha.2 | Append-only SQLite audit with non-secret idempotency digests. |
 | Alpha runtime | Implemented | Single `aiohttp` server, offline-safe printer composition, reconnect supervision, SPA + API and persistent `/data`. |
-| Web UI | Live read integration implemented | Queue upload/dispatch/reconciliation UI is the next integration step. |
+| Web UI | Functional alpha | Live reads, printer setup and queue command workflow are implemented; realtime and full inventory mutation UI remain incomplete. |
 | Bambu LAN transport | Implemented, hardware validation pending | Automated coverage exists; real X2D validation is still required. |
 | Moonraker transport | Implemented, hardware validation pending | Automated coverage exists; real OpenKE/Moonraker validation is still required. |
 | Docker/Umbrel | Runnable alpha implemented | Immutable `alpha.2` remains the shipped package; representative Raspberry Pi 5 validation is pending. |
 | Realtime API | Not implemented | WebSocket/SSE application-event delivery remains future work. |
+| Common pause/resume/cancel | Not implemented | Requires a typed common capability plus ADR 0004 command semantics before UI controls. |
+| Automatic filament accounting | Not implemented | Queue completion is not yet tied to spool reservations/consumption reconciliation. |
 | Farm scheduler | Not implemented | Persistent scheduling, selection, deadlines and durable leases remain pending. |
 
-## Queue command and artifact boundary
+## Browser queue command boundary
 
-The post-`alpha.2` queue command API follows this path:
+The post-`alpha.2` source flow is:
 
 ```text
-client file bytes
+browser File
+      |
+WebCrypto SHA-256
       |
 POST /api/v1/artifacts
+(bytes + filename + expected hash; no client path)
       |
 SHA-256 content-addressed /data/artifacts
       |
 POST /api/v1/queue
+(queueId + durable dispatchId)
       |
-durable queue entry + dispatch_id
+durable queue entry
       |
-POST .../dispatch
+explicit POST .../dispatch
       |
-PrintExecutionCapability
-      |
-accepted | indeterminate | failure
-      |
-explicit reconciliation when uncertain
+accepted | blocked | retryable pre-start failure | indeterminate
+                                                  |
+                                      explicit reconciliation only
 ```
 
 Safety invariants:
 
-- the public API never accepts an arbitrary server filesystem path;
+- the browser and public API never pass an arbitrary client/server filesystem path;
 - artifact content is bounded and hash-verified before queue creation;
-- queue enqueue/dispatch/reconcile commands use authenticated principals and durable idempotency keys;
+- queue enqueue/dispatch/reconcile commands use authenticated principals and durable HTTP idempotency records;
+- queue `dispatch_id` and HTTP `Idempotency-Key` are distinct identities;
+- an uncertain HTTP request replay keeps the same key;
+- a conclusive `BLOCKED` response may later be intentionally reassessed with a new HTTP key while preserving the original queue `dispatch_id`;
+- a receipt-free `FAILED` entry exposes retry only when the backend marks its error `retryable=true`;
 - `INDETERMINATE` requires explicit reconciliation and cannot be bypassed with another dispatch request;
-- same-key HTTP replays return the same logical queue resource rather than starting a second print;
-- dispatch/reconcile HTTP commands are serialized in the current single-process runtime to close concurrent double-start races;
 - receipt-bearing jobs are not redispatched;
-- command audit stores a SHA-256 digest of the idempotency identity rather than the raw key.
+- command audit stores a SHA-256 digest of the HTTP idempotency identity rather than the raw key.
 
-Validation for this command layer includes Ruff lint/format on Python 3.12 and 3.13, **171 passing backend tests**, and unified container build/start/health/UI smoke validation. These automated gates do not replace physical printer testing.
+See [Queue command API and artifact staging](design/queue-command-api.md) and [Queue command UI](design/queue-command-ui.md).
+
+## Validation status
+
+For the merged queue-command backend (#50):
+
+- Ruff lint/format passes on Python 3.12 and 3.13;
+- the backend suite passed with **171 tests** at the #50 gate;
+- unified container build/start/health/UI smoke passed on the merge candidate and again on `main`.
+
+For the queue-command UI candidate (#51):
+
+- TypeScript typecheck passes;
+- Vitest unit tests pass;
+- production Vite build passes;
+- unified container build/start/health/UI smoke passes.
+
+These automated gates validate architecture, packaging and replay behavior but do not replace physical printer testing.
 
 ## Hardware validation boundary
 
@@ -91,20 +115,21 @@ Documentation must not call these transports or the full deployment production-v
 6. Public API DTOs expose FoxForge application contracts rather than raw vendor payloads, local paths or secrets.
 7. Frontend code consumes typed FoxForge API models rather than Python modules or vendor transport structures.
 8. Remote writes remain behind ADR 0004 authentication, authorization, validation, durable idempotency, normalized errors and audit.
-9. Docker and Umbrel package the same FoxForge application behavior rather than divergent forks.
-10. Umbrel App Proxy remains defense in depth; it is not a replacement for FoxForge command authorization.
-11. Upstream-derived code/material must retain required license/copyright provenance; newly written FoxForge code remains distinguishable.
-12. Bambuddy, PrintBuddy and PrintOps are specialized references, not FoxForge's base framework.
-13. Scheduler/farm logic must depend on FoxForge capabilities and persisted application state, never directly on vendor transports.
+9. Browser command code does not invent weaker retry semantics than the backend queue contract.
+10. Docker and Umbrel package the same FoxForge application behavior rather than divergent forks.
+11. Umbrel App Proxy remains defense in depth; it is not a replacement for FoxForge command authorization.
+12. Upstream-derived code/material must retain required license/copyright provenance; newly written FoxForge code remains distinguishable.
+13. Bambuddy, PrintBuddy and PrintOps are specialized references, not FoxForge's base framework.
+14. Scheduler/farm logic must depend on FoxForge capabilities and persisted application state, never directly on vendor transports.
 
 ## Recommended next sequence
 
-1. **Queue UI integration:** browser-safe file selection → SHA-256 → artifact upload → enqueue → dispatch with explicit progress/error/`INDETERMINATE` UX.
-2. **Physical alpha validation:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → lifecycle → completion/reconciliation matrices.
-3. **Representative Umbrel validation:** Raspberry Pi 5/UmbrelOS install/restart/persistence and explicit-IP reachability to both printer families.
-4. **Common printer controls:** pause/resume/cancel only through a typed common capability and ADR 0004 command semantics.
-5. **Realtime application events:** WebSocket/SSE reconnect/replay semantics and TanStack Query cache updates without vendor transport leakage.
-6. **Automatic filament accounting:** reservations, estimates, queue-completion consumption and reconciliation.
+1. **Physical print validation:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → lifecycle → completion/reconciliation matrices using the now-connected browser/backend flow.
+2. **Representative Umbrel validation:** Raspberry Pi 5/UmbrelOS install/restart/persistence and explicit-IP reachability to both printer families.
+3. **Common printer controls:** pause/resume/cancel only through a typed common capability and ADR 0004 command semantics.
+4. **Realtime application events:** WebSocket/SSE reconnect/replay semantics and TanStack Query cache updates without vendor transport leakage.
+5. **Automatic filament accounting:** reservations, estimates, queue-completion consumption and reconciliation.
+6. **Inventory mutation UI:** expose guarded spool create/correct/assignment/archive flows above the already implemented command API.
 7. **Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics.
 8. **Deep Bambu expansion:** AMS operations/drying, HMS, K profiles, dual nozzle and X2D-specific capabilities behind typed vendor interfaces.
 
@@ -118,6 +143,6 @@ Documentation must not call these transports or the full deployment production-v
 - representative Raspberry Pi 5/Umbrel installation, restart and persistence are documented;
 - new write endpoints keep ADR 0004 auth/idempotency/audit semantics;
 - API/application layers still contain no vendor transport imports;
-- `INDETERMINATE` and receipt-bearing queue safety semantics remain preserved;
+- `INDETERMINATE` and receipt-bearing queue safety semantics remain preserved in backend and UI;
 - inventory Decimal/idempotency/restart guarantees remain intact;
-- README, project status and deployment docs agree on what is released, what is only in `main`, and what is physically validated.
+- README, project status and deployment docs agree on what is released, what is only in source, and what is physically validated.

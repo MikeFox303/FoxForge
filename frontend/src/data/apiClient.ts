@@ -107,7 +107,10 @@ interface ApiQueueEntry {
   assessment: {
     blockers: Array<{ code: string; message: string | null }>;
   } | null;
-  error: { message: string } | null;
+  error: {
+    message: string;
+    retryable: boolean;
+  } | null;
 }
 
 interface ApiQueueResponse {
@@ -229,5 +232,6 @@ function mapQueueEntry(entry: ApiQueueEntry): QueueViewModel {
     updatedAt: entry.updatedAt,
     attemptCount: entry.attemptCount,
     blocker: blocker?.message ?? blocker?.code ?? entry.error?.message,
+    retryable: entry.error?.retryable,
   };
 }
