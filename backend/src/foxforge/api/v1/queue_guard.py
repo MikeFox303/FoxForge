@@ -99,9 +99,7 @@ async def _replay_if_known(
         if not isinstance(payload, dict):
             return None
 
-    fingerprint = command_request_fingerprint(
-        {"routeIdentity": str(queue_id), "payload": payload}
-    )
+    fingerprint = command_request_fingerprint({"routeIdentity": str(queue_id), "payload": payload})
     record = idempotency.get(principal.principal_id, operation, key)
     if record is None:
         return None
