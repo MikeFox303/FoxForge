@@ -7,7 +7,13 @@ import json
 
 from foxforge.domain.printers import PrinterIdentity
 from foxforge.infrastructure.secrets import FileSecretStore
-from foxforge.runtime.config import CONFIG_SCHEMA_VERSION, PrinterRuntimeConfig, RuntimeConfig, load_runtime_config, save_runtime_config
+from foxforge.runtime.config import (
+    CONFIG_SCHEMA_VERSION,
+    PrinterRuntimeConfig,
+    RuntimeConfig,
+    load_runtime_config,
+    save_runtime_config,
+)
 from foxforge.runtime.secret_settings import hydrate_settings, migrate_legacy_runtime_secrets
 
 
