@@ -75,7 +75,7 @@ durable queue entry + dispatch_id
       |
 POST .../dispatch
       |
-PrinterExecutionCapability
+PrintExecutionCapability
       |
 accepted | indeterminate | failure
       |
