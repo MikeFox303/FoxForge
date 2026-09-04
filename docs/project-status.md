@@ -1,14 +1,15 @@
 # FoxForge project status
 
 **Snapshot date:** 2026-09-04  
-**Canonical branch:** `main` plus current P1 development after `v0.1.0-alpha.3`  
+**Canonical branch:** `main`  
+**Source snapshot:** `v0.1.0-alpha.3` plus completed P1 common job-control work  
 **Published pre-release:** `v0.1.0-alpha.3` (`0.1.0a3` backend package)  
 **Umbrel Community App:** `my3d-foxforge` in `MikeFox303/umbrel-3d-printing-store`, pinned to the immutable `alpha.3` multi-architecture digest  
 **Maturity:** runnable/installable alpha; not production-ready
 
 This document is the concise current-source snapshot for FoxForge. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains implementation history; `release/` contains durable release metadata and notes.
 
-The published `alpha.3` image is immutable. Current development source now contains the P1 common printer-control vertical slice described below. Those changes require a later guarded release before Docker/Umbrel users receive them.
+The published `alpha.3` image is immutable. Current source contains the P1 common printer-control vertical slice described below. Those changes require a later guarded release before Docker/Umbrel users receive them.
 
 ## Current implementation status
 
@@ -27,7 +28,7 @@ The published `alpha.3` image is immutable. Current development source now conta
 | Queue write API | Released in alpha.3 | Content-addressed artifact staging plus authenticated/idempotent enqueue, dispatch and explicit reconciliation. |
 | Queue command UI | Released in alpha.3 | Browser SHA-256, byte-only staging, durable enqueue, explicit dispatch, safe retryability and `INDETERMINATE` reconciliation. |
 | Command audit | Released in alpha.3 | Append-only SQLite audit with non-secret idempotency digests. |
-| Common pause/resume/cancel | Implemented in P1 source | Typed `foxforge.job_control` v1 capability, exact vendor-job identity guards, Bambu/Moonraker transports, ADR 0004 command API, audit/idempotency and capability-driven browser controls. Physical validation pending. |
+| Common pause/resume/cancel | Implemented post-alpha.3 (P1) | Typed `foxforge.job_control` v1 capability, exact vendor-job identity guards, Bambu/Moonraker transports, ADR 0004 command API, audit/idempotency and capability-driven browser controls. Physical validation pending. |
 | Alpha runtime | Implemented | Single `aiohttp` server, offline-safe printer composition, reconnect supervision, SPA + API and persistent `/data`. |
 | Web UI | Functional alpha | Live reads, printer setup, queue command workflow and P1 job controls are implemented; realtime and full inventory mutation UI remain incomplete. |
 | Bambu LAN transport | Implemented, hardware validation pending | Automated coverage includes control-command safety; real X2D pause/resume/cancel validation is still required. |
@@ -66,7 +67,7 @@ Safety rules:
 - Bambu and Moonraker transports re-check the native current job identity immediately before sending the command;
 - a conclusive completed HTTP replay never executes the adapter side effect a second time;
 - a transport `INDETERMINATE` leaves HTTP idempotency unresolved (`STARTED`); replaying that same HTTP key returns reconciliation-required without executing the adapter again;
-- the browser never automatically retries an uncertain pause/resume/cancel and locks the controls behind an uncertainty warning until a fresh printer snapshot arrives;
+- the browser never automatically retries an uncertain pause/resume/cancel; ordinary polling timestamps do not unlock controls, which remain blocked until the observed job state or vendor job identity changes conclusively;
 - cancel requires explicit operator confirmation;
 - the UI renders actions from `foxforge.job_control` metadata, not from vendor/model-name inference.
 
@@ -128,7 +129,7 @@ The guarded `v0.1.0-alpha.3` release validation passed on the exact frozen relea
 - Linux `amd64` + `arm64` multi-architecture publication with SBOM/provenance metadata;
 - Git tag and GitHub pre-release creation only after the preceding gates succeeded.
 
-P1 adds dedicated automated coverage for common eligibility/state identity rules, Bambu/Moonraker action translation, non-retryable ambiguous transport outcomes, authenticated HTTP command execution, durable replay/idempotency conflict behavior, frontend command identity separation and EN/RU/UK job-control translation parity. Final P1 merge remains gated by the repository's backend, Web UI and unified-container workflows.
+P1 adds dedicated automated coverage for common eligibility/state identity rules, Bambu/Moonraker action translation, non-retryable ambiguous transport outcomes, authenticated HTTP command execution, durable replay/idempotency conflict behavior, command audit, frontend command identity separation and EN/RU/UK job-control translation parity. P1 backend gates pass on Python 3.12 and 3.13, the Web UI gate passes, and the unified-container build/start/health/UI smoke gate passes on the P1 merge candidate.
 
 The companion Umbrel package remains pinned to the immutable `alpha.3` multi-architecture digest and passed package/Compose validation plus anonymous runtime smoke tests on both `linux/amd64` and `linux/arm64` for that released image.
 
@@ -166,8 +167,8 @@ Documentation must not call these transports or the full deployment production-v
 ## Development sequence after alpha.3
 
 - **P0 — Documentation/release synchronization:** complete and merged as PR #55.
-- **P1 — Common printer controls:** current implementation; typed Pause/Resume/Cancel, Bambu/Moonraker mappings, guarded command API, audit/idempotency and browser controls. Code/CI completion does not substitute for the physical validation matrix.
-- **P2 — Realtime application events:** next implementation priority after P1 merge; define WebSocket/SSE reconnect/replay semantics and update TanStack Query caches without vendor transport leakage.
+- **P1 — Common printer controls:** complete in source; typed Pause/Resume/Cancel, Bambu/Moonraker mappings, guarded command API, audit/idempotency and browser controls. Automated validation is green; physical validation remains a separate production-readiness requirement.
+- **P2 — Realtime application events:** next implementation priority; define WebSocket/SSE reconnect/replay semantics and update TanStack Query caches without vendor transport leakage.
 - **P3 — Automatic filament accounting:** reservations, estimates, queue-completion consumption and explicit reconciliation.
 - **P4 — Inventory mutation UI:** guarded spool create/correct/assignment/archive flows above the already released command API.
 - **Physical validation throughout:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → controls → lifecycle → completion/reconciliation, plus Raspberry Pi 5/Umbrel install/restart/persistence/reachability.
@@ -186,7 +187,7 @@ Documentation must not call these transports or the full deployment production-v
 - completed same-key replay is side-effect-free;
 - unresolved/indeterminate same-key replay is side-effect-free and requires state reconciliation;
 - frontend controls are capability/state gated and cancel asks for confirmation;
-- frontend uncertainty handling never blind-retries a device control;
+- frontend uncertainty handling never blind-retries a device control and is not cleared by polling timestamps alone;
 - EN/RU/UK job-control key parity is tested;
 - backend Ruff/tests, frontend typecheck/tests/build and unified-container smoke are green;
 - physical X2D/OpenKE control validation remains explicitly pending until performed.
