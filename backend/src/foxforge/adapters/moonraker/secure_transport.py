@@ -112,6 +112,8 @@ async def _reject_redirect(
     _context: aiohttp.TraceConfigCtx,
     params: aiohttp.TraceRequestRedirectParams,
 ) -> None:
-    raise MoonrakerEndpointSecurityError(
-        f"Moonraker HTTP redirects are disabled by endpoint policy: HTTP {params.response.status}"
+    raise MoonrakerTransportError(
+        MoonrakerTransportErrorKind.REJECTED,
+        f"Moonraker HTTP redirects are disabled by endpoint policy: HTTP {params.response.status}",
+        vendor_code="endpoint_policy",
     )
