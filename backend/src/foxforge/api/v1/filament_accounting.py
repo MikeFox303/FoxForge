@@ -10,7 +10,6 @@ from uuid import UUID
 from aiohttp import web
 
 from foxforge.application.accounting import (
-    FilamentAccountingError,
     FilamentAccountingService,
     FilamentAssignmentRequiredError,
     FilamentCapacityError,
