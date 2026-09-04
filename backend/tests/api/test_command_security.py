@@ -106,7 +106,13 @@ def test_valid_operator_token_resolves_non_admin_principal() -> None:
             assert response.status == 200
             payload = await response.json()
             assert payload["principalId"] == "operator"
-            assert payload["permissions"] == ["inventory.write", "printer.control", "queue.write"]
+            assert payload["permissions"] == [
+                "inventory.write",
+                "printer.config",
+                "printer.control",
+                "queue.write",
+            ]
+            assert "admin.config" not in payload["permissions"]
         finally:
             await client.close()
 
