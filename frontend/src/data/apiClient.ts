@@ -116,15 +116,16 @@ interface ApiQueueResponse {
 }
 
 export async function loadFleetFromApi(): Promise<FleetData> {
-  const [fleet, queue] = await Promise.all([
-    fetchJson<ApiFleetResponse>('/api/v1/fleet'),
-    fetchJson<ApiQueueResponse>('/api/v1/queue'),
-  ]);
-
+  const fleet = await fetchJson<ApiFleetResponse>('/api/v1/fleet');
   return {
     printers: fleet.printers.map(mapPrinter),
-    queue: queue.entries.map(mapQueueEntry),
+    queue: [],
   };
+}
+
+export async function loadQueueFromApi(): Promise<QueueViewModel[]> {
+  const queue = await fetchJson<ApiQueueResponse>('/api/v1/queue');
+  return queue.entries.map(mapQueueEntry);
 }
 
 export async function fetchJson<T>(path: string): Promise<T> {
