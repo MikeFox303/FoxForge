@@ -11,6 +11,20 @@ export interface FleetSummary {
   materialAlerts: number;
 }
 
+export interface FleetAvailability {
+  hasPrinters: boolean;
+  hasQueueEntries: boolean;
+  hasMaterialSystems: boolean;
+}
+
+export function fleetAvailability(data: FleetData): FleetAvailability {
+  return {
+    hasPrinters: data.printers.length > 0,
+    hasQueueEntries: data.queue.length > 0,
+    hasMaterialSystems: data.printers.some((printer) => (printer.materialSystem?.units.length ?? 0) > 0),
+  };
+}
+
 export function summarizeFleet(data: FleetData): FleetSummary {
   let materialAlerts = 0;
 
