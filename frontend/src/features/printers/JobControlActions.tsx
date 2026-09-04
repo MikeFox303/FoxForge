@@ -17,14 +17,19 @@ export function JobControlActions({ printer }: { printer: PrinterViewModel }) {
   const [phase, setPhase] = useState<ControlPhase>('idle');
   const [activeAction, setActiveAction] = useState<JobControlAction | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const jobControl = printer.capabilities.find((item) => item.capabilityId === 'foxforge.job_control' && item.majorVersion === 1);
+  const jobControl = printer.capabilities.find(
+    (item) => item.capabilityId === 'foxforge.job_control' && item.majorVersion === 1,
+  );
   const job = printer.snapshot.activeJob;
 
   useEffect(() => {
+    // Do not clear an uncertain command merely because polling produced a new
+    // observedAt timestamp. The operator must see a conclusive job-state or
+    // vendor-job identity transition before another side effect is enabled.
     setPhase('idle');
     setActiveAction(null);
     setMessage(null);
-  }, [printer.snapshot.observedAt, job?.vendorJobId, job?.state]);
+  }, [job?.vendorJobId, job?.state]);
 
   const actions = useMemo(() => {
     if (!jobControl || !job?.vendorJobId || printer.snapshot.stale || printer.snapshot.connection !== 'connected') return [];
@@ -61,7 +66,10 @@ export function JobControlActions({ printer }: { printer: PrinterViewModel }) {
       await queryClient.invalidateQueries({ queryKey: ['fleet', 'snapshot'] });
     } catch (error) {
       const commandError = error instanceof CommandApiError ? error : null;
-      const uncertain = !commandError || commandError.code === 'job_control_indeterminate' || commandError.code === 'job_control_reconciliation_required';
+      const uncertain =
+        !commandError ||
+        commandError.code === 'job_control_indeterminate' ||
+        commandError.code === 'job_control_reconciliation_required';
       if (uncertain) {
         setPhase('uncertain');
         setMessage(t('jobControl.uncertain'));
@@ -88,12 +96,17 @@ export function JobControlActions({ printer }: { printer: PrinterViewModel }) {
             disabled={phase !== 'idle'}
             onClick={() => void execute(action)}
           >
-            {phase === 'sending' && activeAction === action ? t('jobControl.sending') : t(`jobControl.actions.${action}`)}
+            {phase === 'sending' && activeAction === action
+              ? t('jobControl.sending')
+              : t(`jobControl.actions.${action}`)}
           </button>
         ))}
       </div>
       {message && (
-        <div className={`printer-control-message ${phase === 'uncertain' ? 'warning' : ''}`} role={phase === 'uncertain' ? 'alert' : 'status'}>
+        <div
+          className={`printer-control-message ${phase === 'uncertain' ? 'warning' : ''}`}
+          role={phase === 'uncertain' ? 'alert' : 'status'}
+        >
           {message}
         </div>
       )}
