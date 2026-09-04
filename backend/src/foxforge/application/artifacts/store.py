@@ -3,7 +3,7 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterable
+from collections.abc import AsyncIterable, Collection
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -20,6 +20,11 @@ class ArtifactTooLargeError(ValueError):
     def __init__(self, max_size_bytes: int) -> None:
         self.max_size_bytes = max_size_bytes
         super().__init__(f"artifact exceeds the {max_size_bytes}-byte staging limit")
+
+
+class ArtifactStorageFullError(RuntimeError):
+    def __init__(self, message: str = "artifact storage quota or free-space reserve would be exceeded") -> None:
+        super().__init__(message)
 
 
 class ArtifactHashMismatchError(ValueError):
@@ -41,6 +46,22 @@ class ArtifactStageResult:
     replayed: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ArtifactStorageStats:
+    artifact_count: int
+    used_bytes: int
+    total_quota_bytes: int | None
+    free_bytes: int
+    min_free_bytes: int
+
+
+@dataclass(frozen=True, slots=True)
+class ArtifactCleanupResult:
+    removed_artifact_ids: tuple[str, ...]
+    removed_bytes: int
+    removed_temp_directories: int
+
+
 class ArtifactStore(Protocol):
     async def stage(
         self,
@@ -53,3 +74,13 @@ class ArtifactStore(Protocol):
     ) -> ArtifactStageResult: ...
 
     def get(self, artifact_id: str) -> LocalPrintArtifact: ...
+
+    def stats(self) -> ArtifactStorageStats: ...
+
+    def cleanup(
+        self,
+        *,
+        referenced_artifact_ids: Collection[str],
+        orphan_retention_seconds: float,
+        temp_retention_seconds: float,
+    ) -> ArtifactCleanupResult: ...
