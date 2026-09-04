@@ -17,7 +17,7 @@ from foxforge.application.printer_management import (
     PrinterSetupOutcome,
 )
 from foxforge.application.secrets import SecretStore
-from foxforge.domain.printers import PrinterAdapterError
+from foxforge.domain.printers import PrinterAdapterError, PrinterIdentity
 from foxforge.infrastructure.printers import AdapterRegistry
 
 from .config import PrinterRuntimeConfig, RuntimeConfig, save_runtime_config
@@ -119,7 +119,10 @@ class RuntimePrinterManager:
             effective = _with_existing_secrets(configuration, existing, self._secret_store)
             replacement = self._registry.create(effective.identity, effective.settings)
             previous = self._config
-            secret_backup = _secret_values(existing.identity, self._secret_store)
+            secret_backup = _capture_secret_values(
+                (existing.identity, effective.identity),
+                self._secret_store,
+            )
             try:
                 updated_printers = tuple(
                     _runtime_configuration(effective, self._secret_store)
@@ -127,10 +130,12 @@ class RuntimePrinterManager:
                     else item
                     for item in previous.printers
                 )
+                if existing.identity.adapter_kind != effective.identity.adapter_kind:
+                    delete_printer_secrets(existing.identity, self._secret_store)
                 updated = replace(previous, printers=updated_printers)
                 save_runtime_config(self._config_path, updated)
             except Exception:
-                _restore_secret_values(existing.identity, secret_backup, self._secret_store)
+                _restore_secret_values(secret_backup, self._secret_store)
                 raise
 
             with suppress(PrinterAdapterError):
@@ -139,7 +144,7 @@ class RuntimePrinterManager:
                 await self._fleet.add_adapter(replacement)
             except Exception:
                 save_runtime_config(self._config_path, previous)
-                _restore_secret_values(existing.identity, secret_backup, self._secret_store)
+                _restore_secret_values(secret_backup, self._secret_store)
                 old_adapter = self._registry.create(
                     existing.identity,
                     hydrate_settings(existing.identity, existing.settings, self._secret_store),
@@ -234,13 +239,20 @@ def _with_existing_secrets(
     return PrinterConfiguration(identity=configuration.identity, settings=settings)
 
 
-def _secret_values(identity, store: SecretStore) -> dict[str, str | None]:
-    return {field_name: store.get(secret_key(identity, field_name)) for field_name in secret_fields(identity)}
+def _capture_secret_values(
+    identities: tuple[PrinterIdentity, ...],
+    store: SecretStore,
+) -> dict[str, str | None]:
+    keys = {
+        secret_key(identity, field_name)
+        for identity in identities
+        for field_name in secret_fields(identity)
+    }
+    return {key: store.get(key) for key in keys}
 
 
-def _restore_secret_values(identity, values: dict[str, str | None], store: SecretStore) -> None:
-    for field_name, value in values.items():
-        key = secret_key(identity, field_name)
+def _restore_secret_values(values: dict[str, str | None], store: SecretStore) -> None:
+    for key, value in values.items():
         if value is None:
             store.delete(key)
         else:
