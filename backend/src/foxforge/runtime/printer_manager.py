@@ -243,11 +243,7 @@ def _capture_secret_values(
     identities: tuple[PrinterIdentity, ...],
     store: SecretStore,
 ) -> dict[str, str | None]:
-    keys = {
-        secret_key(identity, field_name)
-        for identity in identities
-        for field_name in secret_fields(identity)
-    }
+    keys = {secret_key(identity, field_name) for identity in identities for field_name in secret_fields(identity)}
     return {key: store.get(key) for key in keys}
 
 
