@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 
 import { demoModeEnabled } from './apiClient';
 
-type ApplicationEventTopic = 'fleet' | 'queue' | 'inventory' | 'printer_configuration';
+type ApplicationEventTopic = 'fleet' | 'queue' | 'inventory' | 'accounting' | 'printer_configuration';
 
 interface ApplicationEventPayload {
   apiVersion: '1';
@@ -48,6 +48,8 @@ export function realtimeInvalidationKeys(
       return [['queue']];
     case 'inventory':
       return [['inventory']];
+    case 'accounting':
+      return [['queue'], ['inventory']];
     default:
       return resyncKeys;
   }
