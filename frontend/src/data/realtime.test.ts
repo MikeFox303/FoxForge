@@ -26,6 +26,10 @@ describe('realtimeInvalidationKeys', () => {
     expect(realtimeInvalidationKeys('change', payload('inventory'))).toEqual([['inventory']]);
   });
 
+  it('routes accounting changes to both queue and inventory snapshots', () => {
+    expect(realtimeInvalidationKeys('change', payload('accounting'))).toEqual([['queue'], ['inventory']]);
+  });
+
   it('fails closed to full snapshot resync for malformed or unknown events', () => {
     expect(realtimeInvalidationKeys('change', '{bad json')).toEqual([['fleet'], ['queue'], ['inventory']]);
     expect(realtimeInvalidationKeys('change', payload('future-topic'))).toEqual([

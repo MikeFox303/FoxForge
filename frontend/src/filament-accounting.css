@@ -1,0 +1,59 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.filament-plan-editor {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--border-subtle, rgba(128, 128, 128, 0.25));
+  border-radius: 0.75rem;
+}
+
+.filament-plan-editor > p,
+.filament-accounting-note {
+  margin: 0.35rem 0 0.9rem;
+  opacity: 0.8;
+}
+
+.filament-plan-rows {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.filament-plan-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, 0.55fr) minmax(10rem, 1fr) minmax(9rem, 0.8fr) auto;
+  gap: 0.75rem;
+  align-items: end;
+}
+
+.queue-accounting-actions {
+  display: grid;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
+}
+
+.queue-accounting-reservation,
+.queue-accounting-reconcile {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.queue-accounting-reconcile label {
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.queue-accounting-reconcile input {
+  width: 7rem;
+}
+
+@media (max-width: 760px) {
+  .filament-plan-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+}

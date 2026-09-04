@@ -33,6 +33,11 @@ export interface QueueJobIdentity {
   enqueueIdempotencyKey: string;
 }
 
+export interface QueueMaterialBindingInput {
+  materialIndex: number;
+  slotId: string;
+}
+
 export function createQueueJobIdentity(): QueueJobIdentity {
   return {
     queueId: crypto.randomUUID(),
@@ -64,6 +69,7 @@ export async function enqueuePrintJob(options: {
   printerId: string;
   artifactId: string;
   requestedName?: string;
+  materialBindings?: QueueMaterialBindingInput[];
 }): Promise<QueueCommandResult> {
   return authenticatedCommandJson<QueueCommandResult>('/api/v1/queue', {
     method: 'POST',
@@ -73,6 +79,7 @@ export async function enqueuePrintJob(options: {
       dispatchId: options.identity.dispatchId,
       printerId: options.printerId,
       artifactId: options.artifactId,
+      materialBindings: options.materialBindings?.length ? options.materialBindings : undefined,
       requestedName: options.requestedName || undefined,
     },
   });

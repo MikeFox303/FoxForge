@@ -9,6 +9,15 @@ import { CommandApiError } from '../../data/commandClient';
 import type { FleetData, QueueViewModel } from '../../domain';
 import '../../queue-command.css';
 import {
+  buildFilamentPlan,
+  FilamentPlanEditor,
+  newFilamentPlanRow,
+  type FilamentPlanRow,
+  type FilamentPlanSubmission,
+} from './FilamentPlanEditor';
+import { planQueueFilament } from './filamentAccountingClient';
+import { QueueAccountingActions } from './QueueAccountingActions';
+import {
   createQueueJobIdentity,
   dispatchPrintJob,
   enqueuePrintJob,
@@ -25,6 +34,7 @@ type SubmitPhase =
   | 'hashing'
   | 'staging'
   | 'enqueuing'
+  | 'planning'
   | 'queued'
   | 'dispatching'
   | 'blocked'
@@ -42,6 +52,9 @@ interface PendingJob {
   artifact?: StagedArtifact;
   queue?: QueueCommandResult;
   dispatchIdempotencyKey?: string;
+  filamentPlan?: FilamentPlanSubmission;
+  filamentPlanIdempotencyKey?: string;
+  filamentPlanned?: boolean;
 }
 
 export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
@@ -56,14 +69,26 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
   const [file, setFile] = useState<File | null>(null);
   const [printerId, setPrinterId] = useState('');
   const [requestedName, setRequestedName] = useState('');
+  const [planRows, setPlanRows] = useState<FilamentPlanRow[]>([newFilamentPlanRow()]);
   const [pending, setPending] = useState<PendingJob | null>(null);
   const [phase, setPhase] = useState<SubmitPhase>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const busy = ['hashing', 'staging', 'enqueuing', 'dispatching'].includes(phase);
-  const canEnqueue = file !== null && printerId !== '' && !busy && !pending?.queue;
+  const selectedPrinter = printers.find((printer) => printer.identity.printerId === printerId);
+  const hasMaterialSlots = Boolean(
+    selectedPrinter?.materialSystem?.units.some((unit) => unit.slots.length > 0),
+  );
+  const currentFilamentPlan = hasMaterialSlots ? buildFilamentPlan(planRows) : null;
+  const busy = ['hashing', 'staging', 'enqueuing', 'planning', 'dispatching'].includes(phase);
+  const canEnqueue = file !== null
+    && printerId !== ''
+    && !busy
+    && !pending?.queue
+    && (!hasMaterialSlots || currentFilamentPlan !== null);
+  const accountingReady = !pending?.filamentPlan || pending.filamentPlanned === true;
   const canDispatch = Boolean(
     pending?.queue
+      && accountingReady
       && !busy
       && phase !== 'accepted'
       && phase !== 'indeterminate'
@@ -84,17 +109,22 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
 
   const onPrinterChange = (value: string) => {
     setPrinterId(value);
+    setPlanRows([newFilamentPlanRow()]);
     resetLogicalJob();
   };
 
   const addToQueue = async () => {
     if (!file || !printerId) return;
+    const filamentPlan = hasMaterialSlots ? buildFilamentPlan(planRows) : null;
+    if (hasMaterialSlots && filamentPlan === null) return;
     setError(null);
     const logicalJob = pending ?? {
       identity: createQueueJobIdentity(),
       file,
       printerId,
       requestedName: requestedName.trim(),
+      filamentPlan: filamentPlan ?? undefined,
+      filamentPlanIdempotencyKey: filamentPlan ? crypto.randomUUID() : undefined,
     };
     setPending(logicalJob);
 
@@ -115,8 +145,42 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
         printerId: logicalJob.printerId,
         artifactId: artifact.artifactId,
         requestedName: logicalJob.requestedName,
+        materialBindings: logicalJob.filamentPlan?.materialBindings,
       });
-      setPending({ ...withArtifact, queue });
+      const withQueue = { ...withArtifact, queue };
+      setPending(withQueue);
+
+      if (logicalJob.filamentPlan && logicalJob.filamentPlanIdempotencyKey) {
+        setPhase('planning');
+        await planQueueFilament(
+          queue.queueId,
+          logicalJob.filamentPlan.estimates,
+          logicalJob.filamentPlanIdempotencyKey,
+        );
+        setPending({ ...withQueue, filamentPlanned: true });
+      }
+
+      setPhase('queued');
+      await refreshQueue(queryClient);
+    } catch (cause) {
+      setPhase('error');
+      setError(errorMessage(cause));
+      await refreshQueue(queryClient);
+    }
+  };
+
+  const retryFilamentPlan = async () => {
+    const logicalJob = pending;
+    if (!logicalJob?.queue || !logicalJob.filamentPlan || !logicalJob.filamentPlanIdempotencyKey) return;
+    setError(null);
+    setPhase('planning');
+    try {
+      await planQueueFilament(
+        logicalJob.queue.queueId,
+        logicalJob.filamentPlan.estimates,
+        logicalJob.filamentPlanIdempotencyKey,
+      );
+      setPending({ ...logicalJob, filamentPlanned: true });
       setPhase('queued');
       await refreshQueue(queryClient);
     } catch (cause) {
@@ -127,7 +191,7 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
 
   const dispatchQueuedJob = async () => {
     const logicalJob = pending;
-    if (!logicalJob?.queue) return;
+    if (!logicalJob?.queue || !accountingReady) return;
     setError(null);
     setPhase('dispatching');
     const idempotencyKey = logicalJob.dispatchIdempotencyKey ?? crypto.randomUUID();
@@ -207,11 +271,33 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
         </label>
       </div>
 
+      <FilamentPlanEditor
+        printer={selectedPrinter}
+        rows={planRows}
+        disabled={busy || Boolean(pending?.queue)}
+        onChange={(rows) => {
+          setPlanRows(rows);
+          resetLogicalJob();
+        }}
+      />
+
       <div className="queue-command-status" role="status" aria-live="polite">
         <strong>{phaseLabel(phase, t)}</strong>
         <span>{phaseText(phase, t)}</span>
         {pending?.sha256 && <code title={pending.sha256}>{pending.sha256.slice(0, 12)}…</code>}
       </div>
+
+      {pending?.filamentPlan && pending.filamentPlanned && (
+        <p className="filament-accounting-note">{t('filamentAccounting.planned')}</p>
+      )}
+      {pending?.queue && pending.filamentPlan && !pending.filamentPlanned && (
+        <div className="queue-command-indeterminate" role="alert">
+          <strong>{t('filamentAccounting.planRequired')}</strong>
+          <button className="secondary-button" type="button" disabled={busy} onClick={() => void retryFilamentPlan()}>
+            {t('filamentAccounting.retryPlan')}
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="queue-command-error" role="alert">
@@ -247,6 +333,7 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
               setFile(null);
               setPrinterId('');
               setRequestedName('');
+              setPlanRows([newFilamentPlanRow()]);
               resetLogicalJob();
             }}
           >
@@ -307,31 +394,38 @@ export function QueueEntryActions({ entry }: { entry: QueueViewModel }) {
   };
 
   const retryableFailure = entry.state === 'failed' && entry.retryable === true;
-  if (!['pending', 'blocked', 'indeterminate'].includes(entry.state) && !retryableFailure && !error) return null;
+  const showDispatchActions = ['pending', 'blocked', 'indeterminate'].includes(entry.state)
+    || retryableFailure
+    || Boolean(error);
 
   return (
-    <div className="queue-entry-actions">
-      {(entry.state === 'pending' || entry.state === 'blocked' || retryableFailure) && (
-        <button className="text-button" type="button" disabled={busy} onClick={() => void dispatch()}>
-          {busy
-            ? t('alpha.queueCommand.sending')
-            : retryableFailure
-              ? t('alpha.queueCommand.retryPrint')
-              : t('alpha.queueCommand.startPrint')}
-        </button>
+    <>
+      {showDispatchActions && (
+        <div className="queue-entry-actions">
+          {(entry.state === 'pending' || entry.state === 'blocked' || retryableFailure) && (
+            <button className="text-button" type="button" disabled={busy} onClick={() => void dispatch()}>
+              {busy
+                ? t('alpha.queueCommand.sending')
+                : retryableFailure
+                  ? t('alpha.queueCommand.retryPrint')
+                  : t('alpha.queueCommand.startPrint')}
+            </button>
+          )}
+          {entry.state === 'indeterminate' && (
+            <>
+              <button className="text-button warning-text" type="button" disabled={busy} onClick={() => void reconcile(true)}>
+                {t('alpha.queueCommand.confirmStarted')}
+              </button>
+              <button className="text-button" type="button" disabled={busy} onClick={() => void reconcile(false)}>
+                {t('alpha.queueCommand.confirmNotStarted')}
+              </button>
+            </>
+          )}
+          {error && <small className="warning-text">{error}</small>}
+        </div>
       )}
-      {entry.state === 'indeterminate' && (
-        <>
-          <button className="text-button warning-text" type="button" disabled={busy} onClick={() => void reconcile(true)}>
-            {t('alpha.queueCommand.confirmStarted')}
-          </button>
-          <button className="text-button" type="button" disabled={busy} onClick={() => void reconcile(false)}>
-            {t('alpha.queueCommand.confirmNotStarted')}
-          </button>
-        </>
-      )}
-      {error && <small className="warning-text">{error}</small>}
-    </div>
+      <QueueAccountingActions entry={entry} />
+    </>
   );
 }
 
@@ -376,6 +470,7 @@ function phaseLabel(phase: SubmitPhase, t: (key: string) => string): string {
   if (phase === 'hashing') return t('alpha.queueCommand.hashing');
   if (phase === 'staging') return t('alpha.queueCommand.uploading');
   if (phase === 'enqueuing') return t('alpha.queueCommand.enqueuing');
+  if (phase === 'planning') return t('filamentAccounting.planning');
   if (phase === 'queued') return t('alpha.queueCommand.queued');
   if (phase === 'dispatching') return t('alpha.queueCommand.dispatching');
   if (phase === 'blocked') return t('alpha.queueCommand.blocked');
@@ -387,6 +482,7 @@ function phaseLabel(phase: SubmitPhase, t: (key: string) => string): string {
 }
 
 function phaseText(phase: SubmitPhase, t: (key: string) => string): string {
+  if (phase === 'planning') return t('filamentAccounting.text');
   if (phase === 'queued') return t('alpha.queueCommand.queuedText');
   if (phase === 'blocked') return t('alpha.queueCommand.blockedText');
   if (phase === 'accepted') return t('alpha.queueCommand.acceptedText');
