@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 
 import pytest
 from aiohttp.test_utils import TestClient, TestServer
@@ -45,6 +46,13 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
             assert inventory.status == 200
             assert await inventory.json() == {"apiVersion": "1", "spools": []}
 
+            diagnostics = await client.get("/api/v1/diagnostics/persistence")
+            assert diagnostics.status == 200
+            assert await diagnostics.json() == {
+                "apiVersion": "1",
+                "persistence": {"configSchemaVersion": 2, "sqliteSchemaVersion": 1},
+            }
+
             root = await client.get("/")
             assert root.status == 200
             assert "FoxForge alpha" in await root.text()
@@ -61,6 +69,8 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
 
         assert (data_dir / "config.json").is_file()
         assert (data_dir / "foxforge.sqlite3").is_file()
+        with sqlite3.connect(data_dir / "foxforge.sqlite3") as connection:
+            assert connection.execute("PRAGMA user_version").fetchone() == (1,)
 
     asyncio.run(scenario())
 
