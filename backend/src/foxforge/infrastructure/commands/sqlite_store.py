@@ -15,11 +15,8 @@ from foxforge.application.commands import (
     CommandExecutionState,
     CommandIdempotencyClaim,
     CommandIdempotencyRecord,
+    CommandStoreMissingError,
 )
-
-
-class CommandStoreMissingError(KeyError):
-    pass
 
 
 class SQLiteCommandStore:
