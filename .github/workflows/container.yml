@@ -52,6 +52,10 @@ jobs:
           cat /tmp/health.json
           grep -q '"status": "ok"' /tmp/health.json
           curl --fail --silent http://127.0.0.1:18080/ | grep -q 'FoxForge'
+          curl --fail --silent --no-buffer --max-time 1 \
+            http://127.0.0.1:18080/api/v1/events > /tmp/events.sse || true
+          grep -q '^event: resync_required$' /tmp/events.sse
+          grep -q '^data: {"apiVersion":"1"' /tmp/events.sse
           test -f "${RUNNER_TEMP}/foxforge-data/config.json"
           test -f "${RUNNER_TEMP}/foxforge-data/foxforge.sqlite3"
       - name: Container logs
