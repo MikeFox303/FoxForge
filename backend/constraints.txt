@@ -32,9 +32,9 @@ propcache==0.5.2
     #   yarl
 pygments==2.21.0
     # via pytest
-pytest==9.0.3
+pytest==9.1.1
     # via foxforge (pyproject.toml)
-ruff==0.15.20
+ruff==0.16.5
     # via foxforge (pyproject.toml)
 typing-extensions==4.16.0
     # via
