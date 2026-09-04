@@ -49,4 +49,10 @@ jobs:
             exit 1
           fi
       - name: Contract and unit tests
-        run: pytest -q
+        run: |
+          if [ "${{ matrix.python-version }}" = "3.12" ]; then
+            coverage run --branch --source=foxforge -m pytest -q
+            coverage report --show-missing
+          else
+            pytest -q
+          fi
