@@ -4,7 +4,7 @@
 
 FoxForge is building a common printer-management core for Bambu Lab, Moonraker/Klipper, print queues, material systems, filament inventory and farm-management workflows. Common behavior is exposed through vendor-neutral contracts, while advanced platform features remain available through typed vendor capabilities instead of being reduced to a lowest-common-denominator API.
 
-> **Development status:** `v0.1.0-alpha.1` — first public runnable alpha pre-release. FoxForge ships a unified backend + web UI runtime with a versioned read API, SQLite persistence, Docker packaging, a Linux `amd64`/`arm64` GHCR image and a tested Umbrel Community App package. It is **not production-ready yet**: authenticated printer command APIs, realtime delivery, physical Bambu/Moonraker validation, automatic filament accounting and farm scheduling remain active work.
+> **Development status:** `v0.1.0-alpha.2` — second public runnable alpha pre-release. FoxForge ships a unified backend + web UI runtime with a versioned read API, SQLite persistence, Docker packaging, a Linux `amd64`/`arm64` GHCR image and a tested Umbrel Community App package. It is **not production-ready yet**: authenticated printer command APIs, realtime delivery, physical Bambu/Moonraker validation, automatic filament accounting and farm scheduling remain active work.
 
 ## Current alpha capabilities
 
@@ -24,8 +24,26 @@ The current `main` branch includes:
 - persistent `/data/config.json` and `foxforge.sqlite3` state;
 - non-root steady-state container execution;
 - CI coverage for Python 3.12/3.13, frontend type/tests/build and container startup smoke tests;
-- a guarded release workflow publishing the versioned `v0.1.0-alpha.1` image for Linux `amd64` and `arm64`;
-- an Umbrel Community App package (`my3d-foxforge`) pinned to the immutable `v0.1.0-alpha.1` image, with authenticated App Proxy access and dedicated amd64/arm64 anonymous-pull runtime tests.
+- a guarded release workflow publishing the versioned `v0.1.0-alpha.2` image for Linux `amd64` and `arm64`;
+- an Umbrel Community App package (`my3d-foxforge`) pinned to the immutable `v0.1.0-alpha.2` image, with authenticated App Proxy access and dedicated amd64/arm64 anonymous-pull runtime tests.
+
+## Interface preview
+
+These are **real browser screenshots of the current FoxForge React application**, captured directly from the repository build. They use FoxForge's explicit built-in `?demo=1` mode so representative Bambu X2D, Moonraker, AMS, queue and inventory state can be shown without requiring physical printers during documentation capture. They are not UI mockups and are not AI-generated images.
+
+### Fleet overview
+
+![FoxForge fleet overview](docs/images/ui/overview.png)
+
+| X2D printer cockpit | Filament inventory |
+| --- | --- |
+| ![FoxForge X2D printer detail](docs/images/ui/printer-x2d.png) | ![FoxForge filament inventory](docs/images/ui/inventory.png) |
+
+| Print queue | Farm view |
+| --- | --- |
+| ![FoxForge print queue](docs/images/ui/queue.png) | ![FoxForge farm view](docs/images/ui/farm.png) |
+
+Additional captures: [Printers view](docs/images/ui/printers.png) · [Mobile overview](docs/images/ui/overview-mobile.png)
 
 ## Project goals
 
@@ -119,13 +137,13 @@ The public API is intentionally read-only at this stage. No anonymous printer-co
 | Bambu LAN transport | MQTT/TLS + implicit FTPS implementation; physical X2D/Bambu validation pending |
 | Moonraker transport | HTTP/WebSocket implementation; physical OpenKE/Moonraker validation pending |
 | Docker | Unified image + Compose implemented and startup-smoke-tested on CI |
-| ARM64 | `v0.1.0-alpha.1` image published; anonymous arm64 runtime smoke passes under CI/QEMU; representative Raspberry Pi hardware validation remains pending |
+| ARM64 | `v0.1.0-alpha.2` image published; anonymous arm64 runtime smoke passes under CI/QEMU; representative Raspberry Pi hardware validation remains pending |
 | Umbrel | `my3d-foxforge` Community App implemented and merged; immutable alpha image, App Proxy, persistence and amd64/arm64 runtime gates validated |
 | Farm scheduler | Single-pass queue runner exists; persistent farm policy/scheduler is not implemented yet |
 
 ## UmbrelOS installation
 
-FoxForge `v0.1.0-alpha.1` is available in the companion Community App Store:
+FoxForge `v0.1.0-alpha.2` is available in the companion Community App Store:
 
 ```text
 https://github.com/MikeFox303/umbrel-3d-printing-store
@@ -135,7 +153,7 @@ After registering/refreshing that Community Store in UmbrelOS, install **FoxForg
 
 The package:
 
-- uses the exact immutable `v0.1.0-alpha.1` GHCR multi-architecture image;
+- uses the exact immutable `v0.1.0-alpha.2` GHCR multi-architecture image;
 - leaves standard Umbrel App Proxy authentication enabled;
 - stores configuration, queue and inventory state under the Umbrel app data directory mounted as `/data`;
 - uses bridge networking and explicit printer addresses, with no Docker socket or privileged mode;
@@ -185,7 +203,7 @@ Production Umbrel packaging of official Bambuddy releases remains a separate con
 
 ## Release/version note
 
-The Community App is pinned to the released `v0.1.0-alpha.1` image. FoxForge `main` has continued to receive UI/UX improvements after that release. Those changes are intentionally **not** delivered through a floating container tag; they require the next guarded FoxForge release and a corresponding immutable Store package update.
+The Community App is pinned to the released `v0.1.0-alpha.2` image. FoxForge `main` may continue to receive UI/UX and runtime improvements after that release. Those changes are intentionally **not** delivered through a floating container tag; they require the next guarded FoxForge release and a corresponding immutable Store package update.
 
 ## Documentation
 
