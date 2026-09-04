@@ -1,13 +1,45 @@
 # Docker deployment
 
-This directory is reserved for FoxForge's production container build and local/self-hosted compose configuration.
+FoxForge now has a runnable alpha Docker implementation in this directory.
 
-Target constraints:
+## Implemented
 
-- Linux amd64 and ARM64;
-- one application runtime serving the Python API and compiled frontend assets;
-- persistent data mounted outside the image;
-- health checks suitable for container orchestration and Umbrel packaging;
-- no development-time Node.js process in the production image.
+- multi-stage production image;
+- compiled React/Vite frontend included in the final runtime image;
+- Python `foxforge` server serving both the SPA and `/api/v1`;
+- standalone `docker-compose.yml`;
+- persistent application data mounted at `/data`;
+- safe first-start creation of `config.json` and `foxforge.sqlite3`;
+- mounted-data permission preparation followed by non-root steady-state execution;
+- container health/startup smoke test in CI;
+- no development-time Node.js server in the production image;
+- no Docker socket requirement;
+- no `network_mode: host` requirement for the current explicit-IP Bambu/Moonraker alpha model.
 
-Docker implementation will be added only with runtime smoke tests and multi-architecture CI coverage.
+The current image is suitable for development and controlled alpha testing. It is not yet a production release.
+
+## Runtime expectations
+
+The container owns one FoxForge application runtime:
+
+```text
+browser
+  |
+FoxForge container
+  ├── React SPA
+  ├── /api/v1
+  ├── FleetService / QueueService / InventoryService
+  ├── SQLite state
+  └── outbound connections to configured printers
+```
+
+Persistent state and printer credentials remain outside the immutable image under `/data`.
+
+## Release gates still pending
+
+- immutable tagged/digest image publication policy;
+- representative Linux ARM64 runtime validation in addition to build preparation;
+- upgrade/migration rules for persisted configuration/database state;
+- physical Bambu LAN/X2D and Moonraker/OpenKE validation;
+- hardened command/authentication API before remote writes are exposed;
+- Umbrel end-to-end packaging built from the same application image.
