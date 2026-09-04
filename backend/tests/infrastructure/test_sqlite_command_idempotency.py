@@ -34,12 +34,16 @@ def test_sqlite_command_reservation_and_completion_survive_restart(tmp_path) -> 
     original_store = SQLiteCommandIdempotencyStore(database)
     original = _record()
 
-    assert original_store.reserve(original) == original
+    first = original_store.reserve(original)
+    assert first.created is True
+    assert first.record == original
 
     restarted_store = SQLiteCommandIdempotencyStore(database)
     restored = restarted_store.get(original.principal_id, original.operation, original.idempotency_key)
     assert restored == original
-    assert restarted_store.reserve(original) == original
+    replay = restarted_store.reserve(original)
+    assert replay.created is False
+    assert replay.record == original
 
     completed = restarted_store.complete(
         principal_id=original.principal_id,
@@ -53,7 +57,21 @@ def test_sqlite_command_reservation_and_completion_survive_restart(tmp_path) -> 
 
     final_store = SQLiteCommandIdempotencyStore(database)
     assert final_store.get(original.principal_id, original.operation, original.idempotency_key) == completed
-    assert final_store.reserve(original) == completed
+    final_replay = final_store.reserve(original)
+    assert final_replay.created is False
+    assert final_replay.record == completed
+
+
+def test_sqlite_started_replay_cannot_be_mistaken_for_new_execution_owner(tmp_path) -> None:
+    database = tmp_path / "foxforge.sqlite3"
+    original = _record()
+
+    first = SQLiteCommandIdempotencyStore(database).reserve(original)
+    after_restart = SQLiteCommandIdempotencyStore(database).reserve(original)
+
+    assert first.created is True
+    assert after_restart.created is False
+    assert after_restart.record.state == CommandIdempotencyState.STARTED
 
 
 def test_sqlite_command_idempotency_rejects_changed_replay_after_restart(tmp_path) -> None:
