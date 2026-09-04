@@ -8,7 +8,7 @@ from uuid import UUID
 from foxforge.domain.inventory import Spool, SpoolAdjustment, SpoolAssignment
 
 from .events import ApplicationEventJournal, ApplicationEventTopic
-from .inventory.store import InventoryStore
+from .inventory.store import AdjustmentWriteResult, InventoryStore
 from .queue.models import QueueEntry
 from .queue.store import QueueStore
 
@@ -63,9 +63,11 @@ class EventingInventoryStore:
     def list_spools(self) -> tuple[Spool, ...]:
         return self._inner.list_spools()
 
-    def append_adjustment(self, adjustment: SpoolAdjustment) -> None:
-        self._inner.append_adjustment(adjustment)
-        self._changed(adjustment.spool_id, "balance_changed")
+    def append_adjustment(self, adjustment: SpoolAdjustment) -> AdjustmentWriteResult:
+        result = self._inner.append_adjustment(adjustment)
+        if result.created:
+            self._changed(result.adjustment.spool_id, "balance_changed")
+        return result
 
     def get_adjustment_by_key(self, idempotency_key: str) -> SpoolAdjustment | None:
         return self._inner.get_adjustment_by_key(idempotency_key)

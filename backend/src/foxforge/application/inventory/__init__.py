@@ -10,19 +10,25 @@ from .service import (
     SpoolNotFoundError,
 )
 from .store import (
+    AdjustmentWriteResult,
     InMemoryInventoryStore,
     InventoryStore,
+    InventoryStoreArchivedError,
+    InventoryStoreBalanceError,
     InventoryStoreConflictError,
     InventoryStoreMissingError,
 )
 
 __all__ = [
+    "AdjustmentWriteResult",
     "ArchivedSpoolError",
     "InMemoryInventoryStore",
     "InventoryBalanceError",
     "InventoryIdempotencyConflictError",
     "InventoryService",
     "InventoryStore",
+    "InventoryStoreArchivedError",
+    "InventoryStoreBalanceError",
     "InventoryStoreConflictError",
     "InventoryStoreMissingError",
     "SpoolAssignmentConflictError",

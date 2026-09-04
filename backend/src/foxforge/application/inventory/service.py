@@ -17,7 +17,13 @@ from foxforge.domain.inventory import (
     SpoolColor,
 )
 
-from .store import InventoryStore, InventoryStoreConflictError
+from .store import (
+    InventoryStore,
+    InventoryStoreArchivedError,
+    InventoryStoreBalanceError,
+    InventoryStoreConflictError,
+    InventoryStoreMissingError,
+)
 
 
 class SpoolNotFoundError(KeyError):
@@ -279,31 +285,9 @@ class InventoryService:
         idempotency_key: str,
         note: str | None,
     ) -> SpoolAdjustment:
-        spool = self.get_spool(spool_id)
         key = idempotency_key.strip()
         if not key:
             raise ValueError("idempotency_key must not be empty")
-
-        existing = self._store.get_adjustment_by_key(key)
-        if existing is not None:
-            if (
-                existing.spool_id == spool_id
-                and existing.kind == kind
-                and existing.delta_filament_mass_g == delta
-                and existing.note == _optional_text(note)
-            ):
-                return existing
-            raise InventoryIdempotencyConflictError(f"idempotency key already used with different data: {key}")
-
-        if spool.archived:
-            raise ArchivedSpoolError("archived spool cannot receive new mass adjustments")
-
-        current = self.balance(spool_id).remaining_filament_mass_g
-        next_remaining = current + delta
-        if next_remaining < 0:
-            raise InventoryBalanceError("adjustment would make remaining filament negative")
-        if next_remaining > spool.initial_filament_mass_g:
-            raise InventoryBalanceError("adjustment would exceed initial filament mass")
 
         adjustment = SpoolAdjustment(
             adjustment_id=uuid4(),
@@ -314,8 +298,26 @@ class InventoryService:
             created_at=datetime.now(UTC),
             note=note,
         )
-        self._store.append_adjustment(adjustment)
-        return adjustment
+        try:
+            result = self._store.append_adjustment(adjustment)
+        except InventoryStoreMissingError as error:
+            raise SpoolNotFoundError(str(spool_id)) from error
+        except InventoryStoreArchivedError as error:
+            raise ArchivedSpoolError(str(error)) from error
+        except InventoryStoreBalanceError as error:
+            raise InventoryBalanceError(str(error)) from error
+
+        stored = result.adjustment
+        if result.created:
+            return stored
+        if (
+            stored.spool_id == spool_id
+            and stored.kind == kind
+            and stored.delta_filament_mass_g == delta
+            and stored.note == _optional_text(note)
+        ):
+            return stored
+        raise InventoryIdempotencyConflictError(f"idempotency key already used with different data: {key}")
 
 
 def _finite_decimal(value: Decimal, *, field_name: str) -> Decimal:
