@@ -8,8 +8,9 @@ from collections.abc import Mapping
 from foxforge.domain.printers import PrinterIdentity
 
 from .adapter import MoonrakerAdapter
-from .control_transport import MoonrakerControlledHttpTransport
+from .endpoint_policy import MoonrakerEndpointPolicy
 from .http_transport import MoonrakerHttpSettings
+from .secure_transport import MoonrakerSecuredHttpTransport
 
 
 def create_moonraker_http_adapter(
@@ -23,13 +24,24 @@ def create_moonraker_http_adapter(
     base_url = _required_string(settings, "base_url")
     api_key = _optional_string(settings.get("api_key"), field_name="api_key")
     request_timeout_seconds = _positive_float(settings.get("request_timeout_seconds", 10.0), "request_timeout_seconds")
+    allow_public_endpoint = _boolean(settings.get("allow_public_endpoint", False), "allow_public_endpoint")
+    allow_loopback_endpoint = _boolean(settings.get("allow_loopback_endpoint", False), "allow_loopback_endpoint")
+    allow_link_local_endpoint = _boolean(
+        settings.get("allow_link_local_endpoint", False),
+        "allow_link_local_endpoint",
+    )
 
-    transport = MoonrakerControlledHttpTransport(
+    transport = MoonrakerSecuredHttpTransport(
         MoonrakerHttpSettings(
             base_url=base_url,
             api_key=api_key,
             request_timeout_seconds=request_timeout_seconds,
-        )
+        ),
+        endpoint_policy=MoonrakerEndpointPolicy(
+            allow_public_endpoint=allow_public_endpoint,
+            allow_loopback_endpoint=allow_loopback_endpoint,
+            allow_link_local_endpoint=allow_link_local_endpoint,
+        ),
     )
     return MoonrakerAdapter(identity, transport)
 
@@ -57,3 +69,9 @@ def _positive_float(value: object, field_name: str) -> float:
     if number <= 0:
         raise ValueError(f"{field_name} must be a positive number")
     return number
+
+
+def _boolean(value: object, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field_name} must be a boolean")
+    return value
