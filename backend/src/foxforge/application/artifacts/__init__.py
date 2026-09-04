@@ -2,19 +2,25 @@
 # Copyright (C) 2026 MikeFox303
 
 from .store import (
+    ArtifactCleanupResult,
     ArtifactFormatConflictError,
     ArtifactHashMismatchError,
     ArtifactNotFoundError,
     ArtifactStageResult,
+    ArtifactStorageFullError,
+    ArtifactStorageStats,
     ArtifactStore,
     ArtifactTooLargeError,
 )
 
 __all__ = [
+    "ArtifactCleanupResult",
     "ArtifactFormatConflictError",
     "ArtifactHashMismatchError",
     "ArtifactNotFoundError",
     "ArtifactStageResult",
+    "ArtifactStorageFullError",
+    "ArtifactStorageStats",
     "ArtifactStore",
     "ArtifactTooLargeError",
 ]
