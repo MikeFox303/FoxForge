@@ -2,6 +2,8 @@ name: FoxForge container
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'backend/**'
       - 'frontend/**'
@@ -66,7 +68,7 @@ jobs:
         run: docker rm -f foxforge-smoke || true
 
   publish-image:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: verify-image
     runs-on: ubuntu-latest
     steps:
@@ -85,11 +87,9 @@ jobs:
         with:
           images: ghcr.io/mikefox303/foxforge
           tags: |
-            type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=main
             type=sha,prefix=sha-
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-      - name: Publish multi-architecture image
+      - name: Publish multi-architecture development image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -100,6 +100,6 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             VCS_REF=${{ github.sha }}
-            VERSION=${{ github.ref_name }}
+            VERSION=main-${{ github.sha }}
           provenance: mode=max
           sbom: true
