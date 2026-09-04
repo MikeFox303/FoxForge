@@ -7,8 +7,13 @@ from uuid import UUID, uuid4
 from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
+from foxforge.api.v1.command_audit import install_command_audit
 from foxforge.api.v1.job_control_commands import register_job_control_command_routes
-from foxforge.application.commands import InMemoryCommandIdempotencyStore
+from foxforge.application.commands import (
+    CommandAuditOutcome,
+    InMemoryCommandAuditStore,
+    InMemoryCommandIdempotencyStore,
+)
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
@@ -74,7 +79,7 @@ class _ControlCapability:
         )
 
 
-def _app() -> tuple[TestClient, _ControlCapability]:
+def _app() -> tuple[TestClient, _ControlCapability, InMemoryCommandAuditStore]:
     identity = PrinterIdentity(
         printer_id="printer-1",
         display_name="Printer 1",
@@ -107,15 +112,18 @@ def _app() -> tuple[TestClient, _ControlCapability]:
     adapter.register_capability(JobControlCapability, capability)
     fleet = FleetService([adapter])
     idempotency = InMemoryCommandIdempotencyStore()
+    audit = InMemoryCommandAuditStore()
+    security = BearerCommandSecurity(_TOKEN)
     app = create_api_v1_app(
         fleet=fleet,
         queue=QueueService(fleet, InMemoryQueueStore()),
         inventory=InventoryService(InMemoryInventoryStore()),
-        command_security=BearerCommandSecurity(_TOKEN),
+        command_security=security,
         command_idempotency=idempotency,
     )
     register_job_control_command_routes(app, fleet=fleet)
-    return TestClient(TestServer(app)), capability
+    install_command_audit(app, security=security, store=audit)
+    return TestClient(TestServer(app)), capability, audit
 
 
 def _payload(control_id: UUID | None = None, *, action: str = "pause") -> dict[str, str]:
@@ -126,13 +134,16 @@ def _payload(control_id: UUID | None = None, *, action: str = "pause") -> dict[s
     }
 
 
-def _headers(key: str) -> dict[str, str]:
-    return {"Authorization": f"Bearer {_TOKEN}", "Idempotency-Key": key}
+def _headers(key: str, request_id: str | None = None) -> dict[str, str]:
+    headers = {"Authorization": f"Bearer {_TOKEN}", "Idempotency-Key": key}
+    if request_id is not None:
+        headers["X-Request-Id"] = request_id
+    return headers
 
 
 def test_job_control_success_and_completed_replay_execute_once() -> None:
     async def scenario() -> None:
-        client, capability = _app()
+        client, capability, _ = _app()
         await client.start_server()
         try:
             payload = _payload()
@@ -160,7 +171,7 @@ def test_job_control_success_and_completed_replay_execute_once() -> None:
 
 def test_job_control_same_key_rejects_changed_request() -> None:
     async def scenario() -> None:
-        client, capability = _app()
+        client, capability, _ = _app()
         await client.start_server()
         try:
             control_id = uuid4()
@@ -187,7 +198,7 @@ def test_job_control_same_key_rejects_changed_request() -> None:
 
 def test_indeterminate_command_stays_unresolved_and_is_not_reexecuted() -> None:
     async def scenario() -> None:
-        client, capability = _app()
+        client, capability, _ = _app()
         capability.indeterminate = True
         await client.start_server()
         try:
@@ -214,9 +225,35 @@ def test_indeterminate_command_stays_unresolved_and_is_not_reexecuted() -> None:
     asyncio.run(scenario())
 
 
+def test_job_control_is_recorded_in_command_audit() -> None:
+    async def scenario() -> None:
+        client, capability, audit = _app()
+        await client.start_server()
+        try:
+            response = await client.post(
+                "/api/v1/printers/printer-1/job-control",
+                json=_payload(),
+                headers=_headers("key-audit", "req-job-control-audit"),
+            )
+            assert response.status == 200
+            assert capability.execute_count == 1
+
+            records = audit.list_for_request("req-job-control-audit")
+            assert [record.action for record in records] == ["printer.job_control", "printer.job_control"]
+            assert [record.target_ref for record in records] == ["printer-1", "printer-1"]
+            assert [record.outcome for record in records] == [
+                CommandAuditOutcome.ACCEPTED,
+                CommandAuditOutcome.COMPLETED,
+            ]
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+
+
 def test_job_control_requires_authentication() -> None:
     async def scenario() -> None:
-        client, capability = _app()
+        client, capability, _ = _app()
         await client.start_server()
         try:
             response = await client.post(
