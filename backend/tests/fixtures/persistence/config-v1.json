@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "printers": [
+    {
+      "printerId": "x2d-main",
+      "displayName": "Bambu X2D",
+      "vendor": "bambu_lab",
+      "model": "X2D",
+      "serialNumber": "SERIAL123",
+      "adapterKind": "bambu",
+      "settings": {
+        "host": "192.0.2.10",
+        "access_code": "fixture-secret"
+      }
+    }
+  ]
+}

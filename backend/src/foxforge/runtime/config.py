@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,7 +13,8 @@ from typing import Any
 
 from foxforge.domain.printers import PrinterIdentity
 
-_CONFIG_SCHEMA_VERSION = 1
+CONFIG_SCHEMA_VERSION = 2
+_MIN_CONFIG_SCHEMA_VERSION = 1
 
 
 @dataclass(frozen=True, slots=True)
@@ -28,23 +30,27 @@ class RuntimeConfig:
 
 
 def load_runtime_config(path: Path | str) -> RuntimeConfig:
-    """Load app-owned composition data, creating a safe empty file when absent."""
+    """Load and safely migrate app-owned composition data."""
     config_path = Path(path)
     if not config_path.exists():
         save_runtime_config(
             config_path,
-            RuntimeConfig(schema_version=_CONFIG_SCHEMA_VERSION, printers=()),
+            RuntimeConfig(schema_version=CONFIG_SCHEMA_VERSION, printers=()),
         )
 
-    try:
-        raw = json.loads(config_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise ValueError(f"unable to read FoxForge runtime config: {config_path}") from error
+    raw = _read_config_object(config_path)
+    version = raw.get("schemaVersion")
+    if not isinstance(version, int) or isinstance(version, bool):
+        raise ValueError("runtime config schemaVersion must be an integer")
+    if version > CONFIG_SCHEMA_VERSION:
+        raise ValueError(
+            f"runtime config schemaVersion {version} is newer than supported version {CONFIG_SCHEMA_VERSION}"
+        )
+    if version < _MIN_CONFIG_SCHEMA_VERSION:
+        raise ValueError(f"unsupported runtime config schemaVersion: {version}")
 
-    if not isinstance(raw, dict):
-        raise ValueError("runtime config must be a JSON object")
-    if raw.get("schemaVersion") != _CONFIG_SCHEMA_VERSION:
-        raise ValueError(f"runtime config schemaVersion must be {_CONFIG_SCHEMA_VERSION}")
+    if version < CONFIG_SCHEMA_VERSION:
+        raw = _migrate_runtime_config(config_path, raw, version)
 
     raw_printers = raw.get("printers")
     if not isinstance(raw_printers, list):
@@ -60,7 +66,7 @@ def load_runtime_config(path: Path | str) -> RuntimeConfig:
         seen_ids.add(printer_id)
         printers.append(printer)
 
-    return RuntimeConfig(schema_version=_CONFIG_SCHEMA_VERSION, printers=tuple(printers))
+    return RuntimeConfig(schema_version=CONFIG_SCHEMA_VERSION, printers=tuple(printers))
 
 
 def save_runtime_config(path: Path | str, config: RuntimeConfig) -> None:
@@ -71,8 +77,8 @@ def save_runtime_config(path: Path | str, config: RuntimeConfig) -> None:
     configuration surface.
     """
 
-    if config.schema_version != _CONFIG_SCHEMA_VERSION:
-        raise ValueError(f"runtime config schema_version must be {_CONFIG_SCHEMA_VERSION}")
+    if config.schema_version != CONFIG_SCHEMA_VERSION:
+        raise ValueError(f"runtime config schema_version must be {CONFIG_SCHEMA_VERSION}")
 
     seen_ids: set[str] = set()
     payload_printers: list[dict[str, object]] = []
@@ -83,18 +89,60 @@ def save_runtime_config(path: Path | str, config: RuntimeConfig) -> None:
         seen_ids.add(printer_id)
         payload_printers.append(_encode_printer(printer))
 
-    config_path = Path(path)
+    _atomic_write_config(
+        Path(path),
+        {"schemaVersion": CONFIG_SCHEMA_VERSION, "printers": payload_printers},
+    )
+
+
+def _migrate_runtime_config(config_path: Path, raw: dict[str, object], version: int) -> dict[str, object]:
+    current = dict(raw)
+    current_version = version
+    while current_version < CONFIG_SCHEMA_VERSION:
+        if current_version == 1:
+            _ensure_config_backup(config_path, version=1)
+            # v2 establishes explicit migration ownership. The printer payload
+            # itself remains unchanged, so credentials and identities survive
+            # the first migration byte-for-byte except for JSON formatting and
+            # the schema marker.
+            current["schemaVersion"] = 2
+            current_version = 2
+            continue
+        raise ValueError(f"no runtime config migration path from schemaVersion {current_version}")
+
+    _atomic_write_config(config_path, current)
+    return _read_config_object(config_path)
+
+
+def _ensure_config_backup(config_path: Path, *, version: int) -> Path:
+    backup_path = config_path.with_name(f"{config_path.name}.backup-v{version}")
+    if backup_path.exists():
+        # A recovery point from an interrupted migration is never silently
+        # overwritten. Reuse it and continue with atomic migration.
+        return backup_path
+    try:
+        shutil.copyfile(config_path, backup_path)
+    except OSError as error:
+        raise ValueError(f"unable to create runtime config backup: {backup_path}") from error
+    _restrict_permissions(backup_path)
+    return backup_path
+
+
+def _read_config_object(config_path: Path) -> dict[str, object]:
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"unable to read FoxForge runtime config: {config_path}") from error
+    if not isinstance(raw, dict):
+        raise ValueError("runtime config must be a JSON object")
+    return raw
+
+
+def _atomic_write_config(config_path: Path, payload: dict[str, object]) -> None:
     config_path.parent.mkdir(parents=True, exist_ok=True)
     temporary = config_path.with_name(f".{config_path.name}.tmp")
     try:
-        temporary.write_text(
-            json.dumps(
-                {"schemaVersion": _CONFIG_SCHEMA_VERSION, "printers": payload_printers},
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
+        temporary.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         _restrict_permissions(temporary)
         os.replace(temporary, config_path)
         _restrict_permissions(config_path)

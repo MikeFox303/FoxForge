@@ -10,7 +10,7 @@ from foxforge.application.fleet import FleetService
 from foxforge.application.printer_management import PrinterConfiguration
 from foxforge.domain.printers import ConnectionState, PrinterIdentity
 from foxforge.infrastructure.printers import AdapterRegistry
-from foxforge.runtime.config import RuntimeConfig, load_runtime_config
+from foxforge.runtime.config import CONFIG_SCHEMA_VERSION, RuntimeConfig, load_runtime_config
 from foxforge.runtime.printer_manager import RuntimePrinterManager
 from foxforge.testing import FakePrinterAdapter
 
@@ -29,10 +29,13 @@ def _configuration(printer_id: str = "printer-ui") -> PrinterConfiguration:
     )
 
 
+def _empty_runtime_config() -> RuntimeConfig:
+    return RuntimeConfig(schema_version=CONFIG_SCHEMA_VERSION, printers=())
+
+
 def test_add_persists_and_joins_live_fleet_without_restart(tmp_path) -> None:
     async def scenario() -> None:
         config_path = tmp_path / "config.json"
-        initial = RuntimeConfig(schema_version=1, printers=())
         fleet = FleetService()
         registry = AdapterRegistry()
         registry.register("fake-ui", lambda identity, settings: FakePrinterAdapter(identity))
@@ -40,7 +43,7 @@ def test_add_persists_and_joins_live_fleet_without_restart(tmp_path) -> None:
             fleet=fleet,
             registry=registry,
             config_path=config_path,
-            config=initial,
+            config=_empty_runtime_config(),
         )
         try:
             outcome = await manager.add(_configuration())
@@ -65,7 +68,7 @@ def test_test_connection_does_not_persist_or_join_fleet(tmp_path) -> None:
             fleet=fleet,
             registry=registry,
             config_path=config_path,
-            config=RuntimeConfig(schema_version=1, printers=()),
+            config=_empty_runtime_config(),
         )
         try:
             outcome = await manager.test_connection(_configuration())
@@ -88,7 +91,7 @@ def test_remove_updates_persistence_and_live_fleet(tmp_path) -> None:
             fleet=fleet,
             registry=registry,
             config_path=config_path,
-            config=RuntimeConfig(schema_version=1, printers=()),
+            config=_empty_runtime_config(),
         )
         try:
             await manager.add(_configuration())
@@ -112,7 +115,7 @@ def test_configuration_mutations_publish_p2_events_but_test_connection_does_not(
             fleet=fleet,
             registry=registry,
             config_path=config_path,
-            config=RuntimeConfig(schema_version=1, printers=()),
+            config=_empty_runtime_config(),
             events=journal,
         )
         stream = journal.subscribe()
