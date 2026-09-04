@@ -30,8 +30,8 @@ This file tracks active remediation. The independent audit remains the immutable
 | AUD-011 | P2 | RESOLVED | PR #76 merged as `df0818be2c3a98635b22c9d59d49894ed1c8fb57`. Artifact storage now has committed quota, minimum free-space reserve, normalized capacity failure, safe orphan retention/GC, stale-temp cleanup and non-secret storage diagnostics. Queue-referenced artifacts are never GC candidates. |
 | AUD-012 | P2 | RESOLVED | PR #77 merged as `273bcf2c7a43b40255063c53a1ac36ddca91d2fa`. Reconnect supervision uses per-printer workers, global bounded concurrency, independent exponential backoff/jitter and dynamic worker discovery; fairness/recovery/concurrency tests and exact-head packaged/browser/security gates passed. |
 | AUD-013 | P2 | OPEN | Design Bambu LAN certificate pinning/TOFU path; physical X2D validation is required before changing transport defaults. |
-| AUD-014 | P2 | OPEN | Define and enforce Moonraker endpoint/redirect/address-resolution SSRF policy without blocking normal LAN printers. |
-| AUD-015 | P2 | OPEN | Document `/data` credential sensitivity and introduce a `SecretStore` infrastructure boundary. |
+| AUD-014 | P2 | RESOLVED | PR #79 merged as `217a876a3b153e11ce6979aab361f8b861bdc5de`. Production Moonraker composition validates every resolved address against explicit RFC1918/ULA defaults, rejects mixed unsafe DNS answers, redirects and URL userinfo, and requires independent overrides for public/loopback/link-local targets. Exact-head backend/container/browser/security gates passed. |
+| AUD-015 | P2 | RESOLVED | PR #80 merged as `be04cf3e69abfe1beb99acc41ddcf761e91e439d`. `SecretStore` now separates Bambu access codes and Moonraker API keys from normal runtime config, migrates legacy inline credentials with a sensitive recovery backup, hydrates only at runtime adapter boundaries, and documents all `/data` backups as credential-bearing. Exact-head backend/container/browser/security gates passed. |
 | AUD-016 | P2 | RESOLVED | PR #62 disables public production Vite source maps. Production-container browser acceptance also asserts that public source-map assets are absent. |
 | AUD-017 | P2 | RESOLVED | PR #62 replaced unconditional recursive `/data` ownership changes with targeted/versioned ownership initialization, avoiding repeated whole-volume `chown -R`. |
 | AUD-018 | P2 | IN PROGRESS | PR #61 prevents duplicate Add Printer launcher trees; PR #62 added real production-container browser acceptance across desktop/tablet/mobile and authenticated/fail-closed flows. Broader feature-specific browser coverage can continue without blocking the closed launcher defect. |
@@ -52,10 +52,12 @@ P3 is not discarded. The draft already contains reservation/reconciliation seman
 5. **Atomic inventory concurrency:** AUD-010 — resolved in PR #75.
 6. **Artifact lifecycle:** AUD-011 — resolved in PR #76.
 7. **Reconnect scalability:** AUD-012 — resolved in PR #77.
-8. **Representative physical/deployment validation:** X2D, Moonraker/OpenKE, Raspberry Pi 5/Umbrel.
-9. **Remaining security hardening:** AUD-013 certificate trust, AUD-014 Moonraker SSRF policy, AUD-015 SecretStore, plus remaining AUD-019 governance.
-10. **Inventory operator workflow:** complete normal create/correct/move/assign/unassign/archive/history UX before automatic accounting is resumed.
-11. **Resume P3:** synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
+8. **Moonraker endpoint security:** AUD-014 — resolved in PR #79.
+9. **Credential storage boundary:** AUD-015 — resolved in PR #80.
+10. **Representative physical/deployment validation:** X2D, Moonraker/OpenKE, Raspberry Pi 5/Umbrel, including the remaining AUD-003/004 and certificate-trust evidence for AUD-013.
+11. **Remaining audit hardening:** AUD-013 certificate trust design/validation, broader AUD-018 browser coverage, AUD-019 coverage/public-project governance, and final AUD-009 roadmap synchronization.
+12. **Inventory operator workflow:** complete normal create/correct/move/assign/unassign/archive/history UX before automatic accounting is resumed.
+13. **Resume P3:** synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
 
 ## Resolution rule
 
