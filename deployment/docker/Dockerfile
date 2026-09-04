@@ -2,8 +2,8 @@
 
 FROM node:22-bookworm-slim AS frontend
 WORKDIR /src/frontend
-COPY frontend/package.json ./
-RUN npm install --no-audit --no-fund
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
@@ -32,7 +32,7 @@ COPY backend/ /tmp/foxforge-backend/
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gosu \
     && rm -rf /var/lib/apt/lists/* \
-    && python -m pip install --no-cache-dir /tmp/foxforge-backend \
+    && python -m pip install --no-cache-dir -c /tmp/foxforge-backend/constraints.txt /tmp/foxforge-backend \
     && rm -rf /tmp/foxforge-backend \
     && groupadd --gid 1000 foxforge \
     && useradd --uid 1000 --gid 1000 --create-home --shell /usr/sbin/nologin foxforge \
