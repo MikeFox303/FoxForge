@@ -48,10 +48,16 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
 
             diagnostics = await client.get("/api/v1/diagnostics/persistence")
             assert diagnostics.status == 200
-            assert await diagnostics.json() == {
-                "apiVersion": "1",
-                "persistence": {"configSchemaVersion": 2, "sqliteSchemaVersion": 1},
-            }
+            body = await diagnostics.json()
+            assert body["apiVersion"] == "1"
+            assert body["persistence"] == {"configSchemaVersion": 2, "sqliteSchemaVersion": 1}
+            storage = body["artifactStorage"]
+            assert storage["artifactCount"] == 0
+            assert storage["usedBytes"] == 0
+            assert storage["totalQuotaBytes"] == 20 * 1024 * 1024 * 1024
+            assert storage["minFreeBytes"] == 1024 * 1024 * 1024
+            assert isinstance(storage["freeBytes"], int)
+            assert storage["freeBytes"] >= 0
 
             root = await client.get("/")
             assert root.status == 200
