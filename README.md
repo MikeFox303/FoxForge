@@ -5,7 +5,7 @@
 FoxForge combines a vendor-independent printer/application core with deep Bambu Lab support, Moonraker/Klipper support, durable print queues, filament/spool inventory, material-system integration, farm workflows and Docker/Umbrel deployment.
 
 > **Published release:** `v0.1.0-alpha.2`  
-> **Current source state:** development has moved beyond the immutable `alpha.2` image. `main` now contains authenticated printer configuration, inventory mutations, audited queue command APIs and restart-safe artifact staging. The next source update adds the browser queue upload/enqueue/dispatch/reconciliation workflow.  
+> **Current source state:** development has moved beyond the immutable `alpha.2` image. `main` now contains authenticated printer configuration, inventory mutations, audited queue command APIs, restart-safe artifact staging and the browser queue upload/enqueue/dispatch/reconciliation workflow merged in PR #51.  
 > **Maturity:** runnable/installable alpha, **not production-ready**. Physical Bambu X2D, Moonraker/OpenKE and representative Raspberry Pi/Umbrel validation are still required.
 
 ## What FoxForge currently implements
@@ -164,7 +164,7 @@ Printer connection failures do not bring down the web/API process. Reconnect sup
 | Durable queue | Implemented foundation with lifecycle/retry/reconciliation |
 | Artifact staging | Implemented post-`alpha.2` |
 | Queue command API | Implemented post-`alpha.2` |
-| Queue command UI | Implemented in current development source; CI/hardware validation still required before release |
+| Queue command UI | Implemented in `main` by PR #51; automated frontend/container validation passed, physical printer validation still required |
 | Filament inventory | Durable SQLite foundation implemented |
 | Inventory command API | Implemented post-`alpha.2` |
 | Printer configuration API/UI | Implemented post-`alpha.2` |
@@ -190,12 +190,12 @@ Automated tests and QEMU/CI are necessary but do not replace these physical matr
 
 ## Next development priorities
 
-1. Complete and merge the safe browser print workflow with green frontend/container gates.
-2. Run documented physical Bambu X2D and Moonraker/OpenKE print-validation matrices.
-3. Validate Raspberry Pi 5/UmbrelOS install, persistence and printer-network reachability.
-4. Add common pause/resume/cancel through typed capabilities and ADR 0004 command semantics.
-5. Add realtime application events through WebSocket/SSE with reconnect/replay rules.
-6. Connect queue lifecycle to automatic filament accounting and reconciliation.
+1. Run documented physical Bambu X2D and Moonraker/OpenKE print-validation matrices using the merged browser print workflow.
+2. Validate Raspberry Pi 5/UmbrelOS install, persistence and printer-network reachability.
+3. Add common pause/resume/cancel through typed capabilities and ADR 0004 command semantics.
+4. Add realtime application events through WebSocket/SSE with reconnect/replay rules.
+5. Connect queue lifecycle to automatic filament accounting and reconciliation.
+6. Expose the existing guarded inventory mutation API through the web UI.
 7. Build persistent farm scheduling with printer selection, priorities/deadlines and durable lease/CAS semantics.
 8. Expand deep Bambu capabilities: AMS operations/drying, HMS, K profiles, dual-nozzle and validated X2D-specific behavior.
 
@@ -244,6 +244,7 @@ The Git repository is the canonical project record. Important documents:
 - [Queue lifecycle](docs/design/queue-event-lifecycle.md)
 - [Queue retry policy](docs/design/queue-retry-policy.md)
 - [Queue command API and artifact staging](docs/design/queue-command-api.md)
+- [Queue command UI](docs/design/queue-command-ui.md)
 - [Inventory foundation](docs/design/inventory-foundation.md)
 - [SQLite inventory persistence](docs/design/inventory-sqlite.md)
 - [Web UI foundation](docs/design/web-ui-foundation.md)
