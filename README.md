@@ -5,7 +5,7 @@
 FoxForge combines a vendor-independent printer/application core with deep Bambu Lab support, Moonraker/Klipper support, durable print queues, filament/spool inventory, material-system integration, farm workflows and Docker/Umbrel deployment.
 
 > **Published release:** `v0.1.0-alpha.3`  
-> **Current source state:** `main` matches the `alpha.3` functional release line. Alpha.3 includes authenticated printer configuration, inventory mutations, audited queue command APIs, restart-safe artifact staging and the browser queue upload/enqueue/dispatch/reconciliation workflow. No post-`alpha.3` functional changes are recorded yet.  
+> **Current source state:** development has moved beyond the immutable `alpha.3` image. Current source adds P1 common Pause/Resume/Cancel through typed `foxforge.job_control` capabilities, guarded ADR 0004 command semantics and capability-driven browser controls.  
 > **Maturity:** runnable/installable alpha, **not production-ready**. Physical Bambu X2D, Moonraker/OpenKE and representative Raspberry Pi/Umbrel validation are still required.
 
 ## What FoxForge currently implements
@@ -15,24 +15,26 @@ The current source tree includes:
 - FoxForge-owned `PrinterAdapter` contracts with typed capability discovery;
 - Bambu Lab and Moonraker/Klipper adapters behind the same common application boundary;
 - `FleetService` and dynamic adapter composition;
-- Bambu LAN MQTT/TLS + verified project storage/FTPS foundations;
-- Moonraker HTTP/WebSocket transport with upload/start support;
+- typed common `foxforge.job_control` v1 with Pause/Resume/Cancel and exact vendor-job identity guards;
+- Bambu LAN MQTT/TLS + verified project storage/FTPS foundations plus native pause/resume/stop control mapping;
+- Moonraker HTTP/WebSocket transport with upload/start plus pause/resume/cancel endpoints;
 - a durable SQLite print queue with explicit `INDETERMINATE` handling, lifecycle tracking and safe retry/backoff;
 - restart-safe content-addressed `.gcode`/`.3mf` artifact staging under `/data/artifacts`;
 - authenticated/idempotent queue enqueue, dispatch and explicit reconciliation commands;
 - a durable SQLite filament/spool inventory with exact `Decimal` accounting and opaque physical-slot assignments;
 - authenticated inventory mutations for create/correct/empty-mass/move/unassign/archive;
 - authenticated printer configuration flows for add/update/remove/test/reconnect;
+- authenticated/idempotent printer job-control command routing under `printer.control`;
 - append-only SQLite command audit and durable HTTP idempotency records;
 - a React + TypeScript + Vite interface using live FoxForge API models;
 - browser operator-session support for guarded write workflows;
-- printer setup UI plus a safe print workflow that hashes files in the browser and never sends client filesystem paths;
+- printer setup UI, safe browser print submission and capability-gated Pause/Resume/Cancel controls;
 - EN/RU/UK localization with translation-parity tests;
 - one `aiohttp` runtime serving API + compiled SPA;
 - Docker, Linux `amd64`/`arm64`, Compose and Umbrel packaging foundations;
 - CI for Python 3.12/3.13, frontend type/tests/build and unified-container smoke validation.
 
-The shipped `v0.1.0-alpha.3` image is immutable. Future `main` changes require a later guarded release before Docker/Umbrel users receive them.
+The shipped `v0.1.0-alpha.3` image is immutable and does **not** include P1 source changes. A later guarded release is required before Docker/Umbrel users receive them.
 
 ## Core architecture
 
@@ -105,21 +107,45 @@ accepted | blocked | failed | INDETERMINATE
                     explicit reconciliation only
 ```
 
-Important distinction:
+For P1 job control the current source flow is:
 
-- `dispatch_id` is the durable logical printer-dispatch identity owned by the queue;
-- HTTP `Idempotency-Key` identifies one remote command attempt;
-- an uncertain HTTP replay keeps the same key;
-- a completed `BLOCKED` or explicitly retryable pre-start failure may later use a **new** HTTP key while preserving the queue's original `dispatch_id`;
+```text
+live active job + vendorJobId
+          |
+capability/state-gated UI
+          |
+POST /api/v1/printers/{id}/job-control
+(controlId + action + expectedVendorJobId)
+          |
+printer.control auth + Idempotency-Key + audit
+          |
+JobControlCapability
+          |
+Bambu pause/resume/stop | Moonraker pause/resume/cancel
+          |
+accepted | conclusive error | INDETERMINATE
+                              |
+                    refresh/reconcile state;
+                    never blind retry
+```
+
+Important distinctions:
+
+- queue `dispatch_id` is the durable logical printer-dispatch identity owned by the queue;
+- job-control `controlId` is the logical identity of one pause/resume/cancel command;
+- HTTP `Idempotency-Key` identifies one remote command attempt/replay identity;
+- an unresolved same-key job-control replay never sends the device command again;
+- every job-control request targets the exact observed vendor job identity;
+- stale, unidentified or mismatched active jobs are blocked before the side effect;
 - `INDETERMINATE` never exposes blind retry.
 
-See [Queue command API and artifact staging](docs/design/queue-command-api.md).
+See [Queue command API and artifact staging](docs/design/queue-command-api.md) and [Common printer job control](docs/design/job-control.md).
 
 ## Web interface
 
 The UI uses React, TypeScript, Vite, React Router, TanStack Query and i18next.
 
-Current released behavior includes:
+Current source behavior includes:
 
 - live fleet, queue and inventory reads;
 - explicit loading/refresh/error states;
@@ -129,9 +155,13 @@ Current released behavior includes:
 - staged upload, durable enqueue and separate explicit start command;
 - retry controls only for backend-confirmed safe pre-start failures;
 - explicit started/not-started reconciliation for `INDETERMINATE` queue entries;
+- capability-driven Pause/Resume/Cancel controls on the printer cockpit;
+- exact active `vendorJobId` carried into each control request;
+- explicit confirmation before cancel;
+- uncertainty warnings that refresh live state without automatically resending the device command;
 - demo data only with `?demo=1`.
 
-The checked-in screenshots under [`docs/images/ui/`](docs/images/ui/) are real captures from repository builds. Some screenshots document earlier alpha UI states and may not show every alpha.3 command control yet.
+The checked-in screenshots under [`docs/images/ui/`](docs/images/ui/) are real captures from repository builds. Some screenshots document earlier alpha UI states and may not show the current P1 controls yet.
 
 ## Runtime and persistence
 
@@ -141,7 +171,7 @@ The unified server owns:
 - `/api/v1/fleet`;
 - `/api/v1/queue`;
 - `/api/v1/inventory/spools`;
-- authenticated printer/inventory/queue command routes;
+- authenticated printer/inventory/queue/job-control command routes;
 - browser operator-session bootstrap;
 - the compiled React SPA.
 
@@ -158,23 +188,24 @@ Printer connection failures do not bring down the web/API process. Reconnect sup
 | Area | Current source state |
 | --- | --- |
 | Common printer domain | Implemented |
-| Bambu adapter | Foundation + LAN transport implemented; physical X2D validation pending |
-| Moonraker adapter | Foundation + HTTP/WebSocket transport implemented; physical OpenKE validation pending |
+| Bambu adapter | Foundation + LAN transport + P1 job control implemented; physical X2D validation pending |
+| Moonraker adapter | Foundation + HTTP/WebSocket transport + P1 job control implemented; physical OpenKE validation pending |
 | Fleet management | Implemented |
 | Durable queue | Implemented foundation with lifecycle/retry/reconciliation |
 | Artifact staging | Released in `alpha.3` |
 | Queue command API | Released in `alpha.3` |
 | Queue command UI | Released in `alpha.3`; automated frontend/container validation passed, physical printer validation still required |
+| Common Pause/Resume/Cancel | Implemented in current P1 source; physical validation pending |
 | Filament inventory | Durable SQLite foundation implemented |
 | Inventory command API | Released in `alpha.3` |
 | Printer configuration API/UI | Released in `alpha.3` |
-| Command auth/idempotency/audit | Released foundation in `alpha.3` |
-| Realtime WebSocket/SSE | Not implemented |
+| Command auth/idempotency/audit | Released foundation in `alpha.3`, extended to P1 job control in current source |
+| Realtime WebSocket/SSE | Not implemented; P2 |
 | Automatic filament accounting | Not implemented |
 | Persistent farm scheduler | Not implemented |
 | Docker | Implemented and CI-smoke-tested |
 | ARM64 | Published `alpha.3` multi-architecture image exists; representative Raspberry Pi validation pending |
-| Umbrel | Community App is pinned to the immutable `alpha.3` multi-architecture digest |
+| Umbrel | Community App is pinned to the immutable `alpha.3` multi-architecture digest; P1 is not shipped yet |
 
 ## Hardware validation still required
 
@@ -182,22 +213,22 @@ FoxForge must not yet claim production-ready printer support.
 
 Required real-device validation includes:
 
-1. **Bambu X2D / Bambu LAN** — connection/reconnect, live state, project delivery, print start acknowledgement, lifecycle, completion and ambiguous-start reconciliation.
-2. **Moonraker/OpenKE** — HTTP/WebSocket connectivity, live subscriptions, G-code upload/checksum/start and lifecycle completion/failure.
+1. **Bambu X2D / Bambu LAN** — connection/reconnect, live state, project delivery, print start acknowledgement, pause → observed pause, resume → observed printing, cancel → observed terminal state, lifecycle, completion and ambiguous start/control reconciliation.
+2. **Moonraker/OpenKE** — HTTP/WebSocket connectivity, live subscriptions, G-code upload/checksum/start, pause/resume/cancel and lifecycle completion/failure including ambiguous command outcomes.
 3. **Raspberry Pi 5 / UmbrelOS** — install/restart/persistence, explicit-IP reachability to printers and upgrade behavior.
 
 Automated tests and QEMU/CI are necessary but do not replace these physical matrices.
 
 ## Next development priorities
 
-1. Run documented physical Bambu X2D and Moonraker/OpenKE print-validation matrices using the released browser print workflow.
-2. Validate Raspberry Pi 5/UmbrelOS install, persistence and printer-network reachability.
-3. Add common pause/resume/cancel through typed capabilities and ADR 0004 command semantics.
-4. Add realtime application events through WebSocket/SSE with reconnect/replay rules.
-5. Connect queue lifecycle to automatic filament accounting and reconciliation.
-6. Expose the existing guarded inventory mutation API through the web UI.
-7. Build persistent farm scheduling with printer selection, priorities/deadlines and durable lease/CAS semantics.
-8. Expand deep Bambu capabilities: AMS operations/drying, HMS, K profiles, dual-nozzle and validated X2D-specific behavior.
+1. Finish P1 automated/CI validation and merge common Pause/Resume/Cancel while keeping physical validation explicitly pending.
+2. **P2:** add realtime application events through WebSocket/SSE with reconnect/replay rules and TanStack Query cache updates.
+3. Run/expand physical Bambu X2D and Moonraker/OpenKE validation matrices across start and P1 controls.
+4. Validate Raspberry Pi 5/UmbrelOS install, persistence and printer-network reachability.
+5. **P3:** connect queue lifecycle to automatic filament accounting and reconciliation.
+6. **P4:** expose the existing guarded inventory mutation API through the web UI.
+7. **P5:** build persistent farm scheduling with printer selection, priorities/deadlines and durable lease/CAS semantics.
+8. **P6:** expand deep Bambu capabilities: AMS operations/drying, HMS, K profiles, dual-nozzle and validated X2D-specific behavior.
 
 ## Repository layout
 
@@ -222,7 +253,7 @@ https://github.com/MikeFox303/umbrel-3d-printing-store
 
 Package ID: `my3d-foxforge`.
 
-The package uses authenticated Umbrel App Proxy access, persistent `/data`, bridge networking and the immutable `alpha.3` multi-architecture GHCR digest. Future source changes are **not** delivered through a floating tag.
+The package uses authenticated Umbrel App Proxy access, persistent `/data`, bridge networking and the immutable `alpha.3` multi-architecture GHCR digest. P1 source changes are **not** delivered through a floating tag and need a later guarded FoxForge release plus Store update.
 
 See [`deployment/umbrel/`](deployment/umbrel/README.md).
 
@@ -237,6 +268,7 @@ The Git repository is the canonical project record. Important documents:
 - [ADR 0003: Upstream architecture synthesis](docs/adr/0003-upstream-architecture-synthesis.md)
 - [ADR 0004: Command API security and idempotency](docs/adr/0004-command-api-security.md)
 - [Printer contracts v1](docs/design/printer-contracts.md)
+- [Common printer job control](docs/design/job-control.md)
 - [Bambu LAN transport](docs/design/bambu-lan-transport.md)
 - [Bambu project storage](docs/design/bambu-project-storage.md)
 - [Moonraker HTTP/WebSocket transport](docs/design/moonraker-http-transport.md)
