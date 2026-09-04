@@ -61,7 +61,11 @@ class CommandUnauthorizedError(CommandSecurityError):
 
 class CommandForbiddenError(CommandSecurityError):
     def __init__(self) -> None:
-        super().__init__(status=403, code="forbidden", message="The authenticated principal is not permitted to run this command.")
+        super().__init__(
+            status=403,
+            code="forbidden",
+            message="The authenticated principal is not permitted to run this command.",
+        )
 
 
 class BearerCommandAuthenticator:
