@@ -51,6 +51,19 @@ class CommandIdempotencyRecord:
             raise ValueError("completed command idempotency record requires outcome_code")
 
 
+@dataclass(frozen=True, slots=True)
+class CommandIdempotencyReservation:
+    """Result of atomically reserving one command replay identity.
+
+    `created` is true only for the caller that inserted the durable STARTED
+    record. A replay that observes an existing STARTED record must not execute
+    the command side effect again.
+    """
+
+    record: CommandIdempotencyRecord
+    created: bool
+
+
 def command_request_fingerprint(payload: object) -> str:
     """Return a deterministic SHA-256 fingerprint for a JSON command payload."""
 
