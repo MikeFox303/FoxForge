@@ -17,6 +17,7 @@ from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions
 from foxforge.api.v1.command_audit import install_command_audit
 from foxforge.api.v1.inventory_commands import register_inventory_command_routes
 from foxforge.api.v1.queue_commands import register_queue_command_routes
+from foxforge.api.v1.queue_guard import install_queue_command_guard
 from foxforge.application.artifacts import ArtifactStore
 from foxforge.application.commands import CommandAuditStore, CommandIdempotencyStore
 from foxforge.application.fleet import FleetService
@@ -108,6 +109,12 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts)
     install_command_audit(app, security=command_security, store=command_audit)
+    install_queue_command_guard(
+        app,
+        queue=queue,
+        security=command_security,
+        idempotency=command_idempotency,
+    )
     app[_RUNTIME_KEY] = RuntimeComposition(
         fleet=fleet,
         queue=queue,
