@@ -82,7 +82,7 @@ class RuntimePrinterManager:
             save_runtime_config(self._config_path, updated)
             try:
                 await self._fleet.add_adapter(adapter)
-            except BaseException:
+            except Exception:
                 save_runtime_config(self._config_path, previous)
                 raise
             self._config = updated
@@ -111,7 +111,7 @@ class RuntimePrinterManager:
                 await self._fleet.remove_adapter(printer_id)
             try:
                 await self._fleet.add_adapter(replacement)
-            except BaseException:
+            except Exception:
                 save_runtime_config(self._config_path, previous)
                 old_adapter = self._registry.create(existing.identity, existing.settings)
                 await self._fleet.add_adapter(old_adapter)
