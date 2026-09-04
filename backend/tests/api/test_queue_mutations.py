@@ -13,6 +13,7 @@ from aiohttp.test_utils import TestClient, TestServer
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
 from foxforge.api.v1.command_audit import install_command_audit
 from foxforge.api.v1.queue_commands import register_queue_command_routes
+from foxforge.api.v1.queue_guard import install_queue_command_guard
 from foxforge.application.commands import (
     CommandAuditOutcome,
     InMemoryCommandAuditStore,
@@ -54,17 +55,30 @@ def _build_app(tmp_path):
     fleet = FleetService([adapter])
     queue = QueueService(fleet, InMemoryQueueStore())
     audit = InMemoryCommandAuditStore()
+    idempotency = InMemoryCommandIdempotencyStore()
     security = BearerCommandSecurity(_TOKEN)
     app = create_api_v1_app(
         fleet=fleet,
         queue=queue,
         inventory=InventoryService(InMemoryInventoryStore()),
         command_security=security,
-        command_idempotency=InMemoryCommandIdempotencyStore(),
+        command_idempotency=idempotency,
     )
     artifacts = FilesystemArtifactStore(tmp_path / "artifacts")
-    register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts, max_artifact_bytes=1024)
+    register_queue_command_routes(
+        app,
+        queue=queue,
+        fleet=fleet,
+        artifacts=artifacts,
+        max_artifact_bytes=1024,
+    )
     install_command_audit(app, security=security, store=audit)
+    install_queue_command_guard(
+        app,
+        queue=queue,
+        security=security,
+        idempotency=idempotency,
+    )
     return app, fleet, queue, printing, audit
 
 
