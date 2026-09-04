@@ -51,4 +51,8 @@ class MoonrakerTransport(Protocol):
 
     async def submit_print(self, request: MoonrakerNativePrintRequest) -> MoonrakerNativeDispatchResult: ...
 
-    async def control_print(self, action: MoonrakerNativeJobControlAction) -> MoonrakerNativeJobControlResult: ...
+    async def control_print(
+        self,
+        action: MoonrakerNativeJobControlAction,
+        expected_vendor_job_id: str,
+    ) -> MoonrakerNativeJobControlResult: ...
