@@ -1,6 +1,6 @@
 # Common printer job control
 
-**Status:** implemented in P1 development source  
+**Status:** implemented post-`v0.1.0-alpha.3` as P1; automated validation green, physical validation pending  
 **Capability:** `foxforge.job_control` v1  
 **Actions:** pause, resume, cancel
 
@@ -86,7 +86,7 @@ Job-control side effects are not blindly retried.
 
 If a transport cannot prove whether pause/resume/cancel reached the printer, the adapter returns `INDETERMINATE`. The HTTP idempotency reservation deliberately remains `STARTED`. A replay with the same HTTP key returns `job_control_reconciliation_required` and does not invoke the adapter again.
 
-The browser reacts by invalidating the fleet snapshot and locking the current controls behind an uncertainty warning until a fresh observed printer/job state arrives. It does not automatically generate a new command identity or silently resend the side effect.
+The browser reacts by invalidating the fleet snapshot and locking the current controls behind an uncertainty warning. Ordinary polling or a changed `observedAt` timestamp is not enough to unlock another side effect; controls remain locked until the observed job state or vendor job identity changes conclusively. It does not automatically generate a new command identity or silently resend the side effect.
 
 This is deliberately stricter than treating a timeout as a normal retryable failure. For cancel in particular, uncertainty must be resolved by live/physical state before another intentional control command.
 
