@@ -122,9 +122,7 @@ def probe_foxforge(
         health_status, health_payload = _http_json(f"{base}/healthz", timeout=timeout)
         result["healthStatus"] = health_status
         result["healthOk"] = (
-            health_status == 200
-            and isinstance(health_payload, dict)
-            and health_payload.get("status") == "ok"
+            health_status == 200 and isinstance(health_payload, dict) and health_payload.get("status") == "ok"
         )
 
         headers = {"Idempotency-Key": "physical-validation-auth-boundary"}
