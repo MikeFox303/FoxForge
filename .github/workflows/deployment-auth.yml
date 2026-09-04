@@ -1,0 +1,130 @@
+name: Deployment authentication contract
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/**'
+      - '.github/workflows/deployment-auth.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/**'
+      - '.github/workflows/deployment-auth.yml'
+
+permissions:
+  contents: read
+
+env:
+  FOXFORGE_E2E_COMMAND_TOKEN: foxforge-deployment-auth-token-0123456789abcdef
+
+jobs:
+  auth-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Build production image
+        run: |
+          docker build \
+            --file deployment/docker/Dockerfile \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --build-arg VERSION="deployment-auth" \
+            --tag foxforge:deployment-auth \
+            .
+
+      - name: Read-only deployment fails closed
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-readonly-data"
+          docker run -d --name foxforge-readonly \
+            -p 18081:8000 \
+            -v "${RUNNER_TEMP}/foxforge-readonly-data:/data" \
+            foxforge:deployment-auth
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18081/healthz >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18081/healthz
+
+          status=$(curl --silent --output /tmp/read-only-write.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18081/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: deployment-readonly-1' \
+            --data '{"spoolId":"10000000-0000-4000-8000-000000000001","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Deployment test","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$status" = "503"
+          grep -q 'command_api_disabled' /tmp/read-only-write.json
+
+          session_status=$(curl --silent --output /tmp/read-only-session.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18081/api/v1/operator-session)
+          test "$session_status" = "503"
+          grep -q 'browser_session_disabled' /tmp/read-only-session.json
+
+      - name: Explicit operator token enables writes and rejects wrong credentials
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-write-data"
+          docker run -d --name foxforge-write \
+            -p 18082:8000 \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_E2E_COMMAND_TOKEN" \
+            -v "${RUNNER_TEMP}/foxforge-write-data:/data" \
+            foxforge:deployment-auth
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18082/healthz >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18082/healthz
+
+          wrong_status=$(curl --silent --output /tmp/wrong-token.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18082/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer wrong-deployment-auth-token-0123456789abcdef' \
+            -H 'Idempotency-Key: deployment-wrong-1' \
+            --data '{"spoolId":"10000000-0000-4000-8000-000000000002","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Deployment test","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$wrong_status" = "401"
+          grep -q 'unauthorized' /tmp/wrong-token.json
+
+          write_status=$(curl --silent --output /tmp/write-enabled.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18082/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer $FOXFORGE_E2E_COMMAND_TOKEN" \
+            -H 'Idempotency-Key: deployment-write-1' \
+            --data '{"spoolId":"10000000-0000-4000-8000-000000000003","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Deployment test","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$write_status" = "201"
+          grep -q '10000000-0000-4000-8000-000000000003' /tmp/write-enabled.json
+
+          session_status=$(curl --silent --output /tmp/write-session.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18082/api/v1/operator-session)
+          test "$session_status" = "503"
+          grep -q 'browser_session_disabled' /tmp/write-session.json
+
+      - name: Unsafe trusted-browser flag is rejected at startup
+        run: |
+          set +e
+          docker run --name foxforge-unsafe-session \
+            -e FOXFORGE_TRUSTED_BROWSER_SESSIONS=true \
+            foxforge:deployment-auth >/tmp/unsafe-session.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -q 'TRUSTED_BROWSER' /tmp/unsafe-session.log
+
+      - name: Container logs
+        if: always()
+        run: |
+          docker logs foxforge-readonly || true
+          docker logs foxforge-write || true
+          cat /tmp/unsafe-session.log || true
+
+      - name: Cleanup
+        if: always()
+        run: |
+          docker rm -f foxforge-readonly foxforge-write foxforge-unsafe-session 2>/dev/null || true
