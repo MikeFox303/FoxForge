@@ -1,6 +1,6 @@
 # Queue command UI
 
-**Status:** implemented in post-`v0.1.0-alpha.2` development source  
+**Status:** implemented and released in `v0.1.0-alpha.3`  
 **Applies to:** React browser client over ADR 0004 authenticated command APIs  
 **Backend contract:** [Queue command API and artifact staging](queue-command-api.md)
 

@@ -1,14 +1,14 @@
 # FoxForge project status
 
 **Snapshot date:** 2026-09-04  
-**Canonical branch:** `main` after merge of PR #51  
-**Published pre-release:** `v0.1.0-alpha.2` (`0.1.0a2` backend package)  
-**Umbrel Community App:** `my3d-foxforge` in `MikeFox303/umbrel-3d-printing-store`  
+**Canonical branch:** `main` after publication of `v0.1.0-alpha.3`  
+**Published pre-release:** `v0.1.0-alpha.3` (`0.1.0a3` backend package)  
+**Umbrel Community App:** `my3d-foxforge` in `MikeFox303/umbrel-3d-printing-store`, pinned to the immutable `alpha.3` multi-architecture digest  
 **Maturity:** runnable/installable alpha; not production-ready
 
 This document is the concise current-source snapshot for FoxForge. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains implementation history; `release/` contains durable release metadata and notes.
 
-The published `alpha.2` image is immutable. Features described below as post-`alpha.2` require a later guarded release before Docker/Umbrel users receive them.
+The published `alpha.3` image is immutable. The current functional source state matches the `alpha.3` release line; future source changes require a later guarded release before Docker/Umbrel users receive them.
 
 ## Current implementation status
 
@@ -21,25 +21,25 @@ The published `alpha.2` image is immutable. Features described below as post-`al
 | Queue retry runner | Implemented | Bounded pre-start retries; uncertain or receipt-bearing jobs are never blindly retried. |
 | Filament/spool inventory | Durable foundation implemented | Exact `Decimal` ledger, idempotent adjustments, physical assignments and restart durability. |
 | Public HTTP API v1 reads | Implemented | Health, fleet, queue and inventory read models without raw vendor payloads or local paths. |
-| Command API security | Implemented foundation | Fail-closed command auth, permissions, request IDs, normalized errors, durable idempotency and audit. |
-| Printer configuration writes | Implemented post-alpha.2 | Authenticated add/update/remove/test/reconnect flows plus browser setup UI. |
-| Inventory writes | Implemented post-alpha.2 | Authenticated/idempotent create/correct/empty-mass/move/unassign/archive commands. |
-| Queue write API | Implemented post-alpha.2 | Content-addressed artifact staging plus authenticated/idempotent enqueue, dispatch and explicit reconciliation. |
-| Queue command UI | Implemented post-alpha.2 | Browser SHA-256, byte-only staging, durable enqueue, explicit dispatch, safe retryability and `INDETERMINATE` reconciliation. |
-| Command audit | Implemented post-alpha.2 | Append-only SQLite audit with non-secret idempotency digests. |
+| Command API security | Released foundation in alpha.3 | Fail-closed command auth, permissions, request IDs, normalized errors, durable idempotency and audit. |
+| Printer configuration writes | Released in alpha.3 | Authenticated add/update/remove/test/reconnect flows plus browser setup UI. |
+| Inventory writes | Released in alpha.3 | Authenticated/idempotent create/correct/empty-mass/move/unassign/archive commands. |
+| Queue write API | Released in alpha.3 | Content-addressed artifact staging plus authenticated/idempotent enqueue, dispatch and explicit reconciliation. |
+| Queue command UI | Released in alpha.3 | Browser SHA-256, byte-only staging, durable enqueue, explicit dispatch, safe retryability and `INDETERMINATE` reconciliation. |
+| Command audit | Released in alpha.3 | Append-only SQLite audit with non-secret idempotency digests. |
 | Alpha runtime | Implemented | Single `aiohttp` server, offline-safe printer composition, reconnect supervision, SPA + API and persistent `/data`. |
-| Web UI | Functional alpha | Live reads, printer setup and queue command workflow are implemented; realtime and full inventory mutation UI remain incomplete. |
+| Web UI | Functional alpha | Live reads, printer setup and queue command workflow are released; realtime and full inventory mutation UI remain incomplete. |
 | Bambu LAN transport | Implemented, hardware validation pending | Automated coverage exists; real X2D validation is still required. |
 | Moonraker transport | Implemented, hardware validation pending | Automated coverage exists; real OpenKE/Moonraker validation is still required. |
-| Docker/Umbrel | Runnable alpha implemented | Immutable `alpha.2` remains the shipped package; representative Raspberry Pi 5 validation is pending. |
+| Docker/Umbrel | Runnable alpha implemented | Immutable `alpha.3` is shipped for `amd64` + `arm64`; representative Raspberry Pi 5 validation is pending. |
 | Realtime API | Not implemented | WebSocket/SSE application-event delivery remains future work. |
-| Common pause/resume/cancel | Not implemented | Requires a typed common capability plus ADR 0004 command semantics before UI controls. |
+| Common pause/resume/cancel | Not implemented on main | Requires a typed common capability plus ADR 0004 command semantics before UI controls. A divergent development branch exists and must be reconciled with current `main` before reuse. |
 | Automatic filament accounting | Not implemented | Queue completion is not yet tied to spool reservations/consumption reconciliation. |
 | Farm scheduler | Not implemented | Persistent scheduling, selection, deadlines and durable leases remain pending. |
 
 ## Browser queue command boundary
 
-The post-`alpha.2` source flow is:
+The released `alpha.3` flow is:
 
 ```text
 browser File
@@ -80,20 +80,20 @@ See [Queue command API and artifact staging](design/queue-command-api.md) and [Q
 
 ## Validation status
 
-For the merged queue-command backend (#50):
+The guarded `v0.1.0-alpha.3` release validation passed on the exact frozen release commit:
 
-- Ruff lint/format passes on Python 3.12 and 3.13;
-- the backend suite passed with **171 tests** at the #50 gate;
-- unified container build/start/health/UI smoke passed on the merge candidate and again on `main`.
+- release manifest/version consistency;
+- backend installation on the supported release environment;
+- Ruff lint and formatting checks;
+- **171 backend tests**;
+- frontend installation and TypeScript typecheck;
+- **28 frontend tests**;
+- Vite production build;
+- unified release-image build and live `/healthz`/SPA/persistence smoke checks;
+- Linux `amd64` + `arm64` multi-architecture publication with SBOM/provenance metadata;
+- Git tag and GitHub pre-release creation only after the preceding gates succeeded.
 
-For merged PR #51:
-
-- TypeScript typecheck passed on the PR head and again on the exact `main` merge commit;
-- Vitest unit tests passed on the PR head and again on the exact `main` merge commit;
-- production Vite build passed on the PR head and again on the exact `main` merge commit;
-- unified container build/start/health/UI smoke passed on the PR head and again on the exact `main` merge commit;
-- post-merge multi-architecture image publication completed successfully;
-- there are no unresolved PR review threads.
+The companion Umbrel package was updated to the immutable `alpha.3` multi-architecture digest and passed package/Compose validation plus anonymous runtime smoke tests on both `linux/amd64` and `linux/arm64`.
 
 These automated gates validate architecture, packaging and replay behavior but do not replace physical printer testing.
 
@@ -124,16 +124,29 @@ Documentation must not call these transports or the full deployment production-v
 13. Bambuddy, PrintBuddy and PrintOps are specialized references, not FoxForge's base framework.
 14. Scheduler/farm logic must depend on FoxForge capabilities and persisted application state, never directly on vendor transports.
 
-## Recommended next sequence
+## Development sequence after alpha.3
 
-1. **Physical print validation:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → lifecycle → completion/reconciliation matrices using the merged browser/backend flow.
-2. **Representative Umbrel validation:** Raspberry Pi 5/UmbrelOS install/restart/persistence and explicit-IP reachability to both printer families.
-3. **Common printer controls:** pause/resume/cancel only through a typed common capability and ADR 0004 command semantics.
-4. **Realtime application events:** WebSocket/SSE reconnect/replay semantics and TanStack Query cache updates without vendor transport leakage.
-5. **Automatic filament accounting:** reservations, estimates, queue-completion consumption and reconciliation.
-6. **Inventory mutation UI:** expose guarded spool create/correct/assignment/archive flows above the already implemented command API.
-7. **Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics.
-8. **Deep Bambu expansion:** AMS operations/drying, HMS, K profiles, dual nozzle and X2D-specific capabilities behind typed vendor interfaces.
+P0 is documentation/release-state synchronization. It is complete when README, this project-status snapshot, documentation index and active design specifications agree that `v0.1.0-alpha.3` is the current published release, while historical alpha.2 release/validation/ADR context remains unchanged.
+
+After P0, continue in this order:
+
+1. **P1 — Common printer controls:** reconcile the existing `feature/job-control-capability` work onto current `main`, then implement pause/resume/cancel through a typed common capability plus ADR 0004 command semantics and UI controls.
+2. **P2 — Realtime application events:** define WebSocket/SSE reconnect/replay semantics and update TanStack Query caches without vendor transport leakage.
+3. **P3 — Automatic filament accounting:** add reservations, estimates, queue-completion consumption and explicit reconciliation.
+4. **P4 — Inventory mutation UI:** expose guarded spool create/correct/assignment/archive flows above the already released command API.
+5. **Physical validation throughout:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → controls → lifecycle → completion/reconciliation, plus Raspberry Pi 5/Umbrel install/restart/persistence/reachability.
+6. **P5 — Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics after queue/control/realtime/inventory foundations are stable.
+7. **P6 — Deep Bambu expansion:** AMS operations/drying, HMS, K profiles, dual nozzle and X2D-specific capabilities behind typed vendor interfaces.
+
+## Acceptance criteria for P0
+
+- `README.md` reports `v0.1.0-alpha.3` as the published release;
+- `docs/README.md` reports the same release and deployment state;
+- `docs/project-status.md` reports `alpha.3` and no longer labels released alpha.3 features as post-alpha.2 development work;
+- active UI/queue design documents describe the alpha.3 implementation as released rather than post-alpha.2 source work;
+- Umbrel documentation references the immutable alpha.3 package/digest state where the current package is described;
+- historical `release/v0.1.0-alpha.2.md`, alpha.2 validation evidence, CHANGELOG history and ADR 0004 decision context remain historically accurate rather than being rewritten;
+- a repository search for `alpha.2` leaves only historically intentional references.
 
 ## Acceptance criteria for the next major alpha milestone
 
