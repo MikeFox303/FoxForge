@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "foxforge"
-version = "0.1.0a2"
+version = "0.1.0a3"
 description = "Vendor-independent 3D printer management core for FoxForge"
 readme = "README.md"
 requires-python = ">=3.12"
