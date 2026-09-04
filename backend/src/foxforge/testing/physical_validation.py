@@ -28,9 +28,11 @@ def tls_certificate_fingerprint(host: str, port: int, *, timeout: float = 5.0) -
     context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
-    with socket.create_connection((host, port), timeout=timeout) as raw_socket:
-        with context.wrap_socket(raw_socket, server_hostname=host) as tls_socket:
-            certificate = tls_socket.getpeercert(binary_form=True)
+    with (
+        socket.create_connection((host, port), timeout=timeout) as raw_socket,
+        context.wrap_socket(raw_socket, server_hostname=host) as tls_socket,
+    ):
+        certificate = tls_socket.getpeercert(binary_form=True)
     if not certificate:
         raise RuntimeError("peer did not provide a TLS certificate")
     return certificate_fingerprint_sha256(certificate)
@@ -119,7 +121,11 @@ def probe_foxforge(
     try:
         health_status, health_payload = _http_json(f"{base}/healthz", timeout=timeout)
         result["healthStatus"] = health_status
-        result["healthOk"] = health_status == 200 and isinstance(health_payload, dict) and health_payload.get("status") == "ok"
+        result["healthOk"] = (
+            health_status == 200
+            and isinstance(health_payload, dict)
+            and health_payload.get("status") == "ok"
+        )
 
         headers = {"Idempotency-Key": "physical-validation-auth-boundary"}
         if command_token:
