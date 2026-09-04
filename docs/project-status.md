@@ -9,7 +9,7 @@
 
 This document is the concise current-state snapshot for merged FoxForge work. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains implementation history; `release/` contains durable release metadata/notes.
 
-At this snapshot there are no open FoxForge pull requests. PR #32 (`feat(ui): surface inventory runtime state`) has merged, and merged `main` remains the authoritative project and contract state.
+At this snapshot there are no open implementation pull requests. PR #32 (`feat(ui): surface inventory runtime state`) has merged; this status synchronization is documentation-only, and merged `main` remains the authoritative project and contract state.
 
 ## Release status
 
@@ -287,7 +287,7 @@ Documentation must not call these transports or the full deployment production-v
 8. Missing write APIs remain visibly unavailable instead of simulated as durable operations.
 9. Docker and Umbrel package the same FoxForge application behavior rather than becoming divergent forks.
 10. Umbrel App Proxy authentication remains enabled while FoxForge lacks a defined application-authentication contract.
-11. Upstream-derived code/material must retain required license/copyright provenance; newly written FoxForge code remains clearly distinguishishable.
+11. Upstream-derived code/material must retain required license/copyright provenance; newly written FoxForge code remains clearly distinguishable.
 12. Bambuddy, PrintBuddy and PrintOps are specialized references, not FoxForge's base framework; architectural translation happens through FoxForge contracts.
 13. Scheduler/farm logic must depend on FoxForge capabilities and persisted application state, never directly on vendor transports.
 
