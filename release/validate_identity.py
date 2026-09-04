@@ -11,7 +11,7 @@ import re
 import subprocess
 import tomllib
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 
 @dataclass(frozen=True, slots=True)
@@ -126,7 +126,7 @@ def main() -> int:
         repository=args.repository,
         image=args.image,
     )
-    print(json.dumps(identity.__dict__, sort_keys=True))
+    print(json.dumps(asdict(identity), sort_keys=True))
     return 0
 
 
