@@ -112,23 +112,18 @@ class FilamentAccountingService:
         entry: QueueEntry,
         estimates: tuple[MaterialEstimate, ...],
     ) -> tuple[FilamentReservation, ...]:
+        existing_plan = self._store.list_for_queue(entry.queue_id)
+        if existing_plan:
+            requested = {estimate.material_index: estimate.estimated_mass_g for estimate in estimates}
+            persisted = {item.material_index: item.estimated_mass_g for item in existing_plan}
+            if requested != persisted:
+                raise FilamentPlanConflictError("filament plan is immutable once reservations are created")
+            return existing_plan
+
         resolved = self.preview_plan(entry.printer_id, entry.request.material_bindings, estimates)
         created: list[FilamentReservation] = []
         now = datetime.now(UTC)
         for estimate, spool_id, slot_id in resolved:
-            existing = self._store.get(entry.queue_id, estimate.material_index)
-            if existing is not None:
-                if (
-                    existing.spool_id == spool_id
-                    and existing.printer_id == entry.printer_id
-                    and existing.slot_id == slot_id
-                    and existing.estimated_mass_g == estimate.estimated_mass_g
-                ):
-                    created.append(existing)
-                    continue
-                raise FilamentPlanConflictError(
-                    f"reservation already exists with different data: {entry.queue_id}/{estimate.material_index}"
-                )
             reservation = FilamentReservation(
                 queue_id=entry.queue_id,
                 material_index=estimate.material_index,
@@ -278,7 +273,11 @@ class FilamentAccountingService:
 
     def reconcile_all(self, queue_entries: tuple[QueueEntry, ...]) -> None:
         by_id = {entry.queue_id: entry for entry in queue_entries}
+        processed: set[UUID] = set()
         for reservation in self._store.list():
+            if reservation.queue_id in processed:
+                continue
+            processed.add(reservation.queue_id)
             entry = by_id.get(reservation.queue_id)
             if entry is not None:
                 self.sync_queue_entry(entry)
