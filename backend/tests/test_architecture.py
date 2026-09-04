@@ -82,6 +82,14 @@ def test_inventory_storage_has_no_printer_or_vendor_imports() -> None:
     assert violations == []
 
 
+def test_command_storage_has_no_printer_or_vendor_imports() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/infrastructure/commands"),
+        ("foxforge.domain.printers", "foxforge.adapters", "bambu", "moonraker"),
+    )
+    assert violations == []
+
+
 def test_bambu_adapter_does_not_import_moonraker_or_historical_integrations() -> None:
     violations = _forbidden_imports(
         Path("src/foxforge/adapters/bambu"),
