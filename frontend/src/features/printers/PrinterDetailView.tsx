@@ -14,6 +14,7 @@ import {
   printerStatusLabel,
   printerTone,
 } from '../../viewModel';
+import { JobControlActions } from './JobControlActions';
 import {
   materialSlots,
   printerByRouteId,
@@ -111,10 +112,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
                 <Fact label={t('printerDetail.layer')} value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} />
                 <Fact label={t('printerDetail.jobState')} value={t(`alpha.status.${job.state}`)} />
               </div>
-              <div className="printer-control-row">
-                <button className="secondary-button" disabled title={t('printerDetail.requiresApi')}>{t('printerDetail.pause')}</button>
-                <button className="secondary-button danger-button" disabled title={t('printerDetail.requiresApi')}>{t('printerDetail.stop')}</button>
-              </div>
+              <JobControlActions printer={printer} />
             </section>
           ) : (
             <section className="panel printer-ready-panel">
