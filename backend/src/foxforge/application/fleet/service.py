@@ -47,10 +47,12 @@ class _FleetEventSubscription(AsyncIterator[PrinterEvent]):
 
 
 class FleetService:
-    """Application-level view of a fixed set of printer adapters.
+    """Application-level dynamic collection of printer adapters.
 
     FleetService depends only on the common PrinterAdapter contract. Vendor
-    selection belongs in the composition root/AdapterRegistry, not here.
+    selection belongs in the composition root/AdapterRegistry, not here. New
+    adapters may be added and removed at runtime so printer configuration can
+    be managed through FoxForge without restarting the server.
     """
 
     def __init__(self, adapters: Iterable[PrinterAdapter] = ()) -> None:
@@ -81,6 +83,48 @@ class FleetService:
 
     def capability(self, printer_id: str, capability_type: type[C]) -> C | None:
         return self._require_adapter(printer_id).capability(capability_type)
+
+    async def add_adapter(self, adapter: PrinterAdapter) -> None:
+        """Add one already-constructed adapter to the live fleet.
+
+        If fleet event relays are already active, the new adapter is subscribed
+        before this method returns so connect-time events cannot be lost.
+        Connection remains an explicit separate operation.
+        """
+
+        self._ensure_open()
+        printer_id = adapter.identity.printer_id
+        if printer_id in self._adapters:
+            raise DuplicatePrinterIdError(printer_id)
+        self._adapters[printer_id] = adapter
+
+        if self._subscribers or self._relay_tasks:
+            self._ensure_relays()
+            ready = self._relay_ready.get(printer_id)
+            if ready is not None:
+                await ready.wait()
+
+    async def remove_adapter(self, printer_id: str) -> None:
+        """Disconnect and remove one adapter from the live fleet.
+
+        The adapter is removed even if disconnect reports a normalized transport
+        error. This is important for deleting an unreachable configured printer;
+        callers may still observe the disconnect error if they need diagnostics.
+        """
+
+        self._ensure_open()
+        adapter = self._require_adapter(printer_id)
+        await self._stop_relay(printer_id)
+        disconnect_error: BaseException | None = None
+        try:
+            await adapter.disconnect()
+        except BaseException as error:
+            disconnect_error = error
+        finally:
+            self._adapters.pop(printer_id, None)
+
+        if disconnect_error is not None:
+            raise disconnect_error
 
     async def connect(self, printer_id: str) -> None:
         self._ensure_open()
@@ -150,6 +194,14 @@ class FleetService:
         self._ensure_relays()
         if self._relay_ready:
             await asyncio.gather(*(ready.wait() for ready in self._relay_ready.values()))
+
+    async def _stop_relay(self, printer_id: str) -> None:
+        task = self._relay_tasks.pop(printer_id, None)
+        self._relay_ready.pop(printer_id, None)
+        if task is None:
+            return
+        task.cancel()
+        await asyncio.gather(task, return_exceptions=True)
 
     async def _relay_events(self, adapter: PrinterAdapter, ready: asyncio.Event) -> None:
         stream = adapter.events()
