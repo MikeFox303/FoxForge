@@ -13,11 +13,13 @@ from aiohttp import web
 
 from foxforge.adapters.bambu import create_bambu_lan_adapter
 from foxforge.adapters.moonraker import create_moonraker_http_adapter
-from foxforge.api.v1 import create_api_v1_app
+from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
+from foxforge.application.commands import CommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
 from foxforge.domain.printers import ConnectionState, PrinterAdapterError
+from foxforge.infrastructure.commands import SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
 from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
@@ -33,6 +35,7 @@ class RuntimeSettings:
     config_path: Path
     static_dir: Path | None = None
     reconnect_seconds: float = 15.0
+    command_token: str | None = None
 
     def __post_init__(self) -> None:
         if self.reconnect_seconds <= 0:
@@ -45,6 +48,7 @@ class RuntimeComposition:
     fleet: FleetService
     queue: QueueService
     inventory: InventoryService
+    command_idempotency: CommandIdempotencyStore
 
 
 _RUNTIME_KEY = web.AppKey("foxforge_runtime", RuntimeComposition)
@@ -71,9 +75,23 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     database_path = settings.data_dir / "foxforge.sqlite3"
     queue = QueueService(fleet, SQLiteQueueStore(database_path))
     inventory = InventoryService(SQLiteInventoryStore(database_path))
+    command_idempotency = SQLiteCommandIdempotencyStore(database_path)
+    command_security = BearerCommandSecurity(settings.command_token)
 
-    app = create_api_v1_app(fleet=fleet, queue=queue, inventory=inventory)
-    app[_RUNTIME_KEY] = RuntimeComposition(config=config, fleet=fleet, queue=queue, inventory=inventory)
+    app = create_api_v1_app(
+        fleet=fleet,
+        queue=queue,
+        inventory=inventory,
+        command_security=command_security,
+        command_idempotency=command_idempotency,
+    )
+    app[_RUNTIME_KEY] = RuntimeComposition(
+        config=config,
+        fleet=fleet,
+        queue=queue,
+        inventory=inventory,
+        command_idempotency=command_idempotency,
+    )
     app.on_startup.append(lambda runtime_app: _start_runtime(runtime_app, settings.reconnect_seconds))
     app.on_cleanup.append(_stop_runtime)
     _mount_frontend(app, settings.static_dir)
