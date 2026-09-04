@@ -49,10 +49,20 @@ class RuntimeSettings:
     reconnect_seconds: float = 15.0
     command_token: str | None = None
     trusted_browser_sessions: bool = False
+    artifact_total_quota_bytes: int | None = 20 * 1024 * 1024 * 1024
+    artifact_min_free_bytes: int = 1024 * 1024 * 1024
+    artifact_orphan_retention_seconds: float = 7 * 24 * 60 * 60
+    artifact_temp_retention_seconds: float = 60 * 60
 
     def __post_init__(self) -> None:
         if self.reconnect_seconds <= 0:
             raise ValueError("reconnect_seconds must be positive")
+        if self.artifact_total_quota_bytes is not None and self.artifact_total_quota_bytes <= 0:
+            raise ValueError("artifact_total_quota_bytes must be positive when configured")
+        if self.artifact_min_free_bytes < 0:
+            raise ValueError("artifact_min_free_bytes must be non-negative")
+        if self.artifact_orphan_retention_seconds < 0 or self.artifact_temp_retention_seconds < 0:
+            raise ValueError("artifact retention values must be non-negative")
         if self.trusted_browser_sessions:
             raise ValueError(
                 "FOXFORGE_TRUSTED_BROWSER_SESSIONS is not accepted by the production runtime until a "
@@ -78,13 +88,6 @@ _EVENT_RELAY_KEY = web.AppKey("foxforge_application_event_relay", asyncio.Task[N
 
 
 def create_runtime_app(settings: RuntimeSettings) -> web.Application:
-    """Create the single-process FoxForge web runtime.
-
-    Printer network reachability is deliberately not a startup prerequisite.
-    Persisted printers are composed at startup; new printers can then be added,
-    updated, tested, removed and reconnected through the live application API
-    without restarting the server.
-    """
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     config = load_runtime_config(settings.config_path)
 
@@ -103,7 +106,25 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     inventory_store = EventingInventoryStore(SQLiteInventoryStore(database_path), events)
     queue = QueueService(fleet, queue_store)
     inventory = InventoryService(inventory_store)
-    artifacts = FilesystemArtifactStore(settings.data_dir / "artifacts")
+    artifacts = FilesystemArtifactStore(
+        settings.data_dir / "artifacts",
+        total_quota_bytes=settings.artifact_total_quota_bytes,
+        min_free_bytes=settings.artifact_min_free_bytes,
+    )
+    referenced_artifacts = {entry.request.artifact.artifact_id for entry in queue.list()}
+    cleanup = artifacts.cleanup(
+        referenced_artifact_ids=referenced_artifacts,
+        orphan_retention_seconds=settings.artifact_orphan_retention_seconds,
+        temp_retention_seconds=settings.artifact_temp_retention_seconds,
+    )
+    if cleanup.removed_artifact_ids or cleanup.removed_temp_directories:
+        _LOG.info(
+            "artifact cleanup removed %d orphan artifacts (%d bytes) and %d stale temp directories",
+            len(cleanup.removed_artifact_ids),
+            cleanup.removed_bytes,
+            cleanup.removed_temp_directories,
+        )
+
     command_idempotency = SQLiteCommandIdempotencyStore(database_path)
     command_audit = SQLiteCommandAuditStore(database_path)
     command_security = BearerCommandSecurity(settings.command_token)
@@ -136,12 +157,20 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     )
 
     async def persistence_diagnostics(_: web.Request) -> web.Response:
+        storage = artifacts.stats()
         return web.json_response(
             {
                 "apiVersion": "1",
                 "persistence": {
                     "configSchemaVersion": CONFIG_SCHEMA_VERSION,
                     "sqliteSchemaVersion": SQLITE_SCHEMA_VERSION,
+                },
+                "artifactStorage": {
+                    "artifactCount": storage.artifact_count,
+                    "usedBytes": storage.used_bytes,
+                    "totalQuotaBytes": storage.total_quota_bytes,
+                    "freeBytes": storage.free_bytes,
+                    "minFreeBytes": storage.min_free_bytes,
                 },
             }
         )
@@ -165,8 +194,6 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
 
 async def _start_runtime(app: web.Application, reconnect_seconds: float) -> None:
     runtime = app[_RUNTIME_KEY]
-    # Queue subscribes first so lifecycle persistence is active before browser
-    # realtime delivery begins.
     await runtime.queue.start()
     event_relay_ready = asyncio.Event()
     app[_EVENT_RELAY_KEY] = asyncio.create_task(
