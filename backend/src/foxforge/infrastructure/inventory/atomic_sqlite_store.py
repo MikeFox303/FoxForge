@@ -16,15 +16,10 @@ from foxforge.application.inventory import (
 )
 from foxforge.domain.inventory import SpoolAdjustment
 
-from .sqlite_store import (
-    _decode_adjustment,
-    _decode_spool,
-    _encode_adjustment,
-    SQLiteInventoryStore as _BaseSQLiteInventoryStore,
-)
+from . import sqlite_store as _sqlite_store
 
 
-class SQLiteInventoryStore(_BaseSQLiteInventoryStore):
+class SQLiteInventoryStore(_sqlite_store.SQLiteInventoryStore):
     """SQLite inventory store with a serialized mass-ledger write boundary.
 
     ``BEGIN IMMEDIATE`` is the linearization point for each adjustment. The
@@ -41,7 +36,7 @@ class SQLiteInventoryStore(_BaseSQLiteInventoryStore):
                     (adjustment.idempotency_key,),
                 ).fetchone()
                 if existing_row is not None:
-                    existing = _decode_adjustment(existing_row[0])
+                    existing = _sqlite_store._decode_adjustment(existing_row[0])
                     connection.commit()
                     return AdjustmentWriteResult(existing, created=False)
 
@@ -52,7 +47,7 @@ class SQLiteInventoryStore(_BaseSQLiteInventoryStore):
                 if spool_row is None:
                     raise InventoryStoreMissingError(f"spool does not exist: {adjustment.spool_id}")
 
-                spool = _decode_spool(spool_row[0])
+                spool = _sqlite_store._decode_spool(spool_row[0])
                 if spool.archived:
                     raise InventoryStoreArchivedError("archived spool cannot receive new mass adjustments")
 
@@ -61,7 +56,7 @@ class SQLiteInventoryStore(_BaseSQLiteInventoryStore):
                     (str(adjustment.spool_id),),
                 ).fetchall()
                 current = spool.initial_filament_mass_g + sum(
-                    (_decode_adjustment(row[0]).delta_filament_mass_g for row in adjustment_rows),
+                    (_sqlite_store._decode_adjustment(row[0]).delta_filament_mass_g for row in adjustment_rows),
                     start=Decimal("0"),
                 )
                 next_remaining = current + adjustment.delta_filament_mass_g
@@ -85,7 +80,7 @@ class SQLiteInventoryStore(_BaseSQLiteInventoryStore):
                         str(adjustment.adjustment_id),
                         str(adjustment.spool_id),
                         adjustment.idempotency_key,
-                        _encode_adjustment(adjustment),
+                        _sqlite_store._encode_adjustment(adjustment),
                         adjustment.created_at.isoformat(),
                     ),
                 )
