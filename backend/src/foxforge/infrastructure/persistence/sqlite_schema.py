@@ -13,9 +13,7 @@ SQLITE_SCHEMA_VERSION = 1
 _EXPECTED_COLUMNS = {
     "queue_entries": frozenset({"queue_id", "payload", "created_at", "updated_at"}),
     "inventory_spools": frozenset({"spool_id", "payload", "created_at", "updated_at"}),
-    "inventory_adjustments": frozenset(
-        {"adjustment_id", "spool_id", "idempotency_key", "payload", "created_at"}
-    ),
+    "inventory_adjustments": frozenset({"adjustment_id", "spool_id", "idempotency_key", "payload", "created_at"}),
     "inventory_assignments": frozenset({"spool_id", "printer_id", "slot_id", "payload", "assigned_at"}),
     "command_idempotency": frozenset(
         {
