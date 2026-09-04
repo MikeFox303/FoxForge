@@ -10,6 +10,8 @@ from aiohttp import web
 from foxforge.application.inventory import InventoryService, SpoolNotFoundError
 from foxforge.domain.inventory import SpoolAdjustment
 
+from .http import command_error
+
 
 def register_inventory_read_routes(app: web.Application, *, inventory: InventoryService) -> None:
     """Register bounded public inventory reads that do not expose internal idempotency keys."""
@@ -19,16 +21,11 @@ def register_inventory_read_routes(app: web.Application, *, inventory: Inventory
             spool_id = UUID(request.match_info["spool_id"])
             adjustments = inventory.adjustments(spool_id)
         except (ValueError, SpoolNotFoundError):
-            return web.json_response(
-                {
-                    "error": {
-                        "code": "spool_not_found",
-                        "message": "Spool was not found.",
-                        "retryable": False,
-                        "requestId": request.headers.get("X-Request-Id"),
-                    }
-                },
+            return command_error(
+                request,
                 status=404,
+                code="spool_not_found",
+                message="Spool was not found.",
             )
 
         ordered = sorted(adjustments, key=lambda item: (item.created_at, str(item.adjustment_id)), reverse=True)
