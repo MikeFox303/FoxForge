@@ -15,6 +15,7 @@ from enum import StrEnum
 class CommandPermission(StrEnum):
     QUEUE_WRITE = "queue.write"
     PRINTER_CONTROL = "printer.control"
+    PRINTER_CONFIG = "printer.config"
     INVENTORY_WRITE = "inventory.write"
     ADMIN_CONFIG = "admin.config"
 
@@ -43,13 +44,7 @@ class CommandAuthenticationError(RuntimeError):
 
 
 class TrustedBrowserCommandSessions:
-    """Short-lived operator tokens issued only in an explicitly trusted proxy deployment.
-
-    The issuer is disabled by default. Umbrel may enable it because its App
-    Proxy authenticates every browser request and the FoxForge backend port is
-    not published directly. Tokens are kept only in process memory and must be
-    re-issued after restart.
-    """
+    """Short-lived operator tokens issued only in an explicitly trusted proxy deployment."""
 
     def __init__(self, *, enabled: bool = False, ttl_seconds: int = 8 * 60 * 60) -> None:
         if ttl_seconds <= 0:
@@ -94,6 +89,7 @@ class BearerCommandSecurity:
         {
             CommandPermission.QUEUE_WRITE,
             CommandPermission.PRINTER_CONTROL,
+            CommandPermission.PRINTER_CONFIG,
             CommandPermission.INVENTORY_WRITE,
         }
     )
@@ -115,6 +111,16 @@ class BearerCommandSecurity:
     def enabled(self) -> bool:
         return self._token is not None or bool(self._browser_sessions and self._browser_sessions.enabled)
 
+    @property
+    def browser_sessions_enabled(self) -> bool:
+        return bool(self._browser_sessions and self._browser_sessions.enabled)
+
+    def issue_browser_session(self) -> BrowserCommandSession:
+        sessions = self._browser_sessions
+        if sessions is None:
+            raise CommandSecurityDisabledError("trusted browser command sessions are disabled")
+        return sessions.issue()
+
     def authenticate(self, authorization_header: str | None) -> CommandPrincipal:
         if not self.enabled:
             raise CommandSecurityDisabledError("command API is disabled")
@@ -135,10 +141,7 @@ class BearerCommandSecurity:
         if not static_match and not browser_match:
             raise CommandAuthenticationError("command credentials are invalid")
 
-        return CommandPrincipal(
-            principal_id="operator",
-            permissions=self._OPERATOR_PERMISSIONS,
-        )
+        return CommandPrincipal(principal_id="operator", permissions=self._OPERATOR_PERMISSIONS)
 
 
 def _token_digest(token: str) -> str:
