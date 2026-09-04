@@ -1,0 +1,49 @@
+name: Backend diagnostic
+
+on:
+  pull_request:
+    paths:
+      - 'backend/src/foxforge/**'
+      - 'backend/tests/**'
+      - 'backend/pyproject.toml'
+      - '.github/workflows/backend-diagnostic.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: backend
+
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
+      - name: Install checks
+        run: python -m pip install -e '.[dev]'
+      - name: Capture formatter diff
+        continue-on-error: true
+        shell: bash
+        run: |
+          ruff format --diff src tests > format-diagnostic.txt 2>&1 || true
+      - name: Capture pytest output
+        continue-on-error: true
+        shell: bash
+        run: |
+          pytest -q > pytest-diagnostic.txt 2>&1 || true
+      - name: Upload backend diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-diagnostic
+          path: |
+            backend/format-diagnostic.txt
+            backend/pytest-diagnostic.txt
+          if-no-files-found: error
+          retention-days: 1
