@@ -7,11 +7,7 @@ from uuid import uuid4
 import pytest
 
 from foxforge.adapters.bambu.job_control import BambuJobControlCapability
-from foxforge.adapters.bambu.native import (
-    BambuNativeJobControlAction,
-    BambuNativeJobControlResult,
-    BambuNativeState,
-)
+from foxforge.adapters.bambu.native import BambuNativeJobControlAction, BambuNativeJobControlResult
 from foxforge.adapters.bambu.transport import BambuTransportError, BambuTransportErrorKind
 from foxforge.adapters.moonraker.job_control import MoonrakerJobControlCapability
 from foxforge.adapters.moonraker.native import (
