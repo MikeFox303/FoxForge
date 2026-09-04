@@ -1,10 +1,72 @@
 # Changelog
 
-All notable FoxForge changes are recorded here. The Git repository remains the canonical project history; this file summarizes user-visible and architectural milestones rather than every intermediate commit.
+All notable FoxForge changes are recorded here. The Git repository remains the canonical project history; this file summarizes user-visible, release and architectural milestones rather than every intermediate commit.
 
-FoxForge has not published a stable release yet, so development milestones are listed by date/phase until the first versioned release is cut.
+FoxForge has not published a stable release yet. Alpha releases are versioned below; the detailed development log is retained afterward as historical implementation context. Historical entries may describe intermediate states that were superseded by later sections.
 
 ## Unreleased
+
+No post-`v0.1.0-alpha.2` changes are recorded yet.
+
+## [0.1.0-alpha.2] - 2026-09-04
+
+### Added
+
+- Explicit live-runtime UI states for initial loading, ready operation, background refresh and recoverable API failure, including retry actions and aligned EN/RU/UK copy.
+- Healthy first-run empty states for unconfigured printer, queue and material-system workspaces instead of misleading zero/error presentation.
+- Independent Inventory loading/error/retry/refresh presentation plus a true-empty inventory state distinct from a filter with no matches.
+- Printer telemetry phases that distinguish live, stale, connecting, degraded and unavailable data in the printer cockpit.
+- Honest System runtime/API status instead of an unconditional UI + API healthy claim.
+- ADR 0003, upstream adoption guidance and repository guardrails defining Bambuddy as the primary Bambu protocol/behavior reference, PrintBuddy as the provider-isolation reference and PrintOps as the farm/operations reference.
+- First FoxForge package in `MikeFox303/umbrel-3d-printing-store` as `my3d-foxforge`, using authenticated Umbrel App Proxy, persistent `/data` and immutable release-image pinning.
+
+### Changed
+
+- `/api/v1/fleet` and `/api/v1/queue` are now polled through independent frontend request lifecycles. An endpoint-specific failure no longer erases successful sibling data, while the combined runtime still surfaces an explicit error and retry path.
+- Stale, degraded, disconnected, connecting and offline printer telemetry can no longer be rendered as healthy live state.
+- Runtime, inventory and printer-state presentation remains localized and key-parity tested across English, Russian and Ukrainian.
+- Current `main` documentation records the Community App deployment and distinguishes CI/QEMU ARM64 validation from still-pending representative Raspberry Pi 5 hardware validation.
+
+### Deployment
+
+- Backend package version: `0.1.0a2`.
+- Frontend/application version: `0.1.0-alpha.2`.
+- Versioned image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.2`.
+- The guarded release workflow validates backend, frontend and the unified container before publishing Linux `amd64` + `arm64` and creating the GitHub pre-release.
+- The companion Umbrel Store is updated only after publication, using the resulting immutable multi-architecture digest and separate anonymous amd64/arm64 runtime smoke tests.
+
+### Safety
+
+- The public HTTP API remains read-only; `alpha.2` does not introduce anonymous printer-control, queue-mutation, inventory-mutation or remote-configuration endpoints.
+- `INDETERMINATE` print starts remain non-retryable without reconciliation, and receipt-bearing jobs are never blindly redispatched.
+- Inventory still owns FoxForge spool identity; printer material snapshots continue to expose physical material state and opaque slot IDs rather than `spool_id` values.
+- Common application/domain code remains independent of Bambu and Moonraker transport types, while deep Bambu features remain vendor-specific typed capabilities.
+
+### Validation
+
+- PR #29 merged live API runtime feedback.
+- PR #31 merged healthy empty alpha runtime states.
+- PR #32 merged independent Inventory runtime feedback.
+- PR #35 merged truthful printer telemetry presentation.
+- PR #36 merged truthful System API/runtime status.
+- PR #37 merged independent Fleet/Queue read lifecycles after Web UI typecheck/tests/build and unified-container smoke passed on the exact PR head.
+- The `alpha.2` release candidate remains subject to the guarded release workflow before the tag/image/pre-release are created.
+
+### Known limitations
+
+- Physical Bambu LAN/X2D validation remains pending for connection/reconnect, FTPS delivery, print start, lifecycle completion and X2D-specific storage behavior.
+- Physical Moonraker/OpenKE validation remains pending for HTTP/WebSocket connectivity, upload/start and lifecycle completion.
+- Representative Raspberry Pi 5/UmbrelOS hardware validation remains pending even though ARM64 execution is exercised in CI.
+- Printer configuration remains file-based; authenticated web configuration is not implemented.
+- Realtime WebSocket/SSE delivery, automatic filament accounting, persistent farm scheduling and deep Bambu AMS/HMS/K-profile/dual-nozzle controls remain future work.
+
+## [0.1.0-alpha.1] - 2026-09-04
+
+First public runnable FoxForge pre-release. It introduced the unified backend + React runtime, Bambu and Moonraker adapter foundations, durable queue and inventory, read-only `/api/v1`, EN/RU/UK localization, Docker packaging and guarded Linux `amd64`/`arm64` publication. See [`release/v0.1.0-alpha.1.md`](release/v0.1.0-alpha.1.md) for release-specific notes.
+
+## Detailed development log
+
+The entries below are retained from the pre-versioned and early-alpha implementation log. They document the sequence of architecture and implementation work and can describe intermediate states later superseded by the versioned sections above.
 
 ### Added
 
