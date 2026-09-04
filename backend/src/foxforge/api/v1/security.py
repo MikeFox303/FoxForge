@@ -46,9 +46,8 @@ class CommandAuthenticationError(RuntimeError):
 class TrustedBrowserCommandSessions:
     """Short-lived in-memory browser credentials.
 
-    Session issuance is intentionally separate from bootstrap authorization.
-    `BearerCommandSecurity` decides whether a static operator token or a trusted
-    proxy assertion is allowed to mint a session.
+    The session store does not authorize bootstrap by itself. Callers must
+    authenticate an operator credential before issuing a browser session.
     """
 
     def __init__(self, *, enabled: bool = False, ttl_seconds: int = 8 * 60 * 60) -> None:
@@ -104,21 +103,13 @@ class BearerCommandSecurity:
         token: str | None,
         *,
         browser_sessions: TrustedBrowserCommandSessions | None = None,
-        trusted_proxy_secret: str | None = None,
     ) -> None:
         if token == "":
             token = None
-        if trusted_proxy_secret == "":
-            trusted_proxy_secret = None
         if token is not None:
-            _validate_secret(token, field_name="FOXFORGE_COMMAND_TOKEN")
-        if trusted_proxy_secret is not None:
-            _validate_secret(trusted_proxy_secret, field_name="FOXFORGE_TRUSTED_PROXY_SECRET")
-            if browser_sessions is None or not browser_sessions.enabled:
-                raise ValueError("trusted proxy bootstrap requires browser sessions to be enabled")
+            _validate_token(token)
         self._token = token
         self._browser_sessions = browser_sessions
-        self._trusted_proxy_secret = trusted_proxy_secret
 
     @property
     def enabled(self) -> bool:
@@ -132,32 +123,15 @@ class BearerCommandSecurity:
     def browser_sessions_enabled(self) -> bool:
         return bool(self._browser_sessions and self._browser_sessions.enabled)
 
-    @property
-    def trusted_proxy_bootstrap_enabled(self) -> bool:
-        return self._trusted_proxy_secret is not None
-
-    def issue_browser_session(
-        self,
-        *,
-        authorization_header: str | None = None,
-        trusted_proxy_assertion: str | None = None,
-    ) -> BrowserCommandSession:
+    def issue_browser_session(self, bootstrap_token: str | None = None) -> BrowserCommandSession:
         sessions = self._browser_sessions
         if sessions is None or not sessions.enabled:
             raise CommandSecurityDisabledError("browser command sessions are disabled")
-
-        if authorization_header is not None:
-            candidate = _bearer_candidate(authorization_header)
-            if self._token is not None and hmac.compare_digest(candidate, self._token):
-                return sessions.issue()
+        if bootstrap_token is None:
+            raise CommandSecurityDisabledError("browser session bootstrap requires an explicit operator credential")
+        if self._token is None or not hmac.compare_digest(bootstrap_token, self._token):
             raise CommandAuthenticationError("operator bootstrap credential is invalid")
-
-        if self._trusted_proxy_secret is not None and trusted_proxy_assertion is not None:
-            if hmac.compare_digest(trusted_proxy_assertion, self._trusted_proxy_secret):
-                return sessions.issue()
-            raise CommandAuthenticationError("trusted proxy assertion is invalid")
-
-        raise CommandAuthenticationError("browser session bootstrap credentials are required")
+        return sessions.issue()
 
     def authenticate(self, authorization_header: str | None) -> CommandPrincipal:
         if not self.enabled:
@@ -190,8 +164,8 @@ def _token_digest(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
-def _validate_secret(secret: str, *, field_name: str) -> None:
-    if not 32 <= len(secret) <= 512:
-        raise ValueError(f"{field_name} must contain 32 to 512 visible ASCII characters")
-    if any(ord(character) < 0x21 or ord(character) > 0x7E for character in secret):
-        raise ValueError(f"{field_name} must contain visible ASCII characters only")
+def _validate_token(token: str) -> None:
+    if not 32 <= len(token) <= 512:
+        raise ValueError("FOXFORGE_COMMAND_TOKEN must contain 32 to 512 visible ASCII characters")
+    if any(ord(character) < 0x21 or ord(character) > 0x7E for character in token):
+        raise ValueError("FOXFORGE_COMMAND_TOKEN must contain visible ASCII characters only")
