@@ -10,16 +10,40 @@ from pathlib import Path
 
 SQLITE_SCHEMA_VERSION = 1
 
-_EXPECTED_TABLES = frozenset(
-    {
-        "queue_entries",
-        "inventory_spools",
-        "inventory_adjustments",
-        "inventory_assignments",
-        "command_idempotency",
-        "command_audit",
-    }
-)
+_EXPECTED_COLUMNS = {
+    "queue_entries": frozenset({"queue_id", "payload", "created_at", "updated_at"}),
+    "inventory_spools": frozenset({"spool_id", "payload", "created_at", "updated_at"}),
+    "inventory_adjustments": frozenset(
+        {"adjustment_id", "spool_id", "idempotency_key", "payload", "created_at"}
+    ),
+    "inventory_assignments": frozenset({"spool_id", "printer_id", "slot_id", "payload", "assigned_at"}),
+    "command_idempotency": frozenset(
+        {
+            "principal_id",
+            "operation",
+            "idempotency_key",
+            "request_fingerprint",
+            "state",
+            "result_ref",
+            "outcome_code",
+            "created_at",
+            "updated_at",
+        }
+    ),
+    "command_audit": frozenset(
+        {
+            "audit_id",
+            "request_id",
+            "principal_id",
+            "action",
+            "target_ref",
+            "idempotency_key_digest",
+            "outcome",
+            "error_code",
+            "occurred_at",
+        }
+    ),
+}
 
 _SCHEMA_V1_STATEMENTS = (
     """
@@ -45,9 +69,7 @@ _SCHEMA_V1_STATEMENTS = (
         idempotency_key TEXT NOT NULL UNIQUE,
         payload TEXT NOT NULL,
         created_at TEXT NOT NULL,
-        FOREIGN KEY(spool_id)
-            REFERENCES inventory_spools(spool_id)
-            ON DELETE RESTRICT
+        FOREIGN KEY(spool_id) REFERENCES inventory_spools(spool_id) ON DELETE RESTRICT
     )
     """,
     """
@@ -58,15 +80,10 @@ _SCHEMA_V1_STATEMENTS = (
         payload TEXT NOT NULL,
         assigned_at TEXT NOT NULL,
         UNIQUE(printer_id, slot_id),
-        FOREIGN KEY(spool_id)
-            REFERENCES inventory_spools(spool_id)
-            ON DELETE CASCADE
+        FOREIGN KEY(spool_id) REFERENCES inventory_spools(spool_id) ON DELETE CASCADE
     )
     """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_spool_created
-    ON inventory_adjustments(spool_id, created_at, adjustment_id)
-    """,
+    "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_spool_created ON inventory_adjustments(spool_id, created_at, adjustment_id)",
     """
     CREATE TABLE IF NOT EXISTS command_idempotency (
         principal_id TEXT NOT NULL,
@@ -94,10 +111,7 @@ _SCHEMA_V1_STATEMENTS = (
         occurred_at TEXT NOT NULL
     )
     """,
-    """
-    CREATE INDEX IF NOT EXISTS idx_command_audit_request_id
-    ON command_audit(request_id, occurred_at)
-    """,
+    "CREATE INDEX IF NOT EXISTS idx_command_audit_request_id ON command_audit(request_id, occurred_at)",
 )
 
 
@@ -113,14 +127,6 @@ class SQLiteMigrationResult:
 
 
 def ensure_sqlite_schema(path: Path | str) -> SQLiteMigrationResult:
-    """Migrate the shared FoxForge SQLite database to the current schema.
-
-    Alpha databases created before migration ownership have ``user_version=0``.
-    Existing v0 databases are backed up with SQLite's backup API before the
-    transactional baseline migration is attempted. Future schema versions fail
-    closed instead of being opened by older FoxForge code.
-    """
-
     database_path = Path(path)
     database_path.parent.mkdir(parents=True, exist_ok=True)
     existed = database_path.exists() and database_path.stat().st_size > 0
@@ -133,8 +139,6 @@ def ensure_sqlite_schema(path: Path | str) -> SQLiteMigrationResult:
                     f"FoxForge SQLite schema version {previous_version} is newer than supported version "
                     f"{SQLITE_SCHEMA_VERSION}"
                 )
-            if previous_version < 0:
-                raise SQLiteMigrationError(f"invalid FoxForge SQLite schema version: {previous_version}")
             if previous_version == SQLITE_SCHEMA_VERSION:
                 _validate_current_schema(connection)
                 return SQLiteMigrationResult(previous_version, SQLITE_SCHEMA_VERSION, None)
@@ -188,20 +192,26 @@ def _validate_schema_tables(connection: sqlite3.Connection) -> None:
         for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
         if not str(row[0]).startswith("sqlite_")
     }
-    missing = sorted(_EXPECTED_TABLES - tables)
-    if missing:
+    missing_tables = sorted(set(_EXPECTED_COLUMNS) - tables)
+    if missing_tables:
         raise SQLiteMigrationError(
-            "FoxForge SQLite schema is incomplete for the recorded version; missing tables: " + ", ".join(missing)
+            "FoxForge SQLite schema is incomplete for the recorded version; missing tables: "
+            + ", ".join(missing_tables)
         )
+
+    for table_name, required_columns in _EXPECTED_COLUMNS.items():
+        actual_columns = {str(row[1]) for row in connection.execute(f"PRAGMA table_info({table_name})").fetchall()}
+        missing_columns = sorted(required_columns - actual_columns)
+        if missing_columns:
+            raise SQLiteMigrationError(
+                f"FoxForge SQLite table {table_name} is incompatible; missing columns: " + ", ".join(missing_columns)
+            )
 
 
 def _backup_legacy_database(connection: sqlite3.Connection, database_path: Path) -> Path:
     backup_path = database_path.with_name(f"{database_path.name}.backup-v0")
     if backup_path.exists():
-        # A previous interrupted attempt may have already created the recovery
-        # point. Never overwrite it silently.
         return backup_path
-
     with closing(sqlite3.connect(backup_path)) as backup_connection:
         connection.backup(backup_connection)
     return backup_path
