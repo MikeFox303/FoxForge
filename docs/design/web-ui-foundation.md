@@ -1,6 +1,6 @@
 # FoxForge web UI foundation
 
-**Status:** implemented and evolving post-`v0.1.0-alpha.2`
+**Status:** implemented and evolving from the `v0.1.0-alpha.3` released foundation
 
 ## Purpose
 
