@@ -183,6 +183,17 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
     if (open) void refresh();
   }, [open]);
 
+  useEffect(() => {
+    if (!open) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onClose, open]);
+
   if (!open) return null;
 
   const testConnection = async () => {
@@ -295,8 +306,8 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
             {kind === 'bambu' ? <>
               <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} required /></label>
               <div className="setup-form-row"><label><span>{c.host}</span><input value={host} onChange={(event) => setHost(event.target.value)} required placeholder="192.168.1.50" /></label><label><span>{c.accessCode}</span><input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} required type="password" autoComplete="off" /></label></div>
-            </> : <div className="setup-form-row"><label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.60:7125" /></label><label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label></div>}
-            <div className="setup-form-actions"><button className="secondary-button" type="button" onClick={() => void testConnection()} disabled={testing || saving}>{testing ? c.testing : c.test}</button><button className="primary-button" type="submit" disabled={testing || saving}>{saving ? c.saving : c.save}</button></div>
+            </> : <div className="setup-form-row"><label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.100:7125" /></label><label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label></div>}
+            <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={testing || saving} onClick={() => void testConnection()}>{testing ? c.testing : c.test}</button><button className="primary-button" type="submit" disabled={testing || saving}>{saving ? c.saving : c.save}</button></div>
           </form>
         </div>
       </section>
