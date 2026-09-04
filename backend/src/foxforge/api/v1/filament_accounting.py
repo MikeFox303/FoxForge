@@ -18,6 +18,7 @@ from foxforge.application.accounting import (
     FilamentReconciliationRequiredError,
     FilamentReservation,
     FilamentReservationNotFoundError,
+    FilamentReservationState,
     MaterialEstimate,
 )
 from foxforge.application.commands import (
@@ -26,7 +27,7 @@ from foxforge.application.commands import (
     CommandIdempotencyState,
     command_request_fingerprint,
 )
-from foxforge.application.queue import QueueEntryNotFoundError, QueueEntryState, QueueService
+from foxforge.application.queue import QueueEntry, QueueEntryNotFoundError, QueueEntryState, QueueService
 
 from .http import add_command_route, command_error, command_idempotency_store, command_principal
 from .security import CommandPermission
@@ -65,18 +66,14 @@ def register_filament_accounting_routes(
             estimates = _estimates(payload.get("estimates"))
             if not estimates:
                 raise ValueError("estimates must contain at least one material estimate")
-            if entry.receipt is not None or entry.state in {
-                QueueEntryState.DISPATCHING,
-                QueueEntryState.INDETERMINATE,
-                QueueEntryState.ACCEPTED,
-                QueueEntryState.PREPARING,
-                QueueEntryState.PRINTING,
-                QueueEntryState.PAUSED,
-                QueueEntryState.COMPLETED,
-                QueueEntryState.CANCELLED,
-            }:
-                raise FilamentPlanConflictError("filament plan must be created before confirmed print start")
-            if not accounting.reservations_for_queue(queue_id):
+            _validate_plan_state(entry)
+            existing = accounting.reservations_for_queue(queue_id)
+            if existing:
+                requested = {estimate.material_index: estimate.estimated_mass_g for estimate in estimates}
+                persisted = {item.material_index: item.estimated_mass_g for item in existing}
+                if requested != persisted:
+                    raise FilamentPlanConflictError("filament plan is immutable once reservations are created")
+            else:
                 accounting.preview_plan(entry.printer_id, entry.request.material_bindings, estimates)
             reservation = _reserve(request, "filament.plan", payload, route_identity=str(queue_id))
         except QueueEntryNotFoundError:
@@ -87,7 +84,7 @@ def register_filament_accounting_routes(
             return command_error(request, status=409, code="filament_assignment_required", message=str(error))
         except FilamentCapacityError as error:
             return command_error(request, status=409, code="insufficient_filament", message=str(error))
-        except (FilamentPlanConflictError, FilamentAccountingError) as error:
+        except FilamentPlanConflictError as error:
             return command_error(request, status=409, code="filament_plan_conflict", message=str(error))
         except (ValueError, TypeError) as error:
             return command_error(request, status=400, code="invalid_request", message=str(error))
@@ -102,10 +99,7 @@ def register_filament_accounting_routes(
                 )
             return web.json_response(_queue_accounting_result(accounting, queue_id, replayed=True))
 
-        try:
-            accounting.plan(entry, estimates)
-        except FilamentAccountingError as error:
-            return command_error(request, status=409, code="filament_plan_conflict", message=str(error))
+        accounting.plan(entry, estimates)
         _complete(
             request,
             "filament.plan",
@@ -120,12 +114,15 @@ def register_filament_accounting_routes(
         try:
             queue_id = _route_queue_id(request)
             entry = queue.get(queue_id)
+            _validate_release_state(entry)
             payload: dict[str, object] = {}
             reservation = _reserve(request, "filament.release", payload, route_identity=str(queue_id))
         except QueueEntryNotFoundError:
             return command_error(request, status=404, code="queue_not_found", message="Queue entry was not found.")
         except CommandIdempotencyConflictError as error:
             return command_error(request, status=409, code="idempotency_conflict", message=str(error))
+        except FilamentReconciliationRequiredError as error:
+            return command_error(request, status=409, code="filament_reconciliation_required", message=str(error))
         except (ValueError, TypeError) as error:
             return command_error(request, status=400, code="invalid_request", message=str(error))
 
@@ -139,10 +136,7 @@ def register_filament_accounting_routes(
                 )
             return web.json_response(_queue_accounting_result(accounting, queue_id, replayed=True))
 
-        try:
-            accounting.release_unstarted(entry)
-        except FilamentReconciliationRequiredError as error:
-            return command_error(request, status=409, code="filament_reconciliation_required", message=str(error))
+        accounting.release_unstarted(entry)
         _complete(
             request,
             "filament.release",
@@ -162,11 +156,23 @@ def register_filament_accounting_routes(
             material_index = _material_index(payload.get("materialIndex"))
             actual_mass_g = _mass(payload.get("actualMassG"), field_name="actualMassG", allow_zero=True)
             note = _optional_text(payload.get("note"), field_name="note")
+            existing = _reservation_for_material(accounting, queue_id, material_index)
+            if existing.state != FilamentReservationState.RECONCILIATION_REQUIRED:
+                raise FilamentReconciliationRequiredError("reservation is not awaiting reconciliation")
             reservation = _reserve(request, "filament.reconcile", payload, route_identity=str(queue_id))
         except QueueEntryNotFoundError:
             return command_error(request, status=404, code="queue_not_found", message="Queue entry was not found.")
+        except FilamentReservationNotFoundError:
+            return command_error(
+                request,
+                status=404,
+                code="filament_reservation_not_found",
+                message="Filament reservation was not found.",
+            )
         except CommandIdempotencyConflictError as error:
             return command_error(request, status=409, code="idempotency_conflict", message=str(error))
+        except FilamentReconciliationRequiredError as error:
+            return command_error(request, status=409, code="filament_reconciliation_not_allowed", message=str(error))
         except (ValueError, TypeError) as error:
             return command_error(request, status=400, code="invalid_request", message=str(error))
 
@@ -187,15 +193,6 @@ def register_filament_accounting_routes(
                 actual_mass_g=actual_mass_g,
                 note=note,
             )
-        except FilamentReservationNotFoundError:
-            return command_error(
-                request,
-                status=404,
-                code="filament_reservation_not_found",
-                message="Filament reservation was not found.",
-            )
-        except FilamentReconciliationRequiredError as error:
-            return command_error(request, status=409, code="filament_reconciliation_not_allowed", message=str(error))
         except FilamentCapacityError as error:
             return command_error(request, status=409, code="insufficient_filament", message=str(error))
 
@@ -231,6 +228,52 @@ def register_filament_accounting_routes(
         CommandPermission.INVENTORY_WRITE,
         reconcile,
     )
+
+
+def _validate_plan_state(entry: QueueEntry) -> None:
+    if entry.receipt is not None or entry.state in {
+        QueueEntryState.DISPATCHING,
+        QueueEntryState.INDETERMINATE,
+        QueueEntryState.ACCEPTED,
+        QueueEntryState.PREPARING,
+        QueueEntryState.PRINTING,
+        QueueEntryState.PAUSED,
+        QueueEntryState.COMPLETED,
+        QueueEntryState.CANCELLED,
+    }:
+        raise FilamentPlanConflictError("filament plan must be created before confirmed print start")
+
+
+def _validate_release_state(entry: QueueEntry) -> None:
+    if entry.receipt is not None or entry.state in {
+        QueueEntryState.DISPATCHING,
+        QueueEntryState.INDETERMINATE,
+        QueueEntryState.ACCEPTED,
+        QueueEntryState.PREPARING,
+        QueueEntryState.PRINTING,
+        QueueEntryState.PAUSED,
+        QueueEntryState.COMPLETED,
+        QueueEntryState.CANCELLED,
+    }:
+        raise FilamentReconciliationRequiredError("started or uncertain queue entries cannot release reservations")
+
+
+def _reservation_for_material(
+    accounting: FilamentAccountingService,
+    queue_id: UUID,
+    material_index: int,
+) -> FilamentReservation:
+    reservation = next(
+        (
+            item
+            for item in accounting.reservations_for_queue(queue_id)
+            if item.material_index == material_index
+        ),
+        None,
+    )
+    if reservation is None:
+        raise FilamentReservationNotFoundError(f"{queue_id}/{material_index}")
+    return reservation
 
 
 def _queue_accounting_result(
@@ -273,7 +316,10 @@ def _estimates(value: object) -> tuple[MaterialEstimate, ...]:
         _only_fields(item, {"materialIndex", "estimatedMassG"})
         estimates.append(
             MaterialEstimate(
-                material_index=_material_index(item.get("materialIndex"), field_name=f"estimates[{index}].materialIndex"),
+                material_index=_material_index(
+                    item.get("materialIndex"),
+                    field_name=f"estimates[{index}].materialIndex",
+                ),
                 estimated_mass_g=_mass(
                     item.get("estimatedMassG"),
                     field_name=f"estimates[{index}].estimatedMassG",
