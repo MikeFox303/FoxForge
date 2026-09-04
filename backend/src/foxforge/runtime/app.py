@@ -24,7 +24,7 @@ from foxforge.infrastructure.inventory import SQLiteInventoryStore
 from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
 
-from .config import RuntimeConfig, load_runtime_config
+from .config import load_runtime_config
 from .printer_manager import RuntimePrinterManager
 
 _LOG = logging.getLogger(__name__)
@@ -46,7 +46,6 @@ class RuntimeSettings:
 
 @dataclass(slots=True)
 class RuntimeComposition:
-    config: RuntimeConfig
     fleet: FleetService
     queue: QueueService
     inventory: InventoryService
@@ -98,7 +97,6 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         printer_management=printer_manager,
     )
     app[_RUNTIME_KEY] = RuntimeComposition(
-        config=config,
         fleet=fleet,
         queue=queue,
         inventory=inventory,
