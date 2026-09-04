@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from foxforge.application.fleet import FleetPrinterNotFoundError
-from foxforge.domain.printers import ConnectionState, PrinterAdapterError
+from foxforge.domain.printers import ConnectionState, PrinterAdapterError, PrinterSnapshot
 
 _LOG = logging.getLogger(__name__)
 
@@ -20,7 +20,7 @@ class ReconnectFleet(Protocol):
     @property
     def printer_ids(self) -> tuple[str, ...]: ...
 
-    def snapshot(self, printer_id: str): ...
+    def snapshot(self, printer_id: str) -> PrinterSnapshot: ...
 
     async def connect(self, printer_id: str) -> None: ...
 
@@ -136,15 +136,16 @@ async def _reconnect_worker(
             await asyncio.sleep(policy.base_delay_seconds)
             continue
 
+        already_recovered = False
         try:
             async with semaphore:
                 if printer_id not in fleet.printer_ids:
                     return
                 if fleet.snapshot(printer_id).connection != ConnectionState.DISCONNECTED:
                     consecutive_failures = 0
-                    await asyncio.sleep(policy.base_delay_seconds)
-                    continue
-                await fleet.connect(printer_id)
+                    already_recovered = True
+                else:
+                    await fleet.connect(printer_id)
         except asyncio.CancelledError:
             raise
         except FleetPrinterNotFoundError:
@@ -167,6 +168,10 @@ async def _reconnect_worker(
             )
         else:
             consecutive_failures = 0
+
+        if already_recovered:
+            await asyncio.sleep(policy.base_delay_seconds)
+            continue
 
         delay = reconnect_backoff_seconds(
             policy,
