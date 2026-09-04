@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { AppProviders } from './app/providers';
 import { PrinterSetupLauncher } from './features/printers/PrinterSetupLauncher';
 import { FoxForgeApp } from './FoxForgeApp';
+import './jobControlTranslations';
 import './styles.css';
 import './refinements.css';
 import './inventory.css';
