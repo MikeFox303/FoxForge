@@ -107,6 +107,11 @@ class CommandAuditService:
         error_code: str | None = None,
         created_at: datetime | None = None,
     ) -> CommandAuditRecord:
+        normalized_target = (
+            None
+            if target_resource is None
+            else _required_text(target_resource, field_name="target_resource")
+        )
         record = CommandAuditRecord(
             audit_id=uuid4(),
             request_id=request_id,
@@ -114,7 +119,7 @@ class CommandAuditService:
             action=_required_text(action, field_name="action"),
             outcome=outcome,
             created_at=_utc_now(created_at),
-            target_resource=(None if target_resource is None else _required_text(target_resource, field_name="target_resource")),
+            target_resource=normalized_target,
             idempotency_key_hash=(
                 None
                 if idempotency_key is None
