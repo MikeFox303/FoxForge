@@ -8,7 +8,7 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [`CHANGELOG.md`](../CHANGELOG.md) — implementation, architecture, validation and migration history.
 - [`release/`](../release/) — durable metadata and release notes for published FoxForge versions.
 
-The current published pre-release is **`v0.1.0-alpha.3`**. Current development source now adds common Pause/Resume/Cancel through the typed `foxforge.job_control` capability, guarded ADR 0004 command semantics and capability-driven browser controls. These P1 changes are not part of the immutable alpha.3 image and require a later guarded release before Docker/Umbrel users receive them. Physical printer/Raspberry Pi validation, realtime delivery, automatic accounting and persistent farm scheduling remain incomplete.
+The current published pre-release is **`v0.1.0-alpha.3`**. Current development source adds P1 common Pause/Resume/Cancel and P2 FoxForge-owned realtime application events over SSE with replay/resync semantics and TanStack Query invalidation. These post-alpha.3 changes are not part of the immutable alpha.3 image and require a later guarded release before versioned Docker/Umbrel users receive them. Physical printer/Raspberry Pi validation, automatic accounting and persistent farm scheduling remain incomplete.
 
 ## Architecture Decision Records
 
@@ -22,6 +22,7 @@ The current published pre-release is **`v0.1.0-alpha.3`**. Current development s
 - [Printer contracts v1](design/printer-contracts.md) — normative `PrinterAdapter`, execution/material capabilities, normalized events/errors, idempotency semantics and contract tests.
 - [AdapterRegistry and FleetService](design/fleet-service.md) — vendor-neutral adapter composition, fleet snapshots/capabilities, lifecycle and merged normalized events.
 - [Common printer job control](design/job-control.md) — P1 `foxforge.job_control` v1 contract, exact vendor-job identity guards, Bambu/Moonraker mappings, ADR 0004 HTTP semantics and browser uncertainty handling.
+- [Realtime application events](design/realtime-events.md) — P2 application-event journal, SSE `Last-Event-ID` replay, fail-closed resynchronization, durable-write ordering and TanStack Query invalidation rules.
 - [Upstream adoption map](design/upstream-adoption-map.md) — operational decision matrix for Bambu, multi-vendor, farm/scheduler, inventory, frontend and provenance work.
 
 ## Bambu Lab design
@@ -53,12 +54,13 @@ The current published pre-release is **`v0.1.0-alpha.3`**. Current development s
 - [Public API v1](design/public-api-v1.md) — the original versioned read foundation for health, fleet, queue and inventory. Later write endpoints follow ADR 0004 and dedicated command designs rather than weakening the original read DTO boundary.
 - [ADR 0004: Command API security and idempotency](adr/0004-command-api-security.md) — fail-closed authentication, permissions, idempotency, errors and audit contract for remote mutations.
 - [Common printer job control](design/job-control.md) — authenticated `printer.control` command plus capability-driven Pause/Resume/Cancel UI.
+- [Realtime application events](design/realtime-events.md) — read-only application invalidation stream; canonical state remains the HTTP snapshots.
 - [Queue command API and artifact staging](design/queue-command-api.md) — released backend command contract for safe queue writes without client filesystem paths.
 - [Queue command UI](design/queue-command-ui.md) — released browser orchestration preserving the backend queue safety model.
 - [Web UI foundation](design/web-ui-foundation.md) — React/TypeScript product structure, printer cockpit, Router/TanStack Query/i18next composition and vendor-neutral presentation rules.
 - [Frontend parallel development policy](design/frontend-parallel-development.md) — main-driven UI development, query isolation, capability discipline and merge/CI rules while backend work proceeds in parallel.
 
-Normal runtime consumes live FoxForge API models; demo data remains available only through explicit `?demo=1`. Browser operator sessions support printer setup, queue commands and P1 printer job controls. Realtime WebSocket/SSE remains a separate future contract.
+Normal runtime consumes live FoxForge API models; demo data remains available only through explicit `?demo=1`. Browser operator sessions support printer setup, queue commands and P1 printer job controls. P2 adds same-origin SSE invalidations while keeping HTTP read models canonical and periodic polling as an alpha recovery fallback.
 
 ## Deployment
 
@@ -70,12 +72,12 @@ Current state:
 - the same server process serves compiled SPA assets and `/api/v1`;
 - persistent `/data` contains runtime configuration, SQLite state and staged queue artifacts;
 - steady-state container execution is non-root;
-- container startup smoke testing exists in CI;
+- container startup smoke testing exists in CI and P2 extends it to verify `/api/v1/events`;
 - `v0.1.0-alpha.3` publishes an immutable versioned Linux `amd64` + `arm64` GHCR image through the guarded release workflow;
 - anonymous pull/start/runtime smoke validation passes for both architectures in CI;
 - the `my3d-foxforge` package is published in `MikeFox303/umbrel-3d-printing-store` behind authenticated Umbrel App Proxy and pins the immutable `alpha.3` multi-architecture digest;
-- current P1 source changes require a later guarded release before Docker/Umbrel users receive them;
-- representative Raspberry Pi 5/UmbrelOS and physical-printer validation are still required.
+- current P1/P2 source changes require a later guarded release before Docker/Umbrel users receive them;
+- representative Raspberry Pi 5/UmbrelOS, reverse-proxy SSE and physical-printer validation are still required.
 
 ## Working rules
 
