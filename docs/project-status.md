@@ -2,10 +2,13 @@
 
 **Snapshot date:** 2026-09-04  
 **Canonical branch:** `main`  
-**Main head at this snapshot:** `5dca11b82424fd1e15fdcf34b18333e41315aa1f`  
-**Development version:** `0.1.0.dev0` (pre-alpha)
+**Implementation head reviewed:** `44dcabe391dd5931f4548de32c9a561c9cbf9744`  
+**Development version:** `0.1.0.dev0`  
+**Maturity:** first runnable alpha candidate; not production-ready
 
-This document is a concise current-state snapshot. Detailed architecture remains normative in the ADRs and design specifications; `CHANGELOG.md` remains the implementation history.
+This document is the concise current-state snapshot for merged FoxForge work. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains the implementation history.
+
+At this snapshot there are no open pull requests or issues. The next development work should therefore be recorded as explicit repository milestones/issues/PRs rather than existing only in chat or planning notes.
 
 ## Current repository shape
 
@@ -13,134 +16,235 @@ ADR 0002 is implemented in `main`:
 
 ```text
 FoxForge/
-├── backend/       Python 3.12+ core, adapters, fleet, queue, inventory and future API
+├── backend/       Python 3.12+ domain, adapters, services, API and runtime
 ├── frontend/      TypeScript/React/Vite web application
-├── deployment/    Docker/Umbrel packaging area
-├── docs/          ADRs and durable design specifications
+├── deployment/    Docker runtime and future Umbrel packaging
+├── docs/          ADRs, durable design specifications and status
 └── integrations/  isolated migration/provenance material
 ```
 
-Backend, frontend and deployment are independently testable ownership areas but remain parts of one FoxForge application.
+Backend, frontend and deployment are independently testable ownership areas but now compose into one runnable FoxForge application.
 
-## In `main`
+## Current `main` status
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Common printer domain | Implemented | FoxForge-owned identities, normalized snapshots/events/errors, typed capability discovery and contract tests. |
-| Printer adapters | Implemented foundation | `BambuAdapter` and `MoonrakerAdapter` coexist behind the same vendor-neutral contracts. |
+| Printer adapters | Implemented foundation | `BambuAdapter` and `MoonrakerAdapter` coexist behind vendor-neutral contracts. |
 | Fleet management | Implemented | `AdapterRegistry` and `FleetService` provide composition, lifecycle, snapshots, capabilities and merged normalized events. |
-| Durable print queue | Implemented foundation | Restart-safe dispatch/idempotency, explicit `INDETERMINATE`, event-driven remote lifecycle tracking and SQLite persistence. |
-| Queue retry runner | Implemented | Deterministic `QueueRunner.run_once()` with bounded exponential backoff for explicitly retryable pre-start failures only. |
-| Bambu LAN transport | Implemented, hardware validation pending | MQTT/TLS, implicit FTPS, verified upload, double busy guards and fail-safe ambiguous-start handling. |
-| Bambu project storage | Implemented seam | FTPS is the default strategy; future X2D/N6 internal-eMMC delivery remains hardware-led work behind `BambuProjectStorage`. |
-| Moonraker transport | Implemented, hardware validation pending | HTTP/WebSocket transport, API-key auth, upload/start flow and normalized live state are covered by integration tests. |
-| Filament/spool inventory | Phase 11 foundation implemented | Independent inventory bounded context, `Decimal` mass accounting, immutable idempotent adjustment ledger, physical slot assignments and `InMemoryInventoryStore`. |
-| Web UI | Implemented foundation | React/TypeScript/Vite with React Router, TanStack Query, i18next (`en`/`ru`/`uk`), responsive fleet/queue/material/farm/system views, Spool Inventory and route-based printer cockpit. Still uses demo query gateways. |
-| Repository layout | Implemented | Python project lives under `backend/`; frontend under `frontend/`; deployment ownership is split into Docker/Umbrel directories by ADR 0002. |
-| Public API | Not implemented | REST/WebSocket/SSE boundary still needs to expose application services without leaking vendor transports. |
-| Production deployment | Not implemented | Deployment directories exist, but production Docker/ARM64/Umbrel runtime packaging and smoke tests are still pending. |
+| Durable print queue | Implemented foundation | SQLite-backed dispatch/idempotency, explicit `INDETERMINATE`, remote lifecycle tracking and terminal persistence. |
+| Queue retry runner | Implemented | Deterministic `QueueRunner.run_once()` with bounded exponential backoff only for explicitly retryable pre-start failures. |
+| Filament/spool inventory | Durable foundation implemented | Independent bounded context, exact `Decimal` mass ledger, idempotent adjustments, slot assignments and SQLite restart durability. |
+| Public HTTP API v1 | Implemented read-only | `/healthz`, `/api/v1/fleet`, `/api/v1/queue`, `/api/v1/inventory/spools`; normalized DTOs, no raw vendor payloads or secret leakage. |
+| Alpha runtime | Implemented | `foxforge` server composition root, versioned local printer config, offline-safe startup/reconnect, SPA + API from one `aiohttp` process. |
+| Web UI | Live read integration implemented | React/TypeScript/Vite, TanStack Query, live `/api/v1` reads, explicit `?demo=1` preview mode, route-based printer cockpit and inventory workspace. |
+| Localization | Alpha localization complete | English, Russian and Ukrainian (`en`, `ru`, `uk`) across shared workspaces and dynamic runtime states with parity tests. |
+| Bambu LAN transport | Implemented, hardware validation pending | MQTT 3.1.1 over TLS, implicit FTPS, verified upload, double busy guards and fail-safe ambiguous-start behavior. |
+| Bambu project storage | Implemented seam | FTPS default; future validated X2D/N6 internal-eMMC delivery remains behind `BambuProjectStorage`. |
+| Moonraker transport | Implemented, hardware validation pending | HTTP/WebSocket, API-key auth, upload/start flow and normalized live state covered by integration tests. |
+| Docker deployment | Runnable alpha implemented | Multi-stage unified image, standalone Compose, persistent `/data`, non-root steady state and startup smoke test in CI. |
+| ARM64 delivery | Prepared, release validation pending | Multi-architecture publication path targets Linux amd64 + arm64; release-grade ARM64 execution still needs validation. |
+| Umbrel deployment | Not implemented yet | Packaging boundary exists and must reuse the same FoxForge runtime/image contract. |
+| Command/write API | Not implemented | Printer control, queue mutations and inventory mutations remain intentionally unavailable over HTTP. |
+| Realtime API | Not implemented | WebSocket/SSE delivery into the frontend cache remains future work. |
+| Farm scheduler | Not implemented | Single-pass queue runner exists, but persistent scheduler/printer-selection policy and distributed leases are pending. |
 
-## Inventory boundary after Phase 11
+## First runnable alpha runtime
 
-Inventory is a real FoxForge domain rather than only a roadmap item.
+PR #25 changed the project from separate backend/frontend foundations into a unified runnable application candidate.
 
-Implemented in the backend foundation:
+Implemented behavior:
 
-- spool metadata and archive state;
-- editable empty-spool mass;
-- remaining/used filament derived from an immutable `Decimal` adjustment ledger;
-- consumption, waste, return and correction adjustment kinds;
-- idempotency keys and conflicting-replay detection;
-- exactly-once replay semantics that remain valid after later archive;
-- one-spool-per-physical-slot and one-slot-per-spool assignment rules;
-- opaque `(printer_id, slot_id)` assignments without putting `spool_id` into printer adapter state.
+- `foxforge` executable server entrypoint;
+- versioned local printer configuration for Bambu LAN and Moonraker adapters;
+- safe empty `/data/config.json` creation on first start;
+- web/API availability even when configured printers are offline;
+- background printer reconnect attempts;
+- queue and inventory persisted in the app-owned SQLite database;
+- compiled React SPA and `/api/v1` served by the same `aiohttp` process;
+- production frontend reads from the real `/api/v1` fleet, queue and inventory endpoints;
+- demo data retained only behind explicit `?demo=1`;
+- unified multi-stage Docker image and standalone Compose stack;
+- mounted data directory prepared before privilege drop, then non-root steady-state execution;
+- CI smoke test that starts the image and checks `/healthz`, the SPA and durable files;
+- multi-architecture publication preparation for Linux `amd64` and `arm64`.
 
-The frontend now has a Spool Inventory workspace derived from those merged semantics. Its demo read model keeps Decimal masses as strings, treats physical slot IDs as opaque and resolves friendly slot labels against the normalized material-system snapshot instead of parsing vendor structure.
+Runtime safety boundaries remain explicit:
 
-Still required before automatic accounting is production-ready:
+- vendor imports are restricted to the composition root rather than common domain/application code;
+- no printer-control or inventory-mutation HTTP endpoints are exposed yet;
+- no wildcard CORS or anonymous remote command API has been added;
+- normal outbound bridge networking with explicit printer IPs is the alpha deployment model; `network_mode: host` is not required by design;
+- printer network failures must not terminate the UI/API process;
+- local credentials stay in `/data/config.json` and are not serialized by public read DTOs.
 
-- durable SQLite inventory persistence;
-- queue-completion consumption worker;
-- material reservations before dispatch;
-- 3MF/G-code estimate reconciliation;
-- transaction/locking rules for future multi-process execution;
-- public Inventory API DTOs/mutations and replacement of the demo frontend gateway.
+## Public API and frontend boundary
 
-## Web UI boundary
+The production UI is no longer a mock-only client.
 
-The UI is now merged into `main`, but it is intentionally **not** presented as a live-connected production client yet.
+Current read path:
+
+```text
+printer adapters / inventory / queue
+              |
+        application services
+              |
+          /api/v1 DTOs
+              |
+       typed frontend client
+              |
+        TanStack Query
+              |
+          React views
+```
+
+Implemented read endpoints:
+
+- `GET /healthz`;
+- `GET /api/v1/fleet`;
+- `GET /api/v1/queue`;
+- `GET /api/v1/inventory/spools`.
+
+The API uses normalized vendor-independent DTOs, exact decimal strings for inventory mass, safe queue artifact metadata and version/cache headers. The frontend consumes these read models in normal runtime mode.
+
+Still intentionally absent:
+
+- printer command endpoints;
+- queue enqueue/retry/reconcile/cancel mutations;
+- inventory create/move/correct/archive mutations;
+- remote printer credential/configuration writes;
+- WebSocket/SSE realtime delivery;
+- authentication/authorization claims for command APIs.
+
+Unavailable UI writes must remain disabled until corresponding backend commands have explicit authentication, validation, idempotency and normalized HTTP error semantics.
+
+## Inventory status
+
+Inventory is now durable, not just an in-memory Phase 11 model.
 
 Implemented:
 
-- React Router product URLs for Overview, Printers, Queue, Materials, Inventory, Farm and System;
-- `/printers/:printerId` route-based printer cockpit with Overview / Materials / Queue / Diagnostics tabs;
-- mixed Bambu + Moonraker rendering from normalized frontend read models;
-- TanStack Query data seams for fleet and inventory demo gateways;
-- `en` / `ru` / `uk` localization infrastructure and growing page coverage;
-- responsive dark FoxForge interface;
+- spool metadata and archive state;
+- editable empty-spool mass;
+- exact `Decimal` serialization;
+- immutable adjustment ledger for consumption, waste, return and correction;
+- idempotency keys and conflicting-replay rejection;
+- exactly-once replay behavior across restart and after later archive;
+- one spool per physical `(printer_id, slot_id)` and one slot per spool;
+- opaque physical slot IDs without `spool_id` pollution in printer snapshots;
+- SQLite WAL, foreign keys and busy timeout for the current single-container runtime;
+- restart tests for metadata, ledger balance, archive replay and assignments;
+- live read DTOs consumed by the web UI.
+
+Still required for automated accounting:
+
+- material reservation before dispatch;
+- trustworthy per-material print usage estimates;
+- queue-completion consumption worker;
+- 3MF/G-code estimate reconciliation and later actual-vs-estimated correction policy;
+- authenticated inventory mutation API;
+- stronger transaction/locking rules before multi-process execution.
+
+## Web UI and localization
+
+The merged UI currently provides:
+
+- Overview, Printers, Queue, Materials, Inventory, Farm and System routes;
+- `/printers/:printerId` cockpit with Overview / Materials / Queue / Diagnostics tabs;
+- mixed Bambu + Moonraker rendering from normalized read models;
+- live fleet, queue and inventory reads through typed `/api/v1` clients;
+- explicit demo mode rather than silent production mock data;
+- responsive dark interface;
 - restrained optional Ko-fi link in the sidebar footer;
-- frontend CI for TypeScript, Vitest and production Vite build;
-- documented main-driven parallel-development policy.
+- persistent language selection;
+- English, Russian and Ukrainian interface coverage;
+- localization of dynamic printer, queue, material-source and relative-time states;
+- translation parity tests to prevent missing alpha keys;
+- frontend CI for typechecking, Vitest and production Vite build.
 
-Not implemented yet:
+Deep vendor controls must continue to appear only after corresponding typed backend capabilities are merged. The UI should not invent unsupported Bambu or Moonraker controls.
 
-- public REST client;
-- WebSocket/SSE live cache updates;
-- real printer/queue/inventory mutations;
-- capability panels for deeper Bambu or Moonraker-specific controls that do not yet exist as merged typed capabilities.
+## Hardware validation boundary
 
-Buttons for unavailable writes remain disabled rather than simulating durable application behavior.
+The largest remaining technical uncertainty is now real hardware behavior rather than core architecture.
 
-## Parallel development rule
+Bambu validation still needs real-device evidence for:
 
-Frontend and backend may proceed concurrently, but `main` remains the only authoritative project state.
+- connection/reconnect against the target LAN-mode printer;
+- state synchronization;
+- FTPS project delivery;
+- print-start acknowledgement and ambiguous-start behavior;
+- lifecycle completion matching;
+- X2D/N6 storage behavior, especially any internal-eMMC path;
+- later AMS/drying/HMS/dual-nozzle capabilities.
 
-For UI work:
+Moonraker/OpenKE validation still needs real-device evidence for:
 
-1. Start the UI branch from current `main`.
-2. Open backend PRs may inform planning but are not stable frontend contracts.
-3. Put server state behind TanStack Query gateways rather than page-local future endpoint assumptions.
-4. Do not expose fake writes for commands whose API does not exist.
-5. Mount vendor-specific controls only after corresponding typed capabilities are merged.
-6. Immediately before merge, compare the UI branch with current `main`; if `main` advanced, update the branch and rerun the complete Web UI gate.
-7. Recheck the post-merge `main` build.
+- API-key/auth configuration where applicable;
+- HTTP/WebSocket connection and reconnect;
+- live state subscriptions;
+- G-code upload/checksum/start;
+- print lifecycle completion and failure handling.
 
-The durable version of this rule is in `docs/design/frontend-parallel-development.md`.
+Documentation must not call these transports production-validated until physical tests pass.
 
-## Current safety/architecture invariants
+## Deployment status
 
-The following rules should remain true as the project grows:
+The Docker boundary has moved from placeholder to runnable alpha:
+
+- unified backend + compiled frontend image;
+- standalone `docker-compose.yml`;
+- external persistent data directory;
+- safe first-start config/database creation;
+- non-root application execution after volume preparation;
+- health/startup smoke testing in CI;
+- Linux amd64 + arm64 publication workflow preparation.
+
+Still required before a public deployment release:
+
+- release/tag image publication and digest policy;
+- explicit ARM64 runtime smoke test on representative hardware;
+- upgrade/migration policy for persisted state;
+- user-facing configuration documentation;
+- Umbrel App Store manifest/icon/gallery/runtime integration;
+- Umbrel end-to-end ARM64 smoke test using the same application image/behavior.
+
+## Current architecture and safety invariants
 
 1. Common application/domain code must not import Bambu or Moonraker transport/protocol types.
-2. Deep Bambu functionality stays available through typed Bambu capabilities rather than polluting common contracts.
+2. Deep Bambu functionality remains available through typed Bambu capabilities rather than polluting common contracts.
 3. Queue code never guesses whether an ambiguous print started; `INDETERMINATE` requires reconciliation and is never automatically retried.
 4. Receipt-bearing jobs are never redispatched by retry logic.
 5. Inventory owns FoxForge spool identity; printer material snapshots expose physical material state and opaque slot IDs, not `spool_id`.
-6. Frontend code consumes FoxForge application/API read models, not Python modules or raw vendor payloads.
-7. Frontend preview data must not be mistaken for live printer state or durable writes.
-8. Docker and Umbrel must package the same application behavior rather than becoming divergent forks.
-9. Upstream-derived code and behavior must retain required license/copyright provenance; newly written FoxForge code should remain clearly distinguishable.
+6. Public API DTOs expose FoxForge application contracts rather than raw vendor payloads or local secrets.
+7. Frontend code consumes typed FoxForge API/read models rather than Python modules or vendor protocol structures.
+8. Missing write APIs remain visibly unavailable instead of simulated as durable operations.
+9. Docker and Umbrel must package the same FoxForge application behavior rather than becoming divergent forks.
+10. Upstream-derived code/material must retain required license/copyright provenance; newly written FoxForge code remains clearly distinguishable.
 
 ## Recommended next sequence
 
-1. **Add durable SQLite inventory persistence** with restart tests and the same idempotency/assignment semantics as the in-memory store.
-2. **Define the public REST + realtime API** over `FleetService`, `QueueService` and `InventoryService`, including explicit DTO/versioning and error semantics.
-3. **Replace frontend demo gateways** with typed REST clients and feed WebSocket/SSE events into the TanStack Query cache.
-4. **Add real UI mutations only as backend command endpoints land**, keeping missing actions disabled until then.
-5. **Physically validate Bambu LAN/X2D and Moonraker/OpenKE transports** before claiming production printer support.
-6. **Add queue scheduler/farm policy** above `QueueRunner.run_once()` with printer selection, priorities and durable multi-process lease/CAS semantics before distributed execution.
-7. **Implement production Docker/ARM64/Umbrel packaging** after the server API/runtime entrypoint is stable enough for end-to-end smoke tests.
-8. **Expand deep Bambu capabilities** (AMS operations/drying, HMS, K profiles, dual nozzle, Virtual Printer) without weakening the vendor-independent core; UI panels should follow those typed capabilities.
+1. **Physical alpha validation:** run Bambu LAN/X2D and Moonraker/OpenKE through connect → state → upload → print start → lifecycle → completion test matrices and document results.
+2. **Command API security contract:** define authentication/authorization, request validation, idempotency keys, normalized errors and audit expectations before adding remote writes.
+3. **Queue/printer/inventory mutations:** add narrowly scoped tested command endpoints and enable matching UI actions only after contracts exist.
+4. **Realtime updates:** add WebSocket/SSE application events and update TanStack Query caches without leaking vendor transports.
+5. **Automatic filament accounting:** reservations, per-material estimates, queue-completion consumption and reconciliation.
+6. **Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics before distributed runners.
+7. **Deep Bambu expansion:** AMS operations/drying, HMS, K profiles, dual nozzle and Virtual Printer/X2D-specific capabilities behind typed Bambu interfaces.
+8. **Release deployment:** validate ARM64, publish immutable images, define upgrades and build the Umbrel package around the same runtime.
+9. **Additional vendors:** only after common contracts have been exercised by the first two real adapter families on hardware.
 
-## Acceptance criteria for the next integration milestone
+## Acceptance criteria for the next major milestone
 
-The next repository-level integration milestone should not be considered complete until:
+The next major alpha milestone should not be considered complete until:
 
-- Python 3.12 and 3.13 backend CI remains green from `backend/`;
-- Phase 11 inventory tests remain green after persistence/API work;
-- frontend TypeScript, Vitest and production build remain green on current `main`;
-- public API DTOs expose application contracts without leaking raw Bambu/Moonraker payloads;
-- frontend live reads replace demo gateways through typed query clients rather than page rewrites;
-- unavailable write actions remain disabled until matching command endpoints are tested;
-- `README.md`, `docs/README.md`, ADR 0002 and this status document agree on the actual top-level layout and UI status;
-- no merged documentation claims physical Bambu/Moonraker validation before real hardware tests pass.
+- backend CI remains green on Python 3.12 and 3.13;
+- frontend typecheck, tests and production build remain green;
+- unified container startup smoke tests remain green;
+- at least one real Bambu target and one real Moonraker/OpenKE target complete documented connectivity/state validation;
+- any new write endpoint has authentication/authorization assumptions, request validation, idempotency and error-contract tests;
+- API/application layers still contain no vendor transport imports;
+- `INDETERMINATE` and receipt-bearing queue safety semantics are preserved;
+- inventory Decimal/idempotency/restart guarantees remain intact;
+- README, project status and deployment docs agree on what is live, what is read-only and what is physically validated;
+- no documentation claims production-ready hardware support before the corresponding physical test evidence exists.

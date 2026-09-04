@@ -1,10 +1,30 @@
 # FoxForge
 
-**FoxForge is an open-source, self-hosted foundation for managing mixed fleets of 3D printers without sacrificing deep vendor-specific functionality.**
+**FoxForge is an open-source, self-hosted platform for managing mixed fleets of 3D printers without sacrificing deep vendor-specific functionality.**
 
-The project is building a common printer-management core for Bambu Lab, Moonraker/Klipper, print queues, material systems, inventory, and future farm-management workflows. FoxForge uses vendor-neutral contracts for genuinely common behavior while keeping advanced platform features available through typed vendor capabilities instead of reducing every printer to a lowest-common-denominator API.
+FoxForge is building a common printer-management core for Bambu Lab, Moonraker/Klipper, print queues, material systems, filament inventory and farm-management workflows. Common behavior is exposed through vendor-neutral contracts, while advanced platform features remain available through typed vendor capabilities instead of being reduced to a lowest-common-denominator API.
 
-> **Development status:** pre-alpha (`0.1.0.dev0`). FoxForge does not have a stable release or a complete end-user application yet. The core architecture, printer adapters, queue lifecycle, inventory foundation and runnable web UI are implemented and tested. Live API integration, production hardware validation and higher-level application features are still in progress.
+> **Development status:** `0.1.0.dev0` — first runnable alpha candidate. FoxForge now ships a unified backend + web UI runtime with a versioned read API, SQLite persistence and Docker packaging. It is **not production-ready yet**: real printer command APIs, realtime delivery, physical hardware validation, automatic filament accounting, farm scheduling and Umbrel packaging remain active work.
+
+## Current alpha capabilities
+
+The current `main` branch includes:
+
+- a FoxForge-owned `PrinterAdapter` architecture with typed capabilities;
+- Bambu Lab and Moonraker/Klipper adapters behind the same common application boundary;
+- `FleetService` and adapter registry composition;
+- a durable SQLite-backed print queue with explicit `INDETERMINATE` handling and safe retry/backoff rules;
+- a durable SQLite filament/spool inventory with exact `Decimal` mass accounting, immutable idempotent adjustments and opaque physical-slot assignments;
+- a versioned read-only HTTP API at `/api/v1` for fleet, queue and inventory state;
+- a React + TypeScript + Vite web interface connected to the live `/api/v1` read models in normal runtime mode;
+- explicit demo data only when requested with `?demo=1`;
+- English, Russian and Ukrainian interface localization (`en`, `ru`, `uk`) with translation parity tests;
+- one `aiohttp` server process serving both the compiled SPA and the backend API;
+- a multi-stage Docker image and standalone Compose configuration;
+- persistent `/data/config.json` and `foxforge.sqlite3` state;
+- non-root steady-state container execution;
+- CI coverage for Python 3.12/3.13, frontend type/tests/build and container startup smoke tests;
+- multi-architecture image publication preparation for Linux `amd64` and `arm64`.
 
 ## Project goals
 
@@ -19,101 +39,116 @@ FoxForge is intended to become a self-hosted 3D-printer management platform with
 - server-side operation suitable for Docker, ARM64 and Umbrel;
 - APIs and a user interface built above the same vendor-independent application layer.
 
-Bambu-specific capabilities such as AMS-family behavior, drying, HMS, K profiles, dual-nozzle control, Virtual Printer and future X2D-specific transport can remain first-class Bambu features without leaking Bambu concepts into Moonraker or other adapters.
+Bambu-specific capabilities such as AMS-family operations, drying, HMS, K profiles, dual-nozzle control, Virtual Printer and future X2D-specific storage/transport can remain first-class Bambu capabilities without leaking Bambu concepts into Moonraker or other adapters.
 
 ## Repository layout
 
-FoxForge separates its implementation into explicit top-level areas:
-
 ```text
 FoxForge/
-├── backend/       Python 3.12+ core, adapters, queue, inventory, persistence and future REST/WebSocket API
+├── backend/       Python 3.12+ domain, adapters, services, API and runtime
 ├── frontend/      TypeScript/React/Vite web application
-├── deployment/    Docker and Umbrel packaging
-├── docs/          ADRs and durable design specifications
-└── integrations/  isolated upstream migration/provenance material
+├── deployment/    Docker runtime and future Umbrel packaging
+├── docs/          ADRs, design specifications and project status
+└── integrations/  isolated migration/provenance material
 ```
 
-The layout is governed by [ADR 0002: Repository layout](docs/adr/0002-repository-layout.md). Backend, frontend and deployment remain independently testable but ship as one FoxForge application.
+The layout is governed by [ADR 0002: Repository layout](docs/adr/0002-repository-layout.md). Backend, frontend and deployment remain independently testable ownership areas but ship as one FoxForge application.
 
 ## Architecture
 
 FoxForge follows a ports-and-adapters design.
 
 ```text
-        API / UI / automation
-                 |
-        application services
-       /                    \
- FleetService            QueueService
-       \                    /
+              Web UI / API / automation
+                       |
+              application services
+          /-------------+-------------\
+   FleetService    QueueService   InventoryService
+          \             |             /
         PrinterAdapter + typed capabilities
-                 |
-        +--------+---------+
-        |                  |
-   BambuAdapter      MoonrakerAdapter
-        |                  |
- MQTT / project        HTTP / WebSocket
- storage strategies       transport
+                       |
+              +--------+---------+
+              |                  |
+         BambuAdapter      MoonrakerAdapter
+              |                  |
+       MQTT / project        HTTP / WebSocket
+      storage strategies       transport
 ```
 
 The governing rule is:
 
 > **Normalize what is genuinely common; preserve what is genuinely vendor-specific.**
 
-The common domain owns printer identity, normalized state, jobs, events, errors and capability discovery. Inventory is a separate vendor-independent bounded context. Vendor protocol payloads and model-specific behavior stay behind their adapter boundaries.
+The common printer domain owns printer identity, normalized snapshots/events/errors and capability discovery. Inventory remains a separate vendor-independent bounded context. Vendor payloads and model-specific behavior stay behind their adapter boundaries. Runtime-only vendor imports are restricted to the composition root.
 
-See [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md) and the [printer contracts](docs/design/printer-contracts.md) for the normative printer design.
+See [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md) and [Printer contracts v1](docs/design/printer-contracts.md).
 
-## Current implementation
+## Runtime model
 
-The repository already contains more than design documents and experiments.
+The first alpha runtime composes configured Bambu LAN and Moonraker printers from versioned local configuration. On first start it creates a safe empty `/data/config.json`. Printer connection failures do not bring down the web/API process; reconnect attempts continue in the background.
+
+The same runtime owns queue and inventory persistence in the application SQLite database and serves:
+
+- `/healthz` — process health;
+- `/api/v1/fleet` — normalized fleet snapshots;
+- `/api/v1/queue` — canonical queue lifecycle read model;
+- `/api/v1/inventory/spools` — spool inventory read model;
+- the compiled React SPA from the same server process.
+
+The public API is intentionally read-only at this stage. No anonymous printer-control or inventory-mutation HTTP API has been introduced.
+
+## Current implementation status
 
 | Area | Current state |
 | --- | --- |
 | Common printer domain | Implemented with normalized identity, snapshots, events, errors and typed capabilities |
-| PrinterAdapter contracts | Implemented with contract tests and architecture guards |
-| Fleet management | `AdapterRegistry` and vendor-neutral `FleetService` implemented |
-| Print queue | Durable vendor-neutral dispatch, normalized remote-job lifecycle tracking, and safe single-pass retry/backoff runner implemented |
-| Queue persistence | SQLite store with restart-safe dispatch/idempotency and completed-lifecycle persistence implemented |
-| Filament inventory | Independent spool domain/application foundation with immutable idempotent mass adjustments and opaque printer/slot assignments implemented |
-| Bambu adapter | Foundation, state mapping, print execution and material-system support implemented |
-| Bambu LAN transport | MQTT/TLS + implicit-FTPS implementation; physical-printer validation pending |
-| Bambu project storage | Bambu-specific storage strategy seam implemented; FTPS is default and future X2D/eMMC storage remains hardware-led work |
-| Moonraker/Klipper adapter | Foundation, state mapping, print execution and external-spool semantics implemented |
-| Moonraker transport | HTTP/WebSocket implementation and CI validation complete; physical-printer validation pending |
-| Web UI | React/TypeScript/Vite with React Router, TanStack Query, i18next, responsive fleet/queue/material/farm/system views, Spool Inventory and `/printers/:printerId` cockpit; public API/realtime wiring pending |
-
-The queue deliberately persists `DISPATCHING` before invoking a printer side effect and treats uncertain starts as `INDETERMINATE`, preventing a process restart from blindly starting the same job twice. Confirmed jobs can then advance through `PREPARING`, `PRINTING`, `PAUSED`, `COMPLETED`, `FAILED` or `CANCELLED` from normalized fleet events when a stable `vendor_job_id` matches.
-
-`QueueRunner` adds a deterministic one-pass scheduling primitive. It may retry only confirmed pre-start failures explicitly marked `retryable`, after exponential backoff and within an attempt limit. It never retries `DISPATCHING`, `INDETERMINATE`, or any receipt-bearing job, and it processes at most one candidate per printer in a pass.
+| Printer adapters | Bambu and Moonraker foundations implemented behind common contracts |
+| Fleet management | `AdapterRegistry` and `FleetService` implemented |
+| Print queue | Durable dispatch/lifecycle/retry foundation implemented with SQLite persistence |
+| Filament inventory | Durable SQLite spool inventory with exact mass ledger and slot assignments implemented |
+| Public API | Versioned read-only `/api/v1` implemented for fleet, queue and inventory |
+| Web UI | Live read integration implemented; EN/RU/UK localized; write controls remain unavailable until command APIs exist |
+| Bambu LAN transport | MQTT/TLS + implicit FTPS implementation; physical X2D/Bambu validation pending |
+| Moonraker transport | HTTP/WebSocket implementation; physical OpenKE/Moonraker validation pending |
+| Docker | Unified image + Compose implemented and startup-smoke-tested on CI |
+| ARM64 | Image publication path prepared; release-grade ARM64 runtime validation remains pending |
+| Umbrel | Packaging boundary defined; actual FoxForge Umbrel app still pending |
+| Farm scheduler | Single-pass queue runner exists; persistent farm policy/scheduler is not implemented yet |
 
 ## What is not finished yet
 
-FoxForge should not currently be presented as a ready replacement for Bambuddy, Moonraker frontends, or a complete printer-farm application.
+FoxForge should not yet be presented as a production replacement for Bambuddy, Moonraker frontends or a complete printer-farm application.
 
-Work still includes:
+Priority remaining work includes:
 
-- physical validation of Bambu LAN behavior, especially X2D/N6 storage and print-start paths;
-- physical Moonraker/OpenKE validation;
-- a persistent scheduler/timer and farm-level printer selection/priority policy above the single-pass queue runner;
-- inventory persistence plus automated reservation/consumption integration with completed print jobs and material systems;
-- deeper Bambu-only capabilities such as AMS operations, drying, HMS, K profiles and dual-nozzle controls;
-- persisted printer configuration and dynamic fleet management;
-- public REST/WebSocket API and live web-UI integration replacing the current demo gateways;
-- real UI mutations for printer, queue and inventory commands once the public API exists;
-- production Docker/Umbrel deployment packaging;
-- additional vendor adapters after the common contracts are proven.
+1. **Physical printer validation** for Bambu LAN/X2D and Moonraker/OpenKE: connect, live state, upload, print start, lifecycle and completion.
+2. **Authenticated command APIs** for queue operations, printer commands and inventory mutations with validation, idempotency and normalized errors.
+3. **Realtime delivery** through WebSocket/SSE into the frontend query cache.
+4. **Automatic filament accounting** linked to print completion, material selection and trustworthy usage estimates.
+5. **Farm scheduling** above `QueueRunner.run_once()`: printer selection, priority/deadline policy and durable multi-process lease/CAS semantics.
+6. **Deep Bambu capabilities** including AMS operations/drying, HMS, K profiles, dual nozzle and Virtual Printer/X2D-specific behavior.
+7. **Release-grade Docker/ARM64 validation and Umbrel packaging** using the same FoxForge runtime rather than a divergent fork.
+8. Additional vendor adapters only after the common contracts are proven by real hardware use.
 
-See [`CHANGELOG.md`](CHANGELOG.md) for the latest implementation milestones and validation status.
+## Safety invariants
+
+Several rules are deliberate and should remain true as the project grows:
+
+- ambiguous print starts become `INDETERMINATE` and are never blindly retried;
+- receipt-bearing jobs are never redispatched by retry logic;
+- printer material snapshots expose physical state and opaque slot IDs, not FoxForge `spool_id` values;
+- API DTOs and the frontend do not consume raw Bambu/Moonraker protocol payloads;
+- runtime secrets stay in local configuration and are not exposed by public read DTOs;
+- Docker and Umbrel must package the same application behavior;
+- upstream-derived material must retain required copyright/license provenance and remain distinguishable from newly written FoxForge code.
 
 ## Bambu and upstream projects
 
 FoxForge is its own project and is **not a Bambuddy distribution or permanent fork**.
 
-Bambuddy, PrintBuddy and PrintOps were studied while defining the architecture and interface workflows. FoxForge keeps its multi-vendor core and newly written UI independent from those applications while documenting provenance where upstream behavior or product patterns informed an implementation.
+Bambuddy, PrintBuddy and PrintOps were studied while defining architecture and interface workflows. FoxForge keeps its multi-vendor core and newly written UI independent while documenting provenance where upstream behavior or product patterns informed implementation.
 
-The remaining [`integrations/bambuddy/`](integrations/bambuddy/) content is limited to migration/provenance and localization records. The former X2D port-6000 experiment was deliberately removed rather than carried forward as dormant implementation code. Any future X2D/eMMC transport will be newly implemented behind `BambuProjectStorage` after physical validation.
+The remaining [`integrations/bambuddy/`](integrations/bambuddy/) content is limited to migration/provenance and localization records. The retired X2D port-6000 experiment was removed instead of being carried forward as dormant implementation code. Any future X2D/eMMC transport will be implemented behind `BambuProjectStorage` after physical validation.
 
 Production Umbrel packaging of official Bambuddy releases remains a separate concern in `MikeFox303/umbrel-3d-printing-store`.
 
@@ -123,33 +158,34 @@ Durable architecture and implementation decisions live in [`docs/`](docs/README.
 
 Key documents include:
 
+- [Current project status](docs/project-status.md)
 - [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md)
 - [ADR 0002: Repository layout](docs/adr/0002-repository-layout.md)
 - [Printer contracts v1](docs/design/printer-contracts.md)
-- [Bambu adapter foundation](docs/design/bambu-adapter-foundation.md)
 - [Bambu LAN production transport](docs/design/bambu-lan-transport.md)
 - [Bambu project storage strategy](docs/design/bambu-project-storage.md)
-- [AdapterRegistry and FleetService](docs/design/fleet-service.md)
-- [Queue dispatch and durable idempotency](docs/design/queue-dispatch.md)
-- [Queue event-driven print lifecycle](docs/design/queue-event-lifecycle.md)
-- [Queue retry and single-pass runner policy](docs/design/queue-retry-policy.md)
-- [Filament inventory foundation](docs/design/inventory-foundation.md)
-- [Moonraker/Klipper adapter foundation](docs/design/moonraker-adapter-foundation.md)
 - [Moonraker HTTP/WebSocket transport](docs/design/moonraker-http-transport.md)
+- [Queue dispatch and durable idempotency](docs/design/queue-dispatch.md)
+- [Queue event-driven lifecycle](docs/design/queue-event-lifecycle.md)
+- [Queue retry policy](docs/design/queue-retry-policy.md)
+- [Inventory foundation](docs/design/inventory-foundation.md)
+- [SQLite inventory persistence](docs/design/inventory-sqlite.md)
+- [Public API v1](docs/design/public-api-v1.md)
 - [Web UI foundation](docs/design/web-ui-foundation.md)
 - [Frontend parallel development policy](docs/design/frontend-parallel-development.md)
-- [Current project status](docs/project-status.md)
+
+See [`CHANGELOG.md`](CHANGELOG.md) for implementation and validation history.
 
 ## Development
 
-FoxForge backend currently targets **Python 3.12+**.
+Backend development targets **Python 3.12+**.
 
 ```bash
 git clone https://github.com/MikeFox303/FoxForge.git
 cd FoxForge/backend
 python -m venv .venv
 
-# Activate the virtual environment, then:
+# Activate the environment, then:
 pip install -e ".[dev]"
 pytest
 ruff check src tests
@@ -163,17 +199,14 @@ cd ../frontend
 npm install
 npm run dev
 
-# Validation:
 npm run check
 npm test
 npm run build
 ```
 
-The production frontend builds to static assets; deployment packaging lives under `deployment/`.
+For the current standalone container/Compose runtime, see [`deployment/docker/`](deployment/docker/).
 
-Frontend and backend development may proceed in parallel. Frontend feature branches use merged `main` as the authoritative backend contract state, keep server state behind typed query gateways, and are reconciled with current `main` plus a fresh Web UI gate before merge.
-
-Implementation changes should respect the dependency boundaries defined by the ADR/design documents and include tests for new contracts, adapters and failure semantics.
+Frontend and backend development may proceed in parallel, but merged `main` is the authoritative contract state. Implementation changes should respect the ADR/design boundaries and include acceptance criteria plus tests for new contracts and failure semantics.
 
 ## ❤️ Support FoxForge
 
