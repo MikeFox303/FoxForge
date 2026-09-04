@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from enum import StrEnum
 from typing import Protocol
@@ -31,7 +31,7 @@ class CommandAuditRecord:
     target_ref: str | None = None
     idempotency_key_digest: str | None = None
     error_code: str | None = None
-    audit_id: UUID = uuid4()
+    audit_id: UUID = field(default_factory=uuid4)
 
     def __post_init__(self) -> None:
         if not self.request_id.strip():
