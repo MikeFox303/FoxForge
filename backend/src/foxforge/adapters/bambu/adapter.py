@@ -18,7 +18,11 @@ from foxforge.domain.printers import (
     PrinterSnapshot,
     utc_now,
 )
-from foxforge.domain.printers.capabilities import JobControlCapability, MaterialSystemCapability, PrintExecutionCapability
+from foxforge.domain.printers.capabilities import (
+    JobControlCapability,
+    MaterialSystemCapability,
+    PrintExecutionCapability,
+)
 
 from .job_control import BambuJobControlCapability
 from .mapping import map_bambu_material_system, map_bambu_state
