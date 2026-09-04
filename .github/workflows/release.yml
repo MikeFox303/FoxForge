@@ -32,51 +32,33 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Validate release manifest and versions
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Preflight immutable release identity
         id: release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: bash
         run: |
+          python release/validate_identity.py \
+            --sha "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --image ghcr.io/mikefox303/foxforge \
+            > "${RUNNER_TEMP}/foxforge-release-identity.json"
+
           python - <<'PY'
           import json
           import os
           import pathlib
-          import re
-          import tomllib
 
-          root = pathlib.Path('.')
-          manifest = json.loads((root / 'release/manifest.json').read_text(encoding='utf-8'))
-          version = manifest['version']
-          python_version = manifest['pythonVersion']
-          tag = manifest['tag']
-          title = manifest['title']
-          notes = manifest['notes']
-          prerelease = manifest.get('prerelease', False)
-
-          if not re.fullmatch(r'\d+\.\d+\.\d+-alpha\.\d+', version):
-              raise SystemExit(f'Unsupported alpha release version: {version}')
-          if tag != f'v{version}':
-              raise SystemExit(f'Tag {tag!r} does not match version {version!r}')
-          if prerelease is not True:
-              raise SystemExit('The current release workflow requires prerelease=true')
-
-          with (root / 'backend/pyproject.toml').open('rb') as handle:
-              backend = tomllib.load(handle)
-          frontend = json.loads((root / 'frontend/package.json').read_text(encoding='utf-8'))
-
-          if backend['project']['version'] != python_version:
-              raise SystemExit(
-                  f"Backend version {backend['project']['version']!r} != manifest pythonVersion {python_version!r}"
-              )
-          if frontend['version'] != version:
-              raise SystemExit(f"Frontend version {frontend['version']!r} != manifest version {version!r}")
-          if not (root / notes).is_file():
-              raise SystemExit(f'Release notes file does not exist: {notes}')
-
+          identity = json.loads(
+              pathlib.Path(os.environ['RUNNER_TEMP'], 'foxforge-release-identity.json').read_text(encoding='utf-8')
+          )
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
-              output.write(f'version={version}\n')
-              output.write(f'tag={tag}\n')
-              output.write(f'title={title}\n')
-              output.write(f'notes={notes}\n')
+              output.write(f"version={identity['version']}\n")
+              output.write(f"tag={identity['tag']}\n")
+              output.write(f"title={identity['title']}\n")
+              output.write(f"notes={identity['notes']}\n")
           PY
 
       - name: Install backend dependencies
@@ -147,9 +129,34 @@ jobs:
         if: always()
         run: docker rm -f foxforge-release-smoke || true
 
-      - uses: docker/setup-qemu-action@v3
+      - name: Revalidate immutable release identity before publication
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python release/validate_identity.py \
+            --sha "$GITHUB_SHA" \
+            --repository "$GITHUB_REPOSITORY" \
+            --image ghcr.io/mikefox303/foxforge \
+            > /dev/null
 
-      - uses: docker/setup-buildx-action@v3
+      - name: Create immutable Git release tag
+        env:
+          TAG: ${{ steps.release.outputs.tag }}
+          TITLE: ${{ steps.release.outputs.title }}
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag ${TAG} appeared after preflight; refusing publication." >&2
+            exit 1
+          fi
+
+          git tag -a "${TAG}" -m "${TITLE}" "${GITHUB_SHA}"
+          git push origin "refs/tags/${TAG}"
+
+      - uses: docker/setup-qemu-action@v3
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -177,7 +184,7 @@ jobs:
           provenance: mode=max
           sbom: true
 
-      - name: Create tag and GitHub pre-release
+      - name: Create GitHub pre-release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.release.outputs.tag }}
@@ -185,29 +192,22 @@ jobs:
           NOTES: ${{ steps.release.outputs.notes }}
         shell: bash
         run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-
-          if git show-ref --tags --verify --quiet "refs/tags/${TAG}"; then
-            existing_commit="$(git rev-list -n 1 "${TAG}")"
-            if [ "${existing_commit}" != "${GITHUB_SHA}" ]; then
-              echo "Tag ${TAG} already points to ${existing_commit}, expected ${GITHUB_SHA}" >&2
-              exit 1
-            fi
-          else
-            git tag -a "${TAG}" -m "${TITLE}" "${GITHUB_SHA}"
-            git push origin "${TAG}"
-          fi
-
           if gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "GitHub release ${TAG} already exists; leaving it unchanged."
-          else
-            gh release create "${TAG}" \
-              --title "${TITLE}" \
-              --notes-file "${NOTES}" \
-              --verify-tag \
-              --prerelease
+            echo "GitHub release ${TAG} unexpectedly already exists; refusing to alter it." >&2
+            exit 1
           fi
+
+          tagged_commit="$(git rev-list -n 1 "${TAG}")"
+          if [ "${tagged_commit}" != "${GITHUB_SHA}" ]; then
+            echo "Tag ${TAG} points to ${tagged_commit}, expected ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+
+          gh release create "${TAG}" \
+            --title "${TITLE}" \
+            --notes-file "${NOTES}" \
+            --verify-tag \
+            --prerelease
 
       - name: Release summary
         run: |
