@@ -8,13 +8,14 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [`CHANGELOG.md`](../CHANGELOG.md) — implementation, architecture, validation and migration history.
 - [`release/`](../release/) — durable metadata and release notes for published FoxForge versions.
 
-The current status is the **first public runnable alpha pre-release**, `v0.1.0-alpha.1`: backend, live read API, web UI, SQLite queue/inventory persistence, Docker runtime and versioned multi-architecture image publication are integrated. Physical printer validation, command APIs, realtime delivery, automatic accounting, farm scheduling and Umbrel packaging remain incomplete.
+The current published pre-release is **`v0.1.0-alpha.2`**. Backend, live read API, web UI, SQLite queue/inventory persistence, Docker runtime, versioned Linux `amd64`/`arm64` image publication and the user-managed Umbrel Community App package are integrated. Physical printer/Raspberry Pi validation, authenticated command APIs, realtime delivery, automatic accounting and persistent farm scheduling remain incomplete.
 
 ## Architecture Decision Records
 
 - [ADR 0001: PrinterAdapter architecture](adr/0001-printer-adapter-architecture.md) — accepted. Defines the vendor-independent printer boundary, typed capability model and migration strategy for deep Bambu plus multi-vendor support.
 - [ADR 0002: Repository layout](adr/0002-repository-layout.md) — accepted and implemented. Defines the top-level `backend/`, `frontend/` and `deployment/` ownership boundaries.
 - [ADR 0003: Upstream architecture synthesis](adr/0003-upstream-architecture-synthesis.md) — accepted. Defines how Bambuddy, PrintBuddy and PrintOps are used as specialized references without becoming FoxForge's base framework.
+- [ADR 0004: Command API security and idempotency](adr/0004-command-api-security.md) — accepted. Defines fail-closed command authentication, FoxForge principals/permissions, request correlation, durable idempotency, normalized command errors, audit expectations and the safe mutation rollout sequence.
 
 ## Core printer and fleet design
 
@@ -47,10 +48,11 @@ The current status is the **first public runnable alpha pre-release**, `v0.1.0-a
 ## API and frontend design
 
 - [Public API v1](design/public-api-v1.md) — versioned read-only `/api/v1` contract for health, fleet, queue and inventory without raw vendor payloads or secret leakage.
+- [ADR 0004: Command API security and idempotency](adr/0004-command-api-security.md) — security contract that must be implemented before remote state-changing routes are enabled.
 - [Web UI foundation](design/web-ui-foundation.md) — React/TypeScript product structure, printer cockpit, Router/TanStack Query/i18next composition and vendor-neutral presentation rules.
 - [Frontend parallel development policy](design/frontend-parallel-development.md) — main-driven UI development, query isolation, capability discipline and merge/CI rules while backend work proceeds in parallel.
 
-The production alpha UI consumes live `/api/v1` read models. Demo data remains available only through explicit `?demo=1`. Command mutations and realtime WebSocket/SSE updates are intentionally separate future contracts.
+The production alpha UI consumes live `/api/v1` read models. Demo data remains available only through explicit `?demo=1`. Command mutations remain disabled while ADR 0004 is implemented; realtime WebSocket/SSE updates are a separate future contract.
 
 ## Deployment
 
@@ -63,9 +65,10 @@ Current state:
 - persistent `/data` contains runtime configuration and SQLite state;
 - steady-state container execution is non-root;
 - container startup smoke testing exists in CI;
-- `v0.1.0-alpha.1` publishes a versioned Linux `amd64` + `arm64` GHCR image through the guarded release workflow;
-- representative-device ARM64 runtime validation is still required;
-- Umbrel packaging is not implemented yet and must reuse the same FoxForge runtime behavior.
+- `v0.1.0-alpha.2` publishes an immutable versioned Linux `amd64` + `arm64` GHCR image through the guarded release workflow;
+- anonymous pull/start/runtime smoke validation passes for both architectures in CI;
+- the `my3d-foxforge` package is published in `MikeFox303/umbrel-3d-printing-store` behind authenticated Umbrel App Proxy and pins the immutable `alpha.2` digest;
+- representative Raspberry Pi 5/UmbrelOS and physical-printer validation are still required.
 
 ## Working rules
 
@@ -81,4 +84,5 @@ Implementation PRs should:
 4. define acceptance criteria and tests;
 5. document important architecture/runtime changes in the repository;
 6. preserve upstream copyright/license provenance where code or material is derived;
-7. avoid claiming physical or production validation until the corresponding tests have actually been run.
+7. avoid claiming physical or production validation until the corresponding tests have actually been run;
+8. keep remote mutations disabled unless they satisfy ADR 0004 authentication, authorization, validation, idempotency, normalized-error and audit requirements.
