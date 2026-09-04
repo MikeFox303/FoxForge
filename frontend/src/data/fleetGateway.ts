@@ -11,6 +11,7 @@ const fleetQueryKey = ['fleet', 'snapshot'] as const;
 const emptyFleet: FleetData = { printers: [], queue: [] };
 
 export type FleetRuntimePhase = 'loading' | 'ready' | 'error';
+export type FleetRuntimeTone = 'good' | 'warning' | 'danger';
 
 export interface FleetRuntimeState {
   data: FleetData;
@@ -27,6 +28,12 @@ export function fleetRuntimePhase(state: {
   if (state.isError) return 'error';
   if (state.isPending || state.isPlaceholderData) return 'loading';
   return 'ready';
+}
+
+export function fleetRuntimeTone(phase: FleetRuntimePhase): FleetRuntimeTone {
+  if (phase === 'error') return 'danger';
+  if (phase === 'loading') return 'warning';
+  return 'good';
 }
 
 async function loadFleetSnapshot(): Promise<FleetData> {
