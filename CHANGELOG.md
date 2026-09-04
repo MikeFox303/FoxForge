@@ -6,7 +6,25 @@ FoxForge has not published a stable release yet. Alpha releases are versioned be
 
 ## Unreleased
 
-No post-`v0.1.0-alpha.2` changes are recorded yet.
+### Added
+
+- Authenticated, idempotent queue commands for enqueue, dispatch and explicit uncertain-outcome reconciliation using the existing durable queue safety model.
+- Restart-safe SHA-256 content-addressed `.gcode`/`.3mf` artifact staging without accepting client-supplied server filesystem paths.
+- Append-only SQLite command audit covering current authenticated mutation routes without storing bearer tokens or raw idempotency keys.
+- Single-process queue command serialization preventing concurrent HTTP dispatch/reconcile calls from racing the durable `DISPATCHING` boundary.
+- Queue command/artifact design documentation and tests for replay, `INDETERMINATE`, reconciliation, artifact integrity/restart behavior and audit persistence.
+
+### Validation
+
+- Ruff lint and format pass on Python 3.12 and 3.13.
+- Full backend suite passes with 171 tests at the queue-command merge gate.
+- Unified FoxForge container build/start/health/UI smoke validation passes with artifact, queue-command and audit composition enabled.
+
+### Known limitations
+
+- Queue upload/dispatch controls are not yet integrated into the React UI.
+- Physical X2D and Moonraker/OpenKE upload/start/reconciliation validation remains pending.
+- The queue HTTP lock is a single-process safety boundary; multi-process/distributed runners still require durable lease/CAS semantics.
 
 ## [0.1.0-alpha.2] - 2026-09-04
 
@@ -166,93 +184,17 @@ The entries below are retained from the pre-versioned and early-alpha implementa
 - Bambu FTPS whole-transfer deadlines are derived from file size and a pessimistic transfer floor rather than reusing the short MQTT command timeout.
 - `BambuLanTransport` now consumes a Bambu-specific project-storage strategy; `project_file.url` comes from the storage result instead of being hard-coded to FTP inside the MQTT codec.
 - The default Bambu production composition remains standard implicit FTPS; there is no automatic model detection or hidden alternate-storage fallback.
-- The former `integrations/bambuddy/x2d_port6000/` experiment and `.github/workflows/bambuddy-port6000.yml` were removed from the current tree. Future X2D/eMMC support will be newly implemented behind `BambuProjectStorage` after physical validation rather than promoting dormant experimental code.
+- The former `integrations/bambuddy/x2d_port6000/` experiment and `.github/workflows/bambuddy-port6000-validation.yml` were removed after review showed the sidecar design violated the FoxForge adapter boundary and carried unresolved upstream-source/provenance risk.
+- Root project documentation now points implementation commands at `backend/` and describes the repository as a multi-component application rather than a Python-only root package.
 
-### Validation
+### Removed
 
-- Phase 2 Bambu adapter foundation merged through PR #3.
-- Phase 2 squash commit: `e5568affd7af3d72f6020f2734c9f7c448ff1a26`.
-- Phase 2 final PR CI passed Ruff and the full suite on Python 3.12 and Python 3.13.
-- Phase 3 AdapterRegistry/FleetService merged through PR #4.
-- Phase 3 squash commit: `ad2b97008ddaaf4edd506a8a79deae2eb8c89544`.
-- Phase 3 final PR CI passed Ruff and the full suite on Python 3.12 and Python 3.13.
-- Phase 4 durable queue dispatch merged through PR #5.
-- Phase 4 squash commit: `7cfcd57a0a83f7138a8b47454abba82770f51139`.
-- Phase 4 final PR CI passed Ruff lint, Ruff formatting, and the full suite on Python 3.12 and Python 3.13.
-- Phase 5 Moonraker adapter foundation merged through PR #6.
-- Phase 5 squash commit: `10aa2f5dfa21d46f1eb0b0691caf9814fedc0f4e`.
-- Phase 5 final PR CI run `33807094777` passed Ruff lint, Ruff formatting, the full suite, mixed Bambu/Moonraker fleet tests and architecture guards on Python 3.12 and Python 3.13.
-- Phase 6 Moonraker HTTP/WebSocket transport merged through PR #7.
-- Phase 6 squash commit: `5ae2a361000ed2864098cb0ca940bf96184fc752`.
-- Phase 6 final PR CI run `33807996066` passed Ruff lint, Ruff formatting, socket-level HTTP/WebSocket integration tests, factory tests, and the full suite on Python 3.12 and Python 3.13.
-- Phase 7 Bambu LAN transport merged through PR #8.
-- Phase 7 squash commit: `9e02cbbe2c4461ababf6de342b35f4a8ac5c558f`.
-- Phase 7 final PR CI run `33810445079` passed Ruff lint, Ruff formatting, Bambu LAN storage/dispatch safety tests, production factory tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 8 Bambu project-storage separation merged through PR #9.
-- Phase 8 squash commit: `05522b5c3b8c99676eaa7adda59659261d115bea`.
-- Phase 8 final PR CI run `33811264258` passed Ruff lint, Ruff formatting, Bambu project-storage tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 9 queue event lifecycle and port-6000 retirement merged through PR #11.
-- Phase 9 squash commit: `0fde0c7da472f29764b1ca37822e934f983015f4`.
-- Phase 9 final PR CI run `33812534681` passed Ruff lint, Ruff formatting, lifecycle/restart/SQLite tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 10 safe queue retry runner merged through PR #12.
-- Phase 10 squash commit: `6cb3332cc20d9a7ddfb416077c73d0ebba0cb61e`.
-- Phase 10 final PR CI run `33813103049` passed Ruff lint, Ruff formatting, retry/backoff/concurrency tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- Phase 11 inventory foundation merged through PR #13.
-- Phase 11 squash commit: `eeacb8fcd12f704b0d97d1dce02874f12d103a2d`.
-- Phase 11 final PR CI run `33814461673` passed Ruff lint, Ruff formatting, inventory model/service/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
-- ADR 0002 repository-layout migration merged through PR #14.
-- Repository-layout squash commit: `294ebc652504dc488a35740ff92c6c98ad20d0df`.
-- Repository-layout validation run `33814488172` passed installation, Ruff lint/format and the existing pytest suite from `backend/` on Python 3.12 and Python 3.13.
-- Current project-status documentation merged through PR #16 at `69ed3f2567de466799c3da626778a94289f135ba`.
-- Phase 11 merge validation was corrected in changelog through PR #17 at `cc9232992ee9fee598ef9e4e8a65717b225487b6`.
-- Phase 12 durable SQLite inventory merged through PR #18.
-- Phase 12 squash commit: `5f150b130679e572e057da3210f28b6ccad1f8ec`.
-- Phase 12 final PR CI run `33815207238` passed Ruff lint, Ruff formatting, SQLite restart/idempotency/assignment tests, architecture checks, and the full suite on Python 3.12 and Python 3.13.
+- Direct Bambuddy backend package imports from FoxForge production code.
+- The experimental X2D port-6000 sidecar from the active implementation path.
 
-### Not yet connected
+### Fixed
 
-- Bambu LAN MQTT/implicit-FTPS transport is merged and CI validated, but physical Bambu connectivity, storage, and print-start validation are still pending.
-- X2D/N6-specific internal-eMMC storage remains a hardware-led future implementation behind `BambuProjectStorage`; the former port-6000 experiment is no longer present in the current source tree.
-- A persistent scheduler/timer, farm-level printer selection, priorities/deadlines, and multi-process queue leases are not yet implemented above the deterministic single-pass runner.
-- Queue-driven automatic consumption, material reservations and trustworthy per-material usage-estimate reconciliation are not yet connected to the durable inventory store.
-- Public HTTP/API DTOs for inventory are not yet implemented; the parallel frontend continues to use its independent mock gateway until a stable API boundary is added.
-- Moonraker HTTP/WebSocket transport is implemented and CI validated, but physical Ender/OpenKE connectivity and print-start validation are not yet complete.
-
-## 2026-09-03 — Phase 1: Printer domain foundation
-
-### Added
-
-- ADR 0001 defining the vendor-independent `PrinterAdapter` architecture and typed capability model.
-- Normative printer contracts for identity, snapshots, lifecycle, events, normalized errors and capability discovery.
-- `PrintExecutionCapability` v1 with side-effect-free assessment, immutable local print artifacts, material bindings, dispatch receipts and explicit idempotency semantics.
-- `MaterialSystemCapability` v1 with observation-first physical material units/slots and no inventory `spool_id` leakage into adapter state.
-- `FakePrinterAdapter`, fake print execution and fake material-system capabilities for application and contract testing.
-- Reconnect epochs and monotonic per-epoch event sequences.
-- Shared contract tests covering lifecycle, fan-out subscriptions, capability discovery, print eligibility, dispatch conflicts and `INDETERMINATE` handling.
-- Architecture tests preventing vendor imports inside `foxforge.domain.printers`.
-- Python package/bootstrap configuration plus Ruff and pytest CI on Python 3.12 and 3.13.
-
-### Validation
-
-- Phase 1 merged through PR #2.
-- Squash commit: `3150a2f08cdf490636a5ddcc22392e7c2aab6c9b`.
-- Ruff and contract/unit tests passed on Python 3.12 and Python 3.13 before merge.
-
-## 2026-09-03 — Repository and migration foundation
-
-### Added
-
-- Initial public FoxForge repository licensed `AGPL-3.0-only`.
-- Project scope documentation for multi-vendor printer management, deep Bambu support, Moonraker/Klipper, filament inventory, AMS/CFS, print queues/farms and self-hosted Docker/Umbrel deployment.
-- Preserved Bambuddy migration/provenance records after retiring the temporary production fork.
-- Preserved Russian/Ukrainian Bambuddy localization work for possible future upstream contribution.
-- A temporary experimental X2D/N6 internal-storage port-6000 transport and dedicated CI were migrated into early FoxForge history for evaluation.
-
-### Changed
-
-- On 2026-09-04 the temporary X2D/N6 port-6000 source and dedicated workflow were removed from the active repository tree. Git history retains the historical record, while any future X2D/eMMC transport will be newly implemented against the production `BambuProjectStorage` boundary after hardware validation.
-
-### Notes
-
-- The remaining Bambuddy-related tree is reference/migration/localization work, not a replacement Bambuddy distribution.
-- Production Umbrel deployment continues to consume official upstream Bambuddy releases separately from FoxForge development.
+- Bambu busy-state checks now happen again after project upload and immediately before MQTT print dispatch.
+- Partial or unconfirmed Bambu FTPS uploads no longer proceed into print start.
+- Bambu FTPS reply-time recovery now attempts one guarded metadata verification; known size mismatch remains a hard failure.
+- Moonraker post-start acknowledgement timeouts remain explicit `INDETERMINATE` outcomes rather than retryable transport failures.
