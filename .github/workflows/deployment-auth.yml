@@ -106,6 +106,60 @@ jobs:
           test "$session_status" = "503"
           grep -q 'browser_session_disabled' /tmp/write-session.json
 
+      - name: Representative reverse proxy does not become an application principal
+        run: |
+          docker network create foxforge-auth-net
+          mkdir -p "${RUNNER_TEMP}/foxforge-proxy-backend-data"
+          docker run -d --name foxforge-proxy-backend \
+            --network foxforge-auth-net \
+            --network-alias foxforge-backend \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_E2E_COMMAND_TOKEN" \
+            -v "${RUNNER_TEMP}/foxforge-proxy-backend-data:/data" \
+            foxforge:deployment-auth
+
+          docker run -d --name foxforge-auth-proxy \
+            --network foxforge-auth-net \
+            -p 18083:8080 \
+            -e FOXFORGE_PROXY_UPSTREAM=http://foxforge-backend:8000 \
+            -v "$GITHUB_WORKSPACE/deployment/testing/reverse_proxy.py:/proxy/reverse_proxy.py:ro" \
+            --entrypoint python \
+            foxforge:deployment-auth \
+            /proxy/reverse_proxy.py
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18083/healthz >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18083/healthz
+
+          spoof_status=$(curl --silent --output /tmp/proxy-spoof.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18083/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H 'X-Authenticated-User: operator' \
+            -H 'X-Forwarded-User: operator' \
+            -H 'Idempotency-Key: deployment-proxy-spoof-1' \
+            --data '{"spoolId":"10000000-0000-4000-8000-000000000004","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Proxy test","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$spoof_status" = "401"
+          grep -q 'unauthorized' /tmp/proxy-spoof.json
+
+          session_status=$(curl --silent --output /tmp/proxy-session.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18083/api/v1/operator-session \
+            -H 'X-Authenticated-User: operator')
+          test "$session_status" = "503"
+          grep -q 'browser_session_disabled' /tmp/proxy-session.json
+
+          proxy_write_status=$(curl --silent --output /tmp/proxy-write.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18083/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer $FOXFORGE_E2E_COMMAND_TOKEN" \
+            -H 'X-Authenticated-User: operator' \
+            -H 'Idempotency-Key: deployment-proxy-write-1' \
+            --data '{"spoolId":"10000000-0000-4000-8000-000000000005","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Proxy test","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$proxy_write_status" = "201"
+          grep -q '10000000-0000-4000-8000-000000000005' /tmp/proxy-write.json
+
       - name: Unsafe trusted-browser flag is rejected at startup
         run: |
           set +e
@@ -122,9 +176,12 @@ jobs:
         run: |
           docker logs foxforge-readonly || true
           docker logs foxforge-write || true
+          docker logs foxforge-proxy-backend || true
+          docker logs foxforge-auth-proxy || true
           cat /tmp/unsafe-session.log || true
 
       - name: Cleanup
         if: always()
         run: |
-          docker rm -f foxforge-readonly foxforge-write foxforge-unsafe-session 2>/dev/null || true
+          docker rm -f foxforge-readonly foxforge-write foxforge-proxy-backend foxforge-auth-proxy foxforge-unsafe-session 2>/dev/null || true
+          docker network rm foxforge-auth-net 2>/dev/null || true
