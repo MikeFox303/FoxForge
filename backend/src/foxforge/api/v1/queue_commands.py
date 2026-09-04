@@ -190,7 +190,12 @@ def register_queue_command_routes(
         if not reservation.created:
             existing = queue.get(queue_id)
             if existing is None:
-                return command_error(request, status=409, code="reconciliation_required", message="Dispatch outcome is unknown.")
+                return command_error(
+                    request,
+                    status=409,
+                    code="reconciliation_required",
+                    message="Dispatch outcome is unknown.",
+                )
             if reservation.record.state == CommandIdempotencyState.STARTED:
                 return command_error(
                     request,
@@ -233,7 +238,12 @@ def register_queue_command_routes(
         if not reservation.created:
             existing = queue.get(queue_id)
             if existing is None:
-                return command_error(request, status=409, code="reconciliation_required", message="Reconcile outcome is unknown.")
+                return command_error(
+                    request,
+                    status=409,
+                    code="reconciliation_required",
+                    message="Reconcile outcome is unknown.",
+                )
             return web.json_response(_queue_result(existing, replayed=True))
 
         try:
