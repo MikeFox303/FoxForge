@@ -42,6 +42,12 @@ class MoonrakerSecuredHttpTransport(MoonrakerControlledHttpTransport):
                 "Moonraker endpoint has no hostname",
                 vendor_code="endpoint_policy",
             )
+        if parts.username is not None or parts.password is not None:
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.REJECTED,
+                "Moonraker base_url must not contain embedded credentials",
+                vendor_code="endpoint_policy",
+            )
         port = parts.port or (443 if parts.scheme == "https" else 80)
         resolver = MoonrakerPolicyResolver(self._endpoint_policy)
         self._policy_resolver = resolver
