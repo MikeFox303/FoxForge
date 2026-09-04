@@ -166,7 +166,7 @@ The guarded `v0.1.0-alpha.3` release validation passed on the exact frozen relea
 
 P1 adds dedicated automated coverage for common eligibility/state identity rules, Bambu/Moonraker action translation, non-retryable ambiguous transport outcomes, authenticated HTTP command execution, durable replay/idempotency conflict behavior, command audit, frontend command identity separation and EN/RU/UK job-control translation parity. P1 backend gates pass on Python 3.12 and 3.13, the Web UI gate passes, and the unified-container build/start/health/UI smoke gate passes on the P1 merge candidate and merge commit.
 
-P2 adds automated coverage for stream replay/resync, replay gaps, process-epoch mismatch, slow subscribers, durable-write event ordering, failed-write non-publication, SSE headers/payloads and frontend query-family routing. The unified-container smoke also opens `/api/v1/events` and requires the initial `resync_required` application contract. P2 merge remains gated by the exact final PR head passing Python 3.12/3.13, Web UI and unified-container workflows.
+P2 adds automated coverage for stream replay/resync, replay gaps, process-epoch mismatch, slow subscribers, durable-write event ordering, failed-write non-publication, printer configuration events, SSE headers/payloads and frontend query-family routing. The unified-container smoke opens `/api/v1/events` and requires the initial `resync_required` application contract. The P2 merge candidate passed Ruff plus the backend suite on Python 3.12/3.13, Web UI typecheck/tests/build and unified-container SSE smoke before PR #57 was considered ready for merge.
 
 The companion Umbrel package remains pinned to the immutable `alpha.3` multi-architecture digest and passed package/Compose validation plus anonymous runtime smoke tests on both `linux/amd64` and `linux/arm64` for that released image.
 
@@ -207,8 +207,8 @@ Documentation must not call these transports or the full deployment production-v
 
 - **P0 — Documentation/release synchronization:** complete and merged as PR #55.
 - **P1 — Common printer controls:** complete and merged as PR #56; typed Pause/Resume/Cancel, Bambu/Moonraker mappings, guarded command API, audit/idempotency and browser controls. Automated validation is green; physical validation remains a separate production-readiness requirement.
-- **P2 — Realtime application events:** implemented in current source/PR #57; SSE reconnect/replay/resync semantics, durable application topics and TanStack Query invalidation without vendor transport leakage. Exact final CI and merge are the remaining software-completion gates.
-- **P3 — Automatic filament accounting:** next implementation priority after P2; reservations, estimates, queue-completion consumption and explicit reconciliation.
+- **P2 — Realtime application events:** software-complete through PR #57; SSE reconnect/replay/resync semantics, durable application topics and TanStack Query invalidation are implemented without vendor transport leakage. Representative deployment/browser validation remains a separate alpha-readiness task.
+- **P3 — Automatic filament accounting:** next implementation priority; reservations, estimates, queue-completion consumption and explicit reconciliation.
 - **P4 — Inventory mutation UI:** guarded spool create/correct/assignment/archive flows above the already released command API.
 - **Physical validation throughout:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → controls → lifecycle → completion/reconciliation, plus Raspberry Pi 5/Umbrel install/restart/persistence/reachability/realtime behavior.
 - **P5 — Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics after queue/control/realtime/inventory foundations are stable.
@@ -246,7 +246,7 @@ Documentation must not call these transports or the full deployment production-v
 - frontend typecheck/tests/build pass;
 - unified-container smoke verifies the SSE endpoint in the packaged application;
 - no vendor transport imports/payloads leak into API/frontend realtime contracts;
-- P2 docs and changelog are synchronized before merge.
+- P2 docs and changelog are synchronized.
 
 ## Acceptance criteria for the next major alpha milestone
 
