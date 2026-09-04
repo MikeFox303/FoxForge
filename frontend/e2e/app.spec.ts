@@ -147,7 +147,44 @@ test('file selection, staging and enqueue keep one logical browser job', async (
 
 test('realtime resync invalidates canonical HTTP snapshots before polling fallback', async ({ page }) => {
   let fleetRequests = 0;
-  let eventsRequests = 0;
+
+  await page.addInitScript(() => {
+    class FakeEventSource {
+      private readonly listeners = new Map<string, Set<EventListenerOrEventListenerObject>>();
+
+      constructor(_url: string | URL) {
+        (window as unknown as { __foxforgeE2EEventSource?: FakeEventSource }).__foxforgeE2EEventSource = this;
+      }
+
+      addEventListener(type: string, listener: EventListenerOrEventListenerObject | null): void {
+        if (listener === null) return;
+        const listeners = this.listeners.get(type) ?? new Set<EventListenerOrEventListenerObject>();
+        listeners.add(listener);
+        this.listeners.set(type, listeners);
+      }
+
+      removeEventListener(type: string, listener: EventListenerOrEventListenerObject | null): void {
+        if (listener === null) return;
+        this.listeners.get(type)?.delete(listener);
+      }
+
+      close(): void {}
+
+      emit(type: string, data: string): void {
+        const event = new MessageEvent(type, { data });
+        for (const listener of this.listeners.get(type) ?? []) {
+          if (typeof listener === 'function') listener.call(this, event);
+          else listener.handleEvent(event);
+        }
+      }
+    }
+
+    Object.defineProperty(window, 'EventSource', {
+      configurable: true,
+      writable: true,
+      value: FakeEventSource,
+    });
+  });
 
   await page.route('**/api/v1/fleet', async (route) => {
     fleetRequests += 1;
@@ -160,30 +197,25 @@ test('realtime resync invalidates canonical HTTP snapshots before polling fallba
   await page.route('**/api/v1/queue', async (route) => {
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ apiVersion: '1', entries: [] }) });
   });
-  await page.route('**/api/v1/inventory/spools**', async (route) => {
-    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ apiVersion: '1', spools: [] }) });
-  });
-  await page.route('**/api/v1/events', async (route) => {
-    eventsRequests += 1;
-    if (eventsRequests === 1) {
-      const payload = JSON.stringify({
-        apiVersion: '1',
-        streamEpoch: '11111111-1111-4111-8111-111111111111',
-        sequence: 0,
-        emittedAt: observedAt,
-      });
-      await route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' },
-        body: `event: resync_required\ndata: ${payload}\n\n`,
-      });
-      return;
-    }
-    await route.abort();
-  });
 
   await page.goto('/printers');
-  await expect(page.getByText('Realtime Printer 1')).toBeVisible();
-  await expect.poll(() => fleetRequests, { timeout: 3_000 }).toBeGreaterThan(1);
-  await expect(page.getByText(/Realtime Printer [2-9]/)).toBeVisible();
+  await expect(page.getByText(/Realtime Printer \d+/)).toBeVisible();
+  const baselineRequests = fleetRequests;
+
+  const payload = JSON.stringify({
+    apiVersion: '1',
+    streamEpoch: '11111111-1111-4111-8111-111111111111',
+    sequence: 0,
+    emittedAt: observedAt,
+  });
+  await page.evaluate((eventPayload) => {
+    const source = (window as unknown as {
+      __foxforgeE2EEventSource?: { emit: (type: string, data: string) => void };
+    }).__foxforgeE2EEventSource;
+    if (!source) throw new Error('Realtime bridge did not create EventSource');
+    source.emit('resync_required', eventPayload);
+  }, payload);
+
+  await expect.poll(() => fleetRequests, { timeout: 3_000 }).toBeGreaterThan(baselineRequests);
+  await expect(page.getByText(new RegExp(`Realtime Printer ${fleetRequests}`))).toBeVisible();
 });
