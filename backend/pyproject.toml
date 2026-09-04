@@ -20,6 +20,7 @@ foxforge = "foxforge.runtime.__main__:main"
 
 [project.optional-dependencies]
 dev = [
+  "coverage==7.15.2",
   "pytest>=9.0.3,<10",
   "ruff==0.15.20",
 ]
