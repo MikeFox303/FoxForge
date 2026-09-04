@@ -2,6 +2,7 @@
 # Copyright (C) 2026 MikeFox303
 
 from .models import FilamentReservation, FilamentReservationState, MaterialEstimate
+from .queue_service import AccountingQueueService
 from .queue_store import AccountingQueueStore
 from .service import (
     FilamentAccountingError,
@@ -20,6 +21,7 @@ from .store import (
 )
 
 __all__ = [
+    "AccountingQueueService",
     "AccountingQueueStore",
     "FilamentAccountingError",
     "FilamentAccountingService",
