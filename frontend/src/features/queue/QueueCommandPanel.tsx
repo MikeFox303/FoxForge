@@ -5,7 +5,9 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CommandApiError } from '../../data/commandClient';
 import type { FleetData, QueueViewModel } from '../../domain';
+import '../../queue-command.css';
 import {
   createQueueJobIdentity,
   dispatchPrintJob,
@@ -17,9 +19,19 @@ import {
   type QueueJobIdentity,
   type StagedArtifact,
 } from './queueCommandClient';
-import '../../queue-command.css';
 
-type SubmitPhase = 'idle' | 'hashing' | 'staging' | 'enqueuing' | 'queued' | 'dispatching' | 'accepted' | 'indeterminate' | 'error';
+type SubmitPhase =
+  | 'idle'
+  | 'hashing'
+  | 'staging'
+  | 'enqueuing'
+  | 'queued'
+  | 'dispatching'
+  | 'blocked'
+  | 'accepted'
+  | 'indeterminate'
+  | 'failed'
+  | 'error';
 
 interface PendingJob {
   identity: QueueJobIdentity;
@@ -29,13 +41,16 @@ interface PendingJob {
   sha256?: string;
   artifact?: StagedArtifact;
   queue?: QueueCommandResult;
+  dispatchIdempotencyKey?: string;
 }
 
 export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const printers = useMemo(
-    () => fleet.printers.filter((printer) => printer.capabilities.some((item) => item.capabilityId === 'foxforge.print_execution')),
+    () => fleet.printers.filter((printer) => (
+      printer.capabilities.some((item) => item.capabilityId === 'foxforge.print_execution')
+    )),
     [fleet.printers],
   );
   const [file, setFile] = useState<File | null>(null);
@@ -47,6 +62,13 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
 
   const busy = ['hashing', 'staging', 'enqueuing', 'dispatching'].includes(phase);
   const canEnqueue = file !== null && printerId !== '' && !busy && !pending?.queue;
+  const canDispatch = Boolean(
+    pending?.queue
+      && !busy
+      && phase !== 'accepted'
+      && phase !== 'indeterminate'
+      && (phase !== 'failed' || pending.queue.error?.retryable === true),
+  );
 
   const resetLogicalJob = () => {
     setPending(null);
@@ -108,21 +130,24 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
     if (!logicalJob?.queue) return;
     setError(null);
     setPhase('dispatching');
+    const idempotencyKey = logicalJob.dispatchIdempotencyKey ?? crypto.randomUUID();
+    const attempt = { ...logicalJob, dispatchIdempotencyKey: idempotencyKey };
+    setPending(attempt);
+
     try {
-      const result = await dispatchPrintJob(
-        logicalJob.queue.queueId,
-        logicalJob.identity.dispatchIdempotencyKey,
-      );
-      setPending({ ...logicalJob, queue: result });
-      if (result.state === 'indeterminate' || result.reconciliationRequired) {
-        setPhase('indeterminate');
-      } else {
-        setPhase('accepted');
-      }
+      const result = await dispatchPrintJob(logicalJob.queue.queueId, idempotencyKey);
+      setPending({ ...attempt, queue: result, dispatchIdempotencyKey: undefined });
+      setPhase(dispatchPhase(result));
       await refreshQueue(queryClient);
     } catch (cause) {
-      setPhase('error');
+      setPending(attempt);
+      if (isReconciliationError(cause)) {
+        setPhase('indeterminate');
+      } else {
+        setPhase('error');
+      }
       setError(errorMessage(cause));
+      await refreshQueue(queryClient);
     }
   };
 
@@ -208,9 +233,9 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
             {phase === 'error' ? t('alpha.queueCommand.retryAddRequest') : t('alpha.queueCommand.addToQueue')}
           </button>
         )}
-        {pending?.queue && !['accepted', 'indeterminate'].includes(phase) && (
+        {pending?.queue && canDispatch && (
           <button className="primary-button" type="button" disabled={busy} onClick={() => void dispatchQueuedJob()}>
-            {phase === 'error' ? t('alpha.queueCommand.resendDispatchRequest') : t('alpha.queueCommand.startPrint')}
+            {dispatchButtonLabel(phase, t)}
           </button>
         )}
         {pending?.queue && (
@@ -240,20 +265,24 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
 export function QueueEntryActions({ entry }: { entry: QueueViewModel }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const [dispatchKey] = useState(() => crypto.randomUUID());
+  const [dispatchKey, setDispatchKey] = useState<string | null>(null);
   const [acceptedKey] = useState(() => crypto.randomUUID());
   const [notAcceptedKey] = useState(() => crypto.randomUUID());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const dispatch = async () => {
+    const idempotencyKey = dispatchKey ?? crypto.randomUUID();
+    setDispatchKey(idempotencyKey);
     setBusy(true);
     setError(null);
     try {
-      await dispatchPrintJob(entry.queueId, dispatchKey);
+      await dispatchPrintJob(entry.queueId, idempotencyKey);
+      setDispatchKey(null);
       await refreshQueue(queryClient);
     } catch (cause) {
       setError(errorMessage(cause));
+      await refreshQueue(queryClient);
     } finally {
       setBusy(false);
     }
@@ -271,18 +300,24 @@ export function QueueEntryActions({ entry }: { entry: QueueViewModel }) {
       await refreshQueue(queryClient);
     } catch (cause) {
       setError(errorMessage(cause));
+      await refreshQueue(queryClient);
     } finally {
       setBusy(false);
     }
   };
 
-  if (!['pending', 'blocked', 'indeterminate'].includes(entry.state) && !error) return null;
+  const retryableFailure = entry.state === 'failed' && entry.retryable === true;
+  if (!['pending', 'blocked', 'indeterminate'].includes(entry.state) && !retryableFailure && !error) return null;
 
   return (
     <div className="queue-entry-actions">
-      {(entry.state === 'pending' || entry.state === 'blocked') && (
+      {(entry.state === 'pending' || entry.state === 'blocked' || retryableFailure) && (
         <button className="text-button" type="button" disabled={busy} onClick={() => void dispatch()}>
-          {busy ? t('alpha.queueCommand.sending') : t('alpha.queueCommand.startPrint')}
+          {busy
+            ? t('alpha.queueCommand.sending')
+            : retryableFailure
+              ? t('alpha.queueCommand.retryPrint')
+              : t('alpha.queueCommand.startPrint')}
         </button>
       )}
       {entry.state === 'indeterminate' && (
@@ -318,22 +353,45 @@ function errorMessage(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
+function isReconciliationError(cause: unknown): boolean {
+  return cause instanceof CommandApiError
+    && (cause.code === 'queue_reconciliation_required' || cause.code === 'reconciliation_required');
+}
+
+function dispatchPhase(result: QueueCommandResult): SubmitPhase {
+  if (result.state === 'indeterminate' || result.reconciliationRequired) return 'indeterminate';
+  if (result.state === 'blocked') return 'blocked';
+  if (result.state === 'failed') return 'failed';
+  return 'accepted';
+}
+
+function dispatchButtonLabel(phase: SubmitPhase, t: (key: string) => string): string {
+  if (phase === 'error') return t('alpha.queueCommand.resendDispatchRequest');
+  if (phase === 'blocked') return t('alpha.queueCommand.tryStartAgain');
+  if (phase === 'failed') return t('alpha.queueCommand.retryPrint');
+  return t('alpha.queueCommand.startPrint');
+}
+
 function phaseLabel(phase: SubmitPhase, t: (key: string) => string): string {
   if (phase === 'hashing') return t('alpha.queueCommand.hashing');
   if (phase === 'staging') return t('alpha.queueCommand.uploading');
   if (phase === 'enqueuing') return t('alpha.queueCommand.enqueuing');
   if (phase === 'queued') return t('alpha.queueCommand.queued');
   if (phase === 'dispatching') return t('alpha.queueCommand.dispatching');
+  if (phase === 'blocked') return t('alpha.queueCommand.blocked');
   if (phase === 'accepted') return t('alpha.queueCommand.accepted');
   if (phase === 'indeterminate') return t('alpha.queueCommand.indeterminate');
+  if (phase === 'failed') return t('alpha.queueCommand.failed');
   if (phase === 'error') return t('alpha.queueCommand.requestFailed');
   return t('alpha.queueCommand.ready');
 }
 
 function phaseText(phase: SubmitPhase, t: (key: string) => string): string {
   if (phase === 'queued') return t('alpha.queueCommand.queuedText');
+  if (phase === 'blocked') return t('alpha.queueCommand.blockedText');
   if (phase === 'accepted') return t('alpha.queueCommand.acceptedText');
   if (phase === 'indeterminate') return t('alpha.queueCommand.indeterminateShort');
+  if (phase === 'failed') return t('alpha.queueCommand.failedText');
   if (phase === 'error') return t('alpha.queueCommand.retrySameCommand');
   if (['hashing', 'staging', 'enqueuing', 'dispatching'].includes(phase)) return t('alpha.queueCommand.workingText');
   return t('alpha.queueCommand.readyText');
