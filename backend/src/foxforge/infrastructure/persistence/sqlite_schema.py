@@ -21,6 +21,85 @@ _EXPECTED_TABLES = frozenset(
     }
 )
 
+_SCHEMA_V1_STATEMENTS = (
+    """
+    CREATE TABLE IF NOT EXISTS queue_entries (
+        queue_id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_spools (
+        spool_id TEXT PRIMARY KEY,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_adjustments (
+        adjustment_id TEXT PRIMARY KEY,
+        spool_id TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        payload TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY(spool_id)
+            REFERENCES inventory_spools(spool_id)
+            ON DELETE RESTRICT
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS inventory_assignments (
+        spool_id TEXT PRIMARY KEY,
+        printer_id TEXT NOT NULL,
+        slot_id TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        assigned_at TEXT NOT NULL,
+        UNIQUE(printer_id, slot_id),
+        FOREIGN KEY(spool_id)
+            REFERENCES inventory_spools(spool_id)
+            ON DELETE CASCADE
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_spool_created
+    ON inventory_adjustments(spool_id, created_at, adjustment_id)
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS command_idempotency (
+        principal_id TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        request_fingerprint TEXT NOT NULL,
+        state TEXT NOT NULL,
+        result_ref TEXT,
+        outcome_code TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (principal_id, operation, idempotency_key)
+    )
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS command_audit (
+        audit_id TEXT PRIMARY KEY,
+        request_id TEXT NOT NULL,
+        principal_id TEXT,
+        action TEXT NOT NULL,
+        target_ref TEXT,
+        idempotency_key_digest TEXT,
+        outcome TEXT NOT NULL,
+        error_code TEXT,
+        occurred_at TEXT NOT NULL
+    )
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_command_audit_request_id
+    ON command_audit(request_id, occurred_at)
+    """,
+)
+
 
 class SQLiteMigrationError(RuntimeError):
     """Raised when FoxForge cannot safely establish the owned SQLite schema."""
@@ -62,7 +141,6 @@ def ensure_sqlite_schema(path: Path | str) -> SQLiteMigrationResult:
 
             backup_path = _backup_legacy_database(connection, database_path) if existed else None
             _migrate_v0_to_v1(connection)
-            _validate_current_schema(connection)
             return SQLiteMigrationResult(previous_version, SQLITE_SCHEMA_VERSION, backup_path)
     except SQLiteMigrationError:
         raise
@@ -84,81 +162,13 @@ def sqlite_schema_version(path: Path | str) -> int:
 def _migrate_v0_to_v1(connection: sqlite3.Connection) -> None:
     connection.execute("BEGIN IMMEDIATE")
     try:
-        connection.executescript(
-            """
-            CREATE TABLE IF NOT EXISTS queue_entries (
-                queue_id TEXT PRIMARY KEY,
-                payload TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS inventory_spools (
-                spool_id TEXT PRIMARY KEY,
-                payload TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS inventory_adjustments (
-                adjustment_id TEXT PRIMARY KEY,
-                spool_id TEXT NOT NULL,
-                idempotency_key TEXT NOT NULL UNIQUE,
-                payload TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                FOREIGN KEY(spool_id)
-                    REFERENCES inventory_spools(spool_id)
-                    ON DELETE RESTRICT
-            );
-
-            CREATE TABLE IF NOT EXISTS inventory_assignments (
-                spool_id TEXT PRIMARY KEY,
-                printer_id TEXT NOT NULL,
-                slot_id TEXT NOT NULL,
-                payload TEXT NOT NULL,
-                assigned_at TEXT NOT NULL,
-                UNIQUE(printer_id, slot_id),
-                FOREIGN KEY(spool_id)
-                    REFERENCES inventory_spools(spool_id)
-                    ON DELETE CASCADE
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_spool_created
-            ON inventory_adjustments(spool_id, created_at, adjustment_id);
-
-            CREATE TABLE IF NOT EXISTS command_idempotency (
-                principal_id TEXT NOT NULL,
-                operation TEXT NOT NULL,
-                idempotency_key TEXT NOT NULL,
-                request_fingerprint TEXT NOT NULL,
-                state TEXT NOT NULL,
-                result_ref TEXT,
-                outcome_code TEXT,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (principal_id, operation, idempotency_key)
-            );
-
-            CREATE TABLE IF NOT EXISTS command_audit (
-                audit_id TEXT PRIMARY KEY,
-                request_id TEXT NOT NULL,
-                principal_id TEXT,
-                action TEXT NOT NULL,
-                target_ref TEXT,
-                idempotency_key_digest TEXT,
-                outcome TEXT NOT NULL,
-                error_code TEXT,
-                occurred_at TEXT NOT NULL
-            );
-
-            CREATE INDEX IF NOT EXISTS idx_command_audit_request_id
-            ON command_audit(request_id, occurred_at);
-            """
-        )
-        connection.execute(f"PRAGMA user_version={SQLITE_SCHEMA_VERSION}")
+        for statement in _SCHEMA_V1_STATEMENTS:
+            connection.execute(statement)
+        _validate_schema_tables(connection)
         violations = connection.execute("PRAGMA foreign_key_check").fetchall()
         if violations:
             raise SQLiteMigrationError("FoxForge SQLite migration failed foreign-key validation")
+        connection.execute(f"PRAGMA user_version={SQLITE_SCHEMA_VERSION}")
         connection.commit()
     except Exception:
         connection.rollback()
@@ -166,6 +176,13 @@ def _migrate_v0_to_v1(connection: sqlite3.Connection) -> None:
 
 
 def _validate_current_schema(connection: sqlite3.Connection) -> None:
+    _validate_schema_tables(connection)
+    violations = connection.execute("PRAGMA foreign_key_check").fetchall()
+    if violations:
+        raise SQLiteMigrationError("FoxForge SQLite schema has foreign-key violations")
+
+
+def _validate_schema_tables(connection: sqlite3.Connection) -> None:
     tables = {
         str(row[0])
         for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
@@ -176,9 +193,6 @@ def _validate_current_schema(connection: sqlite3.Connection) -> None:
         raise SQLiteMigrationError(
             "FoxForge SQLite schema is incomplete for the recorded version; missing tables: " + ", ".join(missing)
         )
-    violations = connection.execute("PRAGMA foreign_key_check").fetchall()
-    if violations:
-        raise SQLiteMigrationError("FoxForge SQLite schema has foreign-key violations")
 
 
 def _backup_legacy_database(connection: sqlite3.Connection, database_path: Path) -> Path:
