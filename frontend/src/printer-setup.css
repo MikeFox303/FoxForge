@@ -1,0 +1,214 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.setup-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(2, 6, 23, 0.78);
+  backdrop-filter: blur(10px);
+}
+
+.setup-dialog {
+  width: min(1080px, 100%);
+  max-height: min(880px, calc(100vh - 48px));
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--panel);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
+}
+
+.setup-dialog-head,
+.setup-section-head,
+.configured-printer,
+.configured-actions,
+.setup-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.setup-dialog-head {
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.setup-dialog-head h2,
+.setup-section h3 {
+  margin: 0;
+}
+
+.setup-dialog-head p,
+.setup-section-head p,
+.configured-printer span,
+.configured-printer small,
+.setup-form label small {
+  color: var(--muted);
+}
+
+.setup-dialog-head p {
+  margin: 6px 0 0;
+}
+
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.9fr) minmax(420px, 1.4fr);
+  gap: 18px;
+}
+
+.setup-section {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.configured-printers,
+.setup-form {
+  display: grid;
+  gap: 12px;
+}
+
+.configured-printer {
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(15, 23, 42, 0.65);
+}
+
+.configured-printer > div:first-child {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.configured-printer small {
+  overflow-wrap: anywhere;
+}
+
+.configured-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.setup-placeholder {
+  margin-top: 12px;
+  padding: 20px;
+  border: 1px dashed var(--line);
+  border-radius: 14px;
+  color: var(--muted);
+  text-align: center;
+}
+
+.setup-form label {
+  display: grid;
+  gap: 7px;
+  min-width: 0;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.setup-form input,
+.setup-form select {
+  width: 100%;
+  min-height: 42px;
+  box-sizing: border-box;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: rgba(2, 6, 23, 0.66);
+  color: var(--text);
+  font: inherit;
+}
+
+.setup-form input:focus,
+.setup-form select:focus {
+  outline: 2px solid rgba(249, 115, 22, 0.4);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+.setup-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.setup-form-actions {
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.setup-message {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+}
+
+.setup-message.error {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(127, 29, 29, 0.22);
+}
+
+.setup-message.warning {
+  border-color: rgba(251, 191, 36, 0.4);
+  background: rgba(120, 53, 15, 0.22);
+}
+
+.setup-message.success {
+  border-color: rgba(74, 222, 128, 0.35);
+  background: rgba(20, 83, 45, 0.2);
+}
+
+.danger-button {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  border-radius: 10px;
+  background: rgba(127, 29, 29, 0.18);
+  color: #fecaca;
+  cursor: pointer;
+}
+
+.danger-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+@media (max-width: 860px) {
+  .setup-backdrop {
+    padding: 0;
+    place-items: stretch;
+  }
+
+  .setup-dialog {
+    width: 100%;
+    max-height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+    padding: 18px;
+  }
+
+  .setup-grid,
+  .setup-form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .configured-printer {
+    display: grid;
+  }
+
+  .configured-actions {
+    justify-content: flex-start;
+  }
+}
