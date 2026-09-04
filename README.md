@@ -255,13 +255,12 @@ Automated tests and QEMU/CI are necessary but do not replace these physical matr
 
 ## Next development priorities
 
-1. Complete P2 final CI/merge validation and retain polling as the alpha recovery fallback.
+1. **P3:** connect queue lifecycle to automatic filament accounting, reservations and explicit reconciliation.
 2. Run/expand physical Bambu X2D and Moonraker/OpenKE validation matrices across start and P1 controls.
 3. Validate Raspberry Pi 5/UmbrelOS install, persistence, printer-network reachability and P2 SSE behavior.
-4. **P3:** connect queue lifecycle to automatic filament accounting and reconciliation.
-5. **P4:** expose the existing guarded inventory mutation API through the web UI.
-6. **P5:** build persistent farm scheduling with printer selection, priorities/deadlines and durable lease/CAS semantics.
-7. **P6:** expand deep Bambu capabilities: AMS operations/drying, HMS, K profiles, dual-nozzle and validated X2D-specific behavior.
+4. **P4:** expose the existing guarded inventory mutation API through the web UI.
+5. **P5:** build persistent farm scheduling with printer selection, priorities/deadlines and durable lease/CAS semantics.
+6. **P6:** expand deep Bambu capabilities: AMS operations/drying, HMS, K profiles, dual-nozzle and validated X2D-specific behavior.
 
 ## Repository layout
 
