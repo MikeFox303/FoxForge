@@ -13,6 +13,7 @@ import './inventory.css';
 import './printer-detail.css';
 import './printer-setup.css';
 import './mobile.css';
+import './functional-controls.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
