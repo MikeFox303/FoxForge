@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { fleetRuntimePhase } from './fleetGateway';
+import { fleetRuntimePhase, fleetRuntimeTone } from './fleetGateway';
 
 describe('fleet runtime feedback', () => {
   it('keeps the initial placeholder distinguishable from a real empty fleet', () => {
@@ -13,5 +13,11 @@ describe('fleet runtime feedback', () => {
 
   it('prioritizes an API failure over pending or placeholder state', () => {
     expect(fleetRuntimePhase({ isError: true, isPending: true, isPlaceholderData: true })).toBe('error');
+  });
+
+  it('maps runtime availability to an honest status tone', () => {
+    expect(fleetRuntimeTone('loading')).toBe('warning');
+    expect(fleetRuntimeTone('ready')).toBe('good');
+    expect(fleetRuntimeTone('error')).toBe('danger');
   });
 });
