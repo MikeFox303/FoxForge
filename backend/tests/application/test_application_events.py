@@ -4,6 +4,7 @@
 import asyncio
 from datetime import UTC, datetime
 from decimal import Decimal
+from pathlib import Path
 from uuid import uuid4
 
 from foxforge.application.event_stores import EventingInventoryStore, EventingQueueStore
@@ -14,8 +15,8 @@ from foxforge.application.events import (
 )
 from foxforge.application.inventory import InMemoryInventoryStore
 from foxforge.application.queue import InMemoryQueueStore, QueueEntry, QueueEntryState
-from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintExecutionRequest
 from foxforge.domain.inventory import Spool
+from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat, PrintExecutionRequest
 
 
 def test_fresh_subscription_requires_snapshot_resync() -> None:
@@ -102,8 +103,10 @@ def test_eventing_queue_store_publishes_only_after_successful_durable_write() ->
             request=PrintExecutionRequest(
                 dispatch_id=uuid4(),
                 artifact=LocalPrintArtifact(
-                    path="/data/artifacts/test.gcode",
+                    artifact_id="artifact-1",
+                    path=Path("/data/artifacts/test.gcode"),
                     filename="test.gcode",
+                    format=PrintArtifactFormat.GCODE,
                     sha256="a" * 64,
                     size_bytes=10,
                 ),
@@ -131,6 +134,7 @@ def test_eventing_inventory_store_publishes_mutation_after_store_commit() -> Non
         stream = journal.subscribe()
         await anext(stream)
 
+        now = datetime.now(UTC)
         spool = Spool(
             spool_id=uuid4(),
             material_family="PLA",
@@ -140,8 +144,8 @@ def test_eventing_inventory_store_publishes_mutation_after_store_commit() -> Non
             color=None,
             empty_spool_mass_g=None,
             purchase_date=None,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=now,
+            updated_at=now,
         )
         store.create_spool(spool)
         try:
