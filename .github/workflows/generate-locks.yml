@@ -37,7 +37,7 @@ jobs:
           npm install --package-lock-only --ignore-scripts --no-audit --no-fund
           diff -u "${RUNNER_TEMP}/package-lock.json" package-lock.json
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
