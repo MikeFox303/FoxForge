@@ -8,7 +8,7 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [`CHANGELOG.md`](../CHANGELOG.md) — implementation, architecture, validation and migration history.
 - [`release/`](../release/) — durable metadata and release notes for published FoxForge versions.
 
-The current published pre-release is **`v0.1.0-alpha.2`**. Development source has moved beyond that immutable image with authenticated printer configuration, inventory mutations, audited artifact/queue commands and the browser-safe queue upload/enqueue/dispatch/reconciliation workflow. Physical printer/Raspberry Pi validation, realtime delivery, automatic accounting, common print controls and persistent farm scheduling remain incomplete.
+The current published pre-release is **`v0.1.0-alpha.3`**. The functional state in `main` matches that release line: authenticated printer configuration, inventory mutations, audited artifact/queue commands and the browser-safe queue upload/enqueue/dispatch/reconciliation workflow are all released. Physical printer/Raspberry Pi validation, realtime delivery, automatic accounting, common print controls and persistent farm scheduling remain incomplete.
 
 ## Architecture Decision Records
 
@@ -39,8 +39,8 @@ The current published pre-release is **`v0.1.0-alpha.2`**. Development source ha
 - [Queue dispatch and durable idempotency](design/queue-dispatch.md) — queue state machine, persisted dispatch crash boundary, reconciliation semantics and SQLite restart durability.
 - [Queue event-driven print lifecycle](design/queue-event-lifecycle.md) — remote-job tracking from accepted dispatch through preparing, printing, pause/resume and terminal states with strict vendor-job identity matching.
 - [Queue retry and single-pass runner policy](design/queue-retry-policy.md) — safe pre-start retry/backoff, one-entry-per-printer passes and protection of `DISPATCHING`, `INDETERMINATE` and receipt-bearing jobs.
-- [Queue command API and artifact staging](design/queue-command-api.md) — authenticated artifact upload, enqueue/dispatch/reconciliation, HTTP replay semantics, command audit and single-process concurrency boundary.
-- [Queue command UI](design/queue-command-ui.md) — browser hashing/staging/enqueue/dispatch workflow, `dispatch_id` versus HTTP idempotency identity, safe blocked/retryable-failure behavior and explicit `INDETERMINATE` reconciliation UX.
+- [Queue command API and artifact staging](design/queue-command-api.md) — authenticated artifact upload, enqueue/dispatch/reconciliation, HTTP replay semantics, command audit and single-process concurrency boundary. Released in `v0.1.0-alpha.3`.
+- [Queue command UI](design/queue-command-ui.md) — browser hashing/staging/enqueue/dispatch workflow, `dispatch_id` versus HTTP idempotency identity, safe blocked/retryable-failure behavior and explicit `INDETERMINATE` reconciliation UX. Released in `v0.1.0-alpha.3`.
 
 ## Inventory design
 
@@ -51,12 +51,12 @@ The current published pre-release is **`v0.1.0-alpha.2`**. Development source ha
 
 - [Public API v1](design/public-api-v1.md) — the original versioned read foundation for health, fleet, queue and inventory. Later write endpoints follow ADR 0004 and dedicated command designs rather than weakening the original read DTO boundary.
 - [ADR 0004: Command API security and idempotency](adr/0004-command-api-security.md) — fail-closed authentication, permissions, idempotency, errors and audit contract for remote mutations.
-- [Queue command API and artifact staging](design/queue-command-api.md) — implemented backend command contract for safe queue writes without client filesystem paths.
-- [Queue command UI](design/queue-command-ui.md) — implemented browser orchestration preserving the backend queue safety model.
+- [Queue command API and artifact staging](design/queue-command-api.md) — released backend command contract for safe queue writes without client filesystem paths.
+- [Queue command UI](design/queue-command-ui.md) — released browser orchestration preserving the backend queue safety model.
 - [Web UI foundation](design/web-ui-foundation.md) — React/TypeScript product structure, printer cockpit, Router/TanStack Query/i18next composition and vendor-neutral presentation rules.
 - [Frontend parallel development policy](design/frontend-parallel-development.md) — main-driven UI development, query isolation, capability discipline and merge/CI rules while backend work proceeds in parallel.
 
-Normal runtime consumes live FoxForge API models; demo data remains available only through explicit `?demo=1`. Browser operator sessions now support printer setup and queue command workflows. Realtime WebSocket/SSE remains a separate future contract.
+Normal runtime consumes live FoxForge API models; demo data remains available only through explicit `?demo=1`. Browser operator sessions support printer setup and queue command workflows. Realtime WebSocket/SSE remains a separate future contract.
 
 ## Deployment
 
@@ -69,10 +69,10 @@ Current state:
 - persistent `/data` contains runtime configuration, SQLite state and staged queue artifacts;
 - steady-state container execution is non-root;
 - container startup smoke testing exists in CI;
-- `v0.1.0-alpha.2` publishes an immutable versioned Linux `amd64` + `arm64` GHCR image through the guarded release workflow;
+- `v0.1.0-alpha.3` publishes an immutable versioned Linux `amd64` + `arm64` GHCR image through the guarded release workflow;
 - anonymous pull/start/runtime smoke validation passes for both architectures in CI;
-- the `my3d-foxforge` package is published in `MikeFox303/umbrel-3d-printing-store` behind authenticated Umbrel App Proxy and pins the immutable `alpha.2` digest;
-- post-`alpha.2` source work requires a later guarded release before Docker/Umbrel users receive it;
+- the `my3d-foxforge` package is published in `MikeFox303/umbrel-3d-printing-store` behind authenticated Umbrel App Proxy and pins the immutable `alpha.3` multi-architecture digest;
+- future source work requires a later guarded release before Docker/Umbrel users receive it;
 - representative Raspberry Pi 5/UmbrelOS and physical-printer validation are still required.
 
 ## Working rules
