@@ -16,6 +16,7 @@ from foxforge.adapters.moonraker import create_moonraker_http_adapter
 from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions, create_api_v1_app
 from foxforge.api.v1.command_audit import install_command_audit
 from foxforge.api.v1.inventory_commands import register_inventory_command_routes
+from foxforge.api.v1.job_control_commands import register_job_control_command_routes
 from foxforge.api.v1.queue_commands import register_queue_command_routes
 from foxforge.api.v1.queue_guard import install_queue_command_guard
 from foxforge.application.artifacts import ArtifactStore
@@ -108,6 +109,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     )
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts)
+    register_job_control_command_routes(app, fleet=fleet)
     install_command_audit(app, security=command_security, store=command_audit)
     install_queue_command_guard(
         app,
