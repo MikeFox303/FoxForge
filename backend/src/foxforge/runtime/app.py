@@ -27,7 +27,7 @@ from foxforge.application.events import ApplicationEventJournal
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
-from foxforge.domain.printers import ConnectionState, PrinterAdapterError
+from foxforge.domain.printers import PrinterAdapterError
 from foxforge.infrastructure.artifacts import FilesystemArtifactStore
 from foxforge.infrastructure.commands import SQLiteCommandAuditStore, SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
@@ -37,6 +37,7 @@ from foxforge.infrastructure.queue import SQLiteQueueStore
 
 from .config import CONFIG_SCHEMA_VERSION, load_runtime_config
 from .printer_manager import RuntimePrinterManager
+from .reconnect import default_reconnect_policy, run_connection_supervisor
 
 _LOG = logging.getLogger(__name__)
 
@@ -247,22 +248,7 @@ async def _relay_application_events(
 
 
 async def _connection_supervisor(fleet: FleetService, reconnect_seconds: float) -> None:
-    while True:
-        for printer_id in fleet.printer_ids:
-            if fleet.snapshot(printer_id).connection != ConnectionState.DISCONNECTED:
-                continue
-            try:
-                await fleet.connect(printer_id)
-            except PrinterAdapterError as error:
-                _LOG.warning(
-                    "printer %s remains offline: %s (%s)",
-                    printer_id,
-                    error.message,
-                    error.code.value,
-                )
-            except Exception:
-                _LOG.exception("unexpected connection failure for printer %s", printer_id)
-        await asyncio.sleep(reconnect_seconds)
+    await run_connection_supervisor(fleet, default_reconnect_policy(reconnect_seconds))
 
 
 def _mount_frontend(app: web.Application, static_dir: Path | None) -> None:
