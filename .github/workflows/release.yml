@@ -1,0 +1,220 @@
+name: FoxForge release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'release/manifest.json'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: foxforge-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Validate release manifest and versions
+        id: release
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import os
+          import pathlib
+          import re
+          import tomllib
+
+          root = pathlib.Path('.')
+          manifest = json.loads((root / 'release/manifest.json').read_text(encoding='utf-8'))
+          version = manifest['version']
+          python_version = manifest['pythonVersion']
+          tag = manifest['tag']
+          title = manifest['title']
+          notes = manifest['notes']
+          prerelease = manifest.get('prerelease', False)
+
+          if not re.fullmatch(r'\d+\.\d+\.\d+-alpha\.\d+', version):
+              raise SystemExit(f'Unsupported alpha release version: {version}')
+          if tag != f'v{version}':
+              raise SystemExit(f'Tag {tag!r} does not match version {version!r}')
+          if prerelease is not True:
+              raise SystemExit('The current release workflow requires prerelease=true')
+
+          with (root / 'backend/pyproject.toml').open('rb') as handle:
+              backend = tomllib.load(handle)
+          frontend = json.loads((root / 'frontend/package.json').read_text(encoding='utf-8'))
+
+          if backend['project']['version'] != python_version:
+              raise SystemExit(
+                  f"Backend version {backend['project']['version']!r} != manifest pythonVersion {python_version!r}"
+              )
+          if frontend['version'] != version:
+              raise SystemExit(f"Frontend version {frontend['version']!r} != manifest version {version!r}")
+          if not (root / notes).is_file():
+              raise SystemExit(f'Release notes file does not exist: {notes}')
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as output:
+              output.write(f'version={version}\n')
+              output.write(f'tag={tag}\n')
+              output.write(f'title={title}\n')
+              output.write(f'notes={notes}\n')
+          PY
+
+      - name: Install backend dependencies
+        working-directory: backend
+        run: python -m pip install -e '.[dev]'
+
+      - name: Backend lint
+        working-directory: backend
+        run: ruff check src tests
+
+      - name: Backend format check
+        working-directory: backend
+        run: ruff format --check src tests
+
+      - name: Backend tests
+        working-directory: backend
+        run: pytest
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm install --no-audit --no-fund
+
+      - name: Frontend type check
+        working-directory: frontend
+        run: npm run check
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: npm test
+
+      - name: Frontend production build
+        working-directory: frontend
+        run: npm run build
+
+      - name: Build release smoke image
+        run: |
+          docker build \
+            --file deployment/docker/Dockerfile \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --build-arg VERSION="${{ steps.release.outputs.tag }}" \
+            --tag foxforge:release-smoke \
+            .
+
+      - name: Smoke test unified release image
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-release-data"
+          docker run -d --name foxforge-release-smoke \
+            -p 18080:8000 \
+            -v "${RUNNER_TEMP}/foxforge-release-data:/data" \
+            foxforge:release-smoke
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/healthz > /tmp/foxforge-release-health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/foxforge-release-health.json
+          grep -q '"status": "ok"' /tmp/foxforge-release-health.json
+          curl --fail --silent http://127.0.0.1:18080/ | grep -q 'FoxForge'
+          test -f "${RUNNER_TEMP}/foxforge-release-data/config.json"
+          test -f "${RUNNER_TEMP}/foxforge-release-data/foxforge.sqlite3"
+
+      - name: Release smoke container logs
+        if: always()
+        run: docker logs foxforge-release-smoke || true
+
+      - name: Stop release smoke container
+        if: always()
+        run: docker rm -f foxforge-release-smoke || true
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish versioned multi-architecture image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/mikefox303/foxforge:${{ steps.release.outputs.version }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.release.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/MikeFox303/FoxForge
+          build-args: |
+            VCS_REF=${{ github.sha }}
+            VERSION=${{ steps.release.outputs.tag }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Create tag and GitHub pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.release.outputs.tag }}
+          TITLE: ${{ steps.release.outputs.title }}
+          NOTES: ${{ steps.release.outputs.notes }}
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          if git show-ref --tags --verify --quiet "refs/tags/${TAG}"; then
+            existing_commit="$(git rev-list -n 1 "${TAG}")"
+            if [ "${existing_commit}" != "${GITHUB_SHA}" ]; then
+              echo "Tag ${TAG} already points to ${existing_commit}, expected ${GITHUB_SHA}" >&2
+              exit 1
+            fi
+          else
+            git tag -a "${TAG}" -m "${TITLE}" "${GITHUB_SHA}"
+            git push origin "${TAG}"
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "GitHub release ${TAG} already exists; leaving it unchanged."
+          else
+            gh release create "${TAG}" \
+              --title "${TITLE}" \
+              --notes-file "${NOTES}" \
+              --verify-tag \
+              --prerelease
+          fi
+
+      - name: Release summary
+        run: |
+          {
+            echo "## FoxForge ${{ steps.release.outputs.tag }}"
+            echo
+            echo "- GitHub release: https://github.com/MikeFox303/FoxForge/releases/tag/${{ steps.release.outputs.tag }}"
+            echo "- Container: \`ghcr.io/mikefox303/foxforge:${{ steps.release.outputs.version }}\`"
+            echo "- Multi-arch digest: \`${{ steps.image.outputs.digest }}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
