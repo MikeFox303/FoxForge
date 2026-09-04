@@ -144,10 +144,12 @@ async def _start_runtime(app: web.Application, reconnect_seconds: float) -> None
     # Queue subscribes first so lifecycle persistence is active before browser
     # realtime delivery begins.
     await runtime.queue.start()
+    event_relay_ready = asyncio.Event()
     app[_EVENT_RELAY_KEY] = asyncio.create_task(
-        _relay_application_events(runtime.fleet, runtime.events),
+        _relay_application_events(runtime.fleet, runtime.events, event_relay_ready),
         name="foxforge-application-event-relay",
     )
+    await event_relay_ready.wait()
     app[_SUPERVISOR_KEY] = asyncio.create_task(
         _connection_supervisor(runtime.fleet, reconnect_seconds),
         name="foxforge-printer-connection-supervisor",
@@ -175,8 +177,13 @@ async def _stop_runtime(app: web.Application) -> None:
         _LOG.exception("printer disconnect failed during FoxForge shutdown")
 
 
-async def _relay_application_events(fleet: FleetService, journal: ApplicationEventJournal) -> None:
+async def _relay_application_events(
+    fleet: FleetService,
+    journal: ApplicationEventJournal,
+    ready: asyncio.Event,
+) -> None:
     stream = fleet.events()
+    ready.set()
     try:
         async for event in stream:
             journal.publish_printer_event(event)
