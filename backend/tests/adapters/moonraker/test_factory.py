@@ -38,6 +38,20 @@ def test_factory_builds_registry_ready_production_adapter() -> None:
     assert adapter.snapshot().printer_id == identity.printer_id
 
 
+def test_factory_accepts_explicit_endpoint_overrides() -> None:
+    adapter = create_moonraker_http_adapter(
+        _identity(),
+        {
+            "base_url": "http://printer.local:7125",
+            "allow_public_endpoint": True,
+            "allow_loopback_endpoint": True,
+            "allow_link_local_endpoint": True,
+        },
+    )
+
+    assert isinstance(adapter, MoonrakerAdapter)
+
+
 def test_factory_requires_base_url() -> None:
     with pytest.raises(ValueError, match="base_url"):
         create_moonraker_http_adapter(_identity(), {})
@@ -53,4 +67,16 @@ def test_factory_rejects_invalid_timeout_type() -> None:
         create_moonraker_http_adapter(
             _identity(),
             {"base_url": "http://printer.local:7125", "request_timeout_seconds": True},
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["allow_public_endpoint", "allow_loopback_endpoint", "allow_link_local_endpoint"],
+)
+def test_factory_rejects_non_boolean_endpoint_overrides(field: str) -> None:
+    with pytest.raises(ValueError, match=field):
+        create_moonraker_http_adapter(
+            _identity(),
+            {"base_url": "http://printer.local:7125", field: "true"},
         )
