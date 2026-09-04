@@ -4,8 +4,8 @@
 
 FoxForge combines a vendor-independent printer/application core with deep Bambu Lab support, Moonraker/Klipper support, durable print queues, filament/spool inventory, material-system integration, farm workflows and Docker/Umbrel deployment.
 
-> **Published release:** `v0.1.0-alpha.2`  
-> **Current source state:** development has moved beyond the immutable `alpha.2` image. `main` now contains authenticated printer configuration, inventory mutations, audited queue command APIs, restart-safe artifact staging and the browser queue upload/enqueue/dispatch/reconciliation workflow merged in PR #51.  
+> **Published release:** `v0.1.0-alpha.3`  
+> **Current source state:** `main` matches the `alpha.3` functional release line. Alpha.3 includes authenticated printer configuration, inventory mutations, audited queue command APIs, restart-safe artifact staging and the browser queue upload/enqueue/dispatch/reconciliation workflow. No post-`alpha.3` functional changes are recorded yet.  
 > **Maturity:** runnable/installable alpha, **not production-ready**. Physical Bambu X2D, Moonraker/OpenKE and representative Raspberry Pi/Umbrel validation are still required.
 
 ## What FoxForge currently implements
@@ -32,7 +32,7 @@ The current source tree includes:
 - Docker, Linux `amd64`/`arm64`, Compose and Umbrel packaging foundations;
 - CI for Python 3.12/3.13, frontend type/tests/build and unified-container smoke validation.
 
-The shipped `v0.1.0-alpha.2` image does **not** automatically receive post-release `main` changes. A later guarded release is required before Docker/Umbrel users receive them.
+The shipped `v0.1.0-alpha.3` image is immutable. Future `main` changes require a later guarded release before Docker/Umbrel users receive them.
 
 ## Core architecture
 
@@ -83,7 +83,7 @@ Remote writes follow [ADR 0004](docs/adr/0004-command-api-security.md):
 - append-only command audit;
 - no blind replay of uncertain printer side effects.
 
-For print submission the source flow is:
+For print submission the released alpha.3 flow is:
 
 ```text
 browser File
@@ -119,7 +119,7 @@ See [Queue command API and artifact staging](docs/design/queue-command-api.md).
 
 The UI uses React, TypeScript, Vite, React Router, TanStack Query and i18next.
 
-Current source behavior includes:
+Current released behavior includes:
 
 - live fleet, queue and inventory reads;
 - explicit loading/refresh/error states;
@@ -131,7 +131,7 @@ Current source behavior includes:
 - explicit started/not-started reconciliation for `INDETERMINATE` queue entries;
 - demo data only with `?demo=1`.
 
-The checked-in screenshots under [`docs/images/ui/`](docs/images/ui/) are real captures from repository builds. They currently document the earlier alpha UI and may not show every post-`alpha.2` command control yet.
+The checked-in screenshots under [`docs/images/ui/`](docs/images/ui/) are real captures from repository builds. Some screenshots document earlier alpha UI states and may not show every alpha.3 command control yet.
 
 ## Runtime and persistence
 
@@ -162,19 +162,19 @@ Printer connection failures do not bring down the web/API process. Reconnect sup
 | Moonraker adapter | Foundation + HTTP/WebSocket transport implemented; physical OpenKE validation pending |
 | Fleet management | Implemented |
 | Durable queue | Implemented foundation with lifecycle/retry/reconciliation |
-| Artifact staging | Implemented post-`alpha.2` |
-| Queue command API | Implemented post-`alpha.2` |
-| Queue command UI | Implemented in `main` by PR #51; automated frontend/container validation passed, physical printer validation still required |
+| Artifact staging | Released in `alpha.3` |
+| Queue command API | Released in `alpha.3` |
+| Queue command UI | Released in `alpha.3`; automated frontend/container validation passed, physical printer validation still required |
 | Filament inventory | Durable SQLite foundation implemented |
-| Inventory command API | Implemented post-`alpha.2` |
-| Printer configuration API/UI | Implemented post-`alpha.2` |
-| Command auth/idempotency/audit | Implemented foundation |
+| Inventory command API | Released in `alpha.3` |
+| Printer configuration API/UI | Released in `alpha.3` |
+| Command auth/idempotency/audit | Released foundation in `alpha.3` |
 | Realtime WebSocket/SSE | Not implemented |
 | Automatic filament accounting | Not implemented |
 | Persistent farm scheduler | Not implemented |
 | Docker | Implemented and CI-smoke-tested |
-| ARM64 | Published `alpha.2` image exists; representative Raspberry Pi validation pending |
-| Umbrel | Community App exists for immutable `alpha.2`; later source changes require a new release/package update |
+| ARM64 | Published `alpha.3` multi-architecture image exists; representative Raspberry Pi validation pending |
+| Umbrel | Community App is pinned to the immutable `alpha.3` multi-architecture digest |
 
 ## Hardware validation still required
 
@@ -190,7 +190,7 @@ Automated tests and QEMU/CI are necessary but do not replace these physical matr
 
 ## Next development priorities
 
-1. Run documented physical Bambu X2D and Moonraker/OpenKE print-validation matrices using the merged browser print workflow.
+1. Run documented physical Bambu X2D and Moonraker/OpenKE print-validation matrices using the released browser print workflow.
 2. Validate Raspberry Pi 5/UmbrelOS install, persistence and printer-network reachability.
 3. Add common pause/resume/cancel through typed capabilities and ADR 0004 command semantics.
 4. Add realtime application events through WebSocket/SSE with reconnect/replay rules.
@@ -214,7 +214,7 @@ The layout is governed by [ADR 0002](docs/adr/0002-repository-layout.md).
 
 ## UmbrelOS
 
-The published `v0.1.0-alpha.2` image is available through the companion Community App Store:
+The published `v0.1.0-alpha.3` image is available through the companion Community App Store:
 
 ```text
 https://github.com/MikeFox303/umbrel-3d-printing-store
@@ -222,7 +222,7 @@ https://github.com/MikeFox303/umbrel-3d-printing-store
 
 Package ID: `my3d-foxforge`.
 
-The package uses authenticated Umbrel App Proxy access, persistent `/data`, bridge networking and an immutable GHCR image. Post-`alpha.2` source changes are **not** delivered through a floating tag.
+The package uses authenticated Umbrel App Proxy access, persistent `/data`, bridge networking and the immutable `alpha.3` multi-architecture GHCR digest. Future source changes are **not** delivered through a floating tag.
 
 See [`deployment/umbrel/`](deployment/umbrel/README.md).
 
