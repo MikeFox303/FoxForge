@@ -10,6 +10,16 @@ export interface PrinterMaterialSummary {
   totalSlots: number;
 }
 
+export type PrinterTelemetryPhase = 'live' | 'stale' | 'connecting' | 'degraded' | 'unavailable';
+
+export function printerTelemetryPhase(printer: PrinterViewModel): PrinterTelemetryPhase {
+  if (printer.snapshot.stale) return 'stale';
+  if (printer.snapshot.connection === 'connecting') return 'connecting';
+  if (printer.snapshot.connection === 'degraded') return 'degraded';
+  if (printer.snapshot.connection !== 'connected' || printer.snapshot.operationalState === 'offline') return 'unavailable';
+  return 'live';
+}
+
 export function printerByRouteId(fleet: FleetData, routePrinterId?: string): PrinterViewModel | undefined {
   if (!routePrinterId) return undefined;
   const printerId = decodeURIComponent(routePrinterId);

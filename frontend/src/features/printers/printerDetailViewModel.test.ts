@@ -8,6 +8,7 @@ import {
   materialSlots,
   printerByRouteId,
   printerRoute,
+  printerTelemetryPhase,
   queueForPrinter,
   summarizePrinterMaterials,
 } from './printerDetailViewModel';
@@ -34,5 +35,15 @@ describe('printer detail presentation model', () => {
       lowSlots: 1,
       totalSlots: 4,
     });
+  });
+
+  it('does not present stale or disconnected telemetry as live', () => {
+    const printer = fleetData.printers[0];
+    expect(printerTelemetryPhase(printer)).toBe('live');
+    expect(printerTelemetryPhase({ ...printer, snapshot: { ...printer.snapshot, stale: true } })).toBe('stale');
+    expect(printerTelemetryPhase({ ...printer, snapshot: { ...printer.snapshot, connection: 'connecting' } })).toBe('connecting');
+    expect(printerTelemetryPhase({ ...printer, snapshot: { ...printer.snapshot, connection: 'degraded' } })).toBe('degraded');
+    expect(printerTelemetryPhase({ ...printer, snapshot: { ...printer.snapshot, connection: 'disconnected' } })).toBe('unavailable');
+    expect(printerTelemetryPhase({ ...printer, snapshot: { ...printer.snapshot, operationalState: 'offline' } })).toBe('unavailable');
   });
 });
