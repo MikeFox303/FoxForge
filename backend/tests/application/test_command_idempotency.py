@@ -29,12 +29,17 @@ def _record(*, fingerprint: str | None = None) -> CommandIdempotencyRecord:
     )
 
 
-def test_same_idempotency_key_and_fingerprint_replays_same_reservation() -> None:
+def test_same_idempotency_key_and_fingerprint_exposes_reservation_ownership() -> None:
     store = InMemoryCommandIdempotencyStore()
     original = _record()
 
-    assert store.reserve(original) == original
-    assert store.reserve(_record()) == original
+    first = store.reserve(original)
+    replay = store.reserve(_record())
+
+    assert first.created is True
+    assert first.record == original
+    assert replay.created is False
+    assert replay.record == original
 
 
 def test_changed_request_with_same_idempotency_key_conflicts() -> None:
@@ -45,9 +50,11 @@ def test_changed_request_with_same_idempotency_key_conflicts() -> None:
         store.reserve(_record(fingerprint=command_request_fingerprint({"materialFamily": "PLA", "mass": "1000"})))
 
 
-def test_completed_idempotency_record_replays_terminal_result() -> None:
+def test_completed_idempotency_record_replays_terminal_result_without_ownership() -> None:
     store = InMemoryCommandIdempotencyStore()
-    original = store.reserve(_record())
+    reservation = store.reserve(_record())
+    assert reservation.created is True
+    original = reservation.record
     completed_at = original.created_at + timedelta(seconds=2)
 
     completed = store.complete(
@@ -63,7 +70,9 @@ def test_completed_idempotency_record_replays_terminal_result() -> None:
     assert completed.state == CommandIdempotencyState.COMPLETED
     assert completed.result_ref == "c0a8012a-5a04-4d5e-93bc-7131f957ce11"
     assert completed.outcome_code == "created"
-    assert store.reserve(_record()) == completed
+    replay = store.reserve(_record())
+    assert replay.created is False
+    assert replay.record == completed
     assert (
         store.complete(
             principal_id=original.principal_id,
