@@ -31,10 +31,11 @@ from foxforge.domain.printers import ConnectionState, PrinterAdapterError
 from foxforge.infrastructure.artifacts import FilesystemArtifactStore
 from foxforge.infrastructure.commands import SQLiteCommandAuditStore, SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
+from foxforge.infrastructure.persistence import SQLITE_SCHEMA_VERSION, ensure_sqlite_schema
 from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
 
-from .config import load_runtime_config
+from .config import CONFIG_SCHEMA_VERSION, load_runtime_config
 from .printer_manager import RuntimePrinterManager
 
 _LOG = logging.getLogger(__name__)
@@ -87,6 +88,9 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     config = load_runtime_config(settings.config_path)
 
+    database_path = settings.data_dir / "foxforge.sqlite3"
+    ensure_sqlite_schema(database_path)
+
     registry = AdapterRegistry()
     registry.register("bambu", create_bambu_lan_adapter)
     registry.register("moonraker", create_moonraker_http_adapter)
@@ -95,7 +99,6 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     fleet = FleetService(adapters)
     events = ApplicationEventJournal()
 
-    database_path = settings.data_dir / "foxforge.sqlite3"
     queue_store = EventingQueueStore(SQLiteQueueStore(database_path), events)
     inventory_store = EventingInventoryStore(SQLiteInventoryStore(database_path), events)
     queue = QueueService(fleet, queue_store)
@@ -131,6 +134,19 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         security=command_security,
         idempotency=command_idempotency,
     )
+
+    async def persistence_diagnostics(_: web.Request) -> web.Response:
+        return web.json_response(
+            {
+                "apiVersion": "1",
+                "persistence": {
+                    "configSchemaVersion": CONFIG_SCHEMA_VERSION,
+                    "sqliteSchemaVersion": SQLITE_SCHEMA_VERSION,
+                },
+            }
+        )
+
+    app.router.add_get("/api/v1/diagnostics/persistence", persistence_diagnostics)
     app[_RUNTIME_KEY] = RuntimeComposition(
         fleet=fleet,
         queue=queue,
