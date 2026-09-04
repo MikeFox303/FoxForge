@@ -8,6 +8,7 @@ from collections.abc import Mapping
 from foxforge.domain.printers import PrinterIdentity
 
 from .adapter import BambuAdapter
+from .certificate_trust import normalize_certificate_sha256
 from .lan_transport import BambuLanTransport
 from .lan_wire import BambuLanSettings
 
@@ -41,6 +42,14 @@ def create_bambu_lan_adapter(
                 "command_timeout_seconds",
             ),
             tls_verify=_boolean(settings.get("tls_verify", False), "tls_verify"),
+            mqtt_tls_certificate_sha256=normalize_certificate_sha256(
+                _optional_string(settings.get("mqtt_tls_certificate_sha256"), "mqtt_tls_certificate_sha256"),
+                field_name="mqtt_tls_certificate_sha256",
+            ),
+            ftps_tls_certificate_sha256=normalize_certificate_sha256(
+                _optional_string(settings.get("ftps_tls_certificate_sha256"), "ftps_tls_certificate_sha256"),
+                field_name="ftps_tls_certificate_sha256",
+            ),
         )
     )
     return BambuAdapter(identity, transport)

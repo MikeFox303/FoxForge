@@ -18,6 +18,7 @@ from typing import Protocol
 
 import paho.mqtt.client as mqtt
 
+from .certificate_trust import normalize_certificate_sha256, verify_peer_certificate_sha256
 from .transport import BambuTransportError, BambuTransportErrorKind
 
 _UPLOAD_FLOOR_BYTES_PER_SECOND = 25 * 1024
@@ -37,6 +38,8 @@ class BambuLanSettings:
     connect_timeout_seconds: float = 10.0
     command_timeout_seconds: float = 15.0
     tls_verify: bool = False
+    mqtt_tls_certificate_sha256: str | None = None
+    ftps_tls_certificate_sha256: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in ("host", "serial_number", "access_code", "username"):
@@ -53,6 +56,22 @@ class BambuLanSettings:
             if isinstance(value, bool) or not isinstance(value, int | float) or float(value) <= 0:
                 raise ValueError(f"{field_name} must be positive")
             object.__setattr__(self, field_name, float(value))
+        object.__setattr__(
+            self,
+            "mqtt_tls_certificate_sha256",
+            normalize_certificate_sha256(
+                self.mqtt_tls_certificate_sha256,
+                field_name="mqtt_tls_certificate_sha256",
+            ),
+        )
+        object.__setattr__(
+            self,
+            "ftps_tls_certificate_sha256",
+            normalize_certificate_sha256(
+                self.ftps_tls_certificate_sha256,
+                field_name="ftps_tls_certificate_sha256",
+            ),
+        )
 
     @property
     def report_topic(self) -> str:
@@ -196,6 +215,11 @@ class PahoBambuMqttWire:
                 )
             )
             return
+        try:
+            self._verify_mqtt_certificate(client)
+        except BambuTransportError as error:
+            self._finish_connect(error)
+            return
         result, _mid = client.subscribe(self._settings.report_topic, qos=1)
         if result != mqtt.MQTT_ERR_SUCCESS:
             self._finish_connect(
@@ -207,6 +231,19 @@ class PahoBambuMqttWire:
             )
             return
         self._finish_connect(None)
+
+    def _verify_mqtt_certificate(self, client: mqtt.Client) -> None:
+        expected = self._settings.mqtt_tls_certificate_sha256
+        if expected is None:
+            return
+        peer_socket = client.socket()
+        if peer_socket is None or not hasattr(peer_socket, "getpeercert"):
+            raise BambuTransportError(
+                BambuTransportErrorKind.REJECTED,
+                "Bambu MQTT TLS peer certificate is unavailable for pin verification",
+                vendor_code="certificate_missing",
+            )
+        verify_peer_certificate_sha256(peer_socket, expected, service="MQTT")
 
     def _on_disconnect(self, client, userdata, disconnect_flags, reason_code, properties) -> None:
         if self._closing:
@@ -297,6 +334,7 @@ class ImplicitFtpsBambuWire:
                 self._settings.ftps_port,
                 timeout=self._settings.connect_timeout_seconds,
             )
+            self._verify_ftps_certificate(ftp)
             ftp.login(self._settings.username, self._settings.access_code)
             ftp.prot_p()
             self._send_file(ftp, local_path, remote_filename)
@@ -306,6 +344,19 @@ class ImplicitFtpsBambuWire:
         finally:
             with suppress(*ftplib.all_errors):
                 ftp.close()
+
+    def _verify_ftps_certificate(self, ftp: ftplib.FTP_TLS) -> None:
+        expected = self._settings.ftps_tls_certificate_sha256
+        if expected is None:
+            return
+        peer_socket = ftp.sock
+        if peer_socket is None or not hasattr(peer_socket, "getpeercert"):
+            raise BambuTransportError(
+                BambuTransportErrorKind.REJECTED,
+                "Bambu FTPS TLS peer certificate is unavailable for pin verification",
+                vendor_code="certificate_missing",
+            )
+        verify_peer_certificate_sha256(peer_socket, expected, service="FTPS")
 
     def _send_file(self, ftp: ftplib.FTP_TLS, local_path: Path, remote_filename: str) -> None:
         data_connection = ftp.transfercmd(f"STOR {remote_filename}")

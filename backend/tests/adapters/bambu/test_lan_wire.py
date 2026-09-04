@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 import ftplib
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -13,9 +14,10 @@ from foxforge.adapters.bambu import BambuLanSettings, BambuTransportError, lan_w
 
 
 class _FakeSocket:
-    def __init__(self) -> None:
+    def __init__(self, certificate: bytes = b"foxforge-bambu-certificate") -> None:
         self.timeout: float | None = 10.0
         self.timeouts: list[float | None] = []
+        self.certificate = certificate
 
     def gettimeout(self) -> float | None:
         return self.timeout
@@ -23,6 +25,9 @@ class _FakeSocket:
     def settimeout(self, value: float | None) -> None:
         self.timeout = value
         self.timeouts.append(value)
+
+    def getpeercert(self, binary_form: bool = False):
+        return self.certificate if binary_form else {}
 
 
 class _FakeDataConnection:
@@ -46,8 +51,14 @@ class _FakeDataConnection:
 
 
 class _FakeImplicitFtps:
-    def __init__(self, *, remote_size: int | None = None, voidresp_error: Exception | None = None) -> None:
-        self.sock = _FakeSocket()
+    def __init__(
+        self,
+        *,
+        remote_size: int | None = None,
+        voidresp_error: Exception | None = None,
+        certificate: bytes = b"foxforge-bambu-certificate",
+    ) -> None:
+        self.sock = _FakeSocket(certificate)
         self.data_connection = _FakeDataConnection()
         self.remote_size = remote_size
         self.voidresp_error = voidresp_error
@@ -90,14 +101,24 @@ class _FakeImplicitFtps:
         self.close_called = True
 
 
-def _settings() -> BambuLanSettings:
-    return BambuLanSettings(
-        host="192.0.2.20",
-        serial_number="01P00FOXFORGE",
-        access_code="12345678",
-        connect_timeout_seconds=2.0,
-        command_timeout_seconds=3.0,
-    )
+class _FakeMqttClient:
+    def __init__(self, certificate: bytes) -> None:
+        self._socket = _FakeSocket(certificate)
+
+    def socket(self):
+        return self._socket
+
+
+def _settings(**overrides) -> BambuLanSettings:
+    values = {
+        "host": "192.0.2.20",
+        "serial_number": "01P00FOXFORGE",
+        "access_code": "12345678",
+        "connect_timeout_seconds": 2.0,
+        "command_timeout_seconds": 3.0,
+    }
+    values.update(overrides)
+    return BambuLanSettings(**values)
 
 
 def _install_fake(monkeypatch: pytest.MonkeyPatch, fake: _FakeImplicitFtps) -> None:
@@ -127,6 +148,47 @@ def test_ftps_upload_uses_manual_transfer_and_waits_for_confirmation(
     assert 60.0 in fake.sock.timeouts
     assert fake.quit_called is True
     assert fake.close_called is True
+
+
+def test_ftps_certificate_pin_is_checked_before_login(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    certificate = b"expected-ftps-certificate"
+    expected = hashlib.sha256(certificate).hexdigest()
+    payload = b"PK\x03\x04pinned"
+    source = tmp_path / "pinned.3mf"
+    source.write_bytes(payload)
+    fake = _FakeImplicitFtps(certificate=certificate)
+    _install_fake(monkeypatch, fake)
+
+    asyncio.run(
+        lan_wire.ImplicitFtpsBambuWire(_settings(ftps_tls_certificate_sha256=expected)).upload(source, "pinned.3mf")
+    )
+    assert fake.credentials == ("bblp", "12345678")
+
+
+def test_ftps_certificate_mismatch_fails_before_login(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    source = tmp_path / "mismatch.3mf"
+    source.write_bytes(b"PK\x03\x04mismatch")
+    fake = _FakeImplicitFtps(certificate=b"unexpected")
+    _install_fake(monkeypatch, fake)
+
+    with pytest.raises(BambuTransportError, match="fingerprint"):
+        asyncio.run(
+            lan_wire.ImplicitFtpsBambuWire(
+                _settings(ftps_tls_certificate_sha256=hashlib.sha256(b"expected").hexdigest())
+            ).upload(source, "mismatch.3mf")
+        )
+    assert fake.credentials is None
+    assert fake.close_called is True
+
+
+def test_mqtt_certificate_pin_accepts_match_and_rejects_mismatch() -> None:
+    certificate = b"mqtt-certificate"
+    expected = hashlib.sha256(certificate).hexdigest()
+    wire = lan_wire.PahoBambuMqttWire(_settings(mqtt_tls_certificate_sha256=expected))
+    wire._verify_mqtt_certificate(_FakeMqttClient(certificate))  # noqa: SLF001 - pinning seam
+
+    with pytest.raises(BambuTransportError, match="fingerprint"):
+        wire._verify_mqtt_certificate(_FakeMqttClient(b"changed-certificate"))  # noqa: SLF001
 
 
 def test_ftps_accepts_ambiguous_426_only_when_remote_size_matches(
