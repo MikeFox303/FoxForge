@@ -40,7 +40,7 @@ from foxforge.domain.printers.capabilities import (
 )
 from foxforge.testing import FakePrinterAdapter
 
-_TOKEN = "test-job-control-token"
+_TOKEN = "test-job-control-token-0123456789abcdef"
 
 
 class _ControlCapability:
