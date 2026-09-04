@@ -8,6 +8,7 @@ import asyncio
 from foxforge.application.events import ApplicationEventJournal, ApplicationEventTopic, ApplicationStreamItemKind
 from foxforge.application.fleet import FleetService
 from foxforge.application.printer_management import PrinterConfiguration
+from foxforge.application.secrets import InMemorySecretStore
 from foxforge.domain.printers import ConnectionState, PrinterIdentity
 from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.runtime.config import CONFIG_SCHEMA_VERSION, RuntimeConfig, load_runtime_config
@@ -44,6 +45,7 @@ def test_add_persists_and_joins_live_fleet_without_restart(tmp_path) -> None:
             registry=registry,
             config_path=config_path,
             config=_empty_runtime_config(),
+            secret_store=InMemorySecretStore(),
         )
         try:
             outcome = await manager.add(_configuration())
@@ -69,6 +71,7 @@ def test_test_connection_does_not_persist_or_join_fleet(tmp_path) -> None:
             registry=registry,
             config_path=config_path,
             config=_empty_runtime_config(),
+            secret_store=InMemorySecretStore(),
         )
         try:
             outcome = await manager.test_connection(_configuration())
@@ -92,6 +95,7 @@ def test_remove_updates_persistence_and_live_fleet(tmp_path) -> None:
             registry=registry,
             config_path=config_path,
             config=_empty_runtime_config(),
+            secret_store=InMemorySecretStore(),
         )
         try:
             await manager.add(_configuration())
@@ -116,6 +120,7 @@ def test_configuration_mutations_publish_p2_events_but_test_connection_does_not(
             registry=registry,
             config_path=config_path,
             config=_empty_runtime_config(),
+            secret_store=InMemorySecretStore(),
             events=journal,
         )
         stream = journal.subscribe()

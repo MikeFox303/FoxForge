@@ -34,10 +34,12 @@ from foxforge.infrastructure.inventory import SQLiteInventoryStore
 from foxforge.infrastructure.persistence import SQLITE_SCHEMA_VERSION, ensure_sqlite_schema
 from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
+from foxforge.infrastructure.secrets import FileSecretStore
 
 from .config import CONFIG_SCHEMA_VERSION, load_runtime_config
 from .printer_manager import RuntimePrinterManager
 from .reconnect import default_reconnect_policy, run_connection_supervisor
+from .secret_settings import hydrate_settings, migrate_legacy_runtime_secrets
 
 _LOG = logging.getLogger(__name__)
 
@@ -91,6 +93,8 @@ _EVENT_RELAY_KEY = web.AppKey("foxforge_application_event_relay", asyncio.Task[N
 def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     config = load_runtime_config(settings.config_path)
+    secret_store = FileSecretStore(settings.data_dir / "secrets.json")
+    config = migrate_legacy_runtime_secrets(settings.config_path, config, secret_store)
 
     database_path = settings.data_dir / "foxforge.sqlite3"
     ensure_sqlite_schema(database_path)
@@ -99,7 +103,13 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     registry.register("bambu", create_bambu_lan_adapter)
     registry.register("moonraker", create_moonraker_http_adapter)
 
-    adapters = tuple(registry.create(printer.identity, printer.settings) for printer in config.printers)
+    adapters = tuple(
+        registry.create(
+            printer.identity,
+            hydrate_settings(printer.identity, printer.settings, secret_store),
+        )
+        for printer in config.printers
+    )
     fleet = FleetService(adapters)
     events = ApplicationEventJournal()
 
@@ -134,6 +144,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         registry=registry,
         config_path=settings.config_path,
         config=config,
+        secret_store=secret_store,
         events=events,
     )
 
@@ -165,6 +176,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
                 "persistence": {
                     "configSchemaVersion": CONFIG_SCHEMA_VERSION,
                     "sqliteSchemaVersion": SQLITE_SCHEMA_VERSION,
+                    "secretStore": "file",
                 },
                 "artifactStorage": {
                     "artifactCount": storage.artifact_count,
