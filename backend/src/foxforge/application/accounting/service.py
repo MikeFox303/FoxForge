@@ -3,10 +3,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import replace
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Callable
 from uuid import UUID
 
 from foxforge.application.inventory import InventoryBalanceError, InventoryService
