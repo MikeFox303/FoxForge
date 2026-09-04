@@ -15,8 +15,8 @@ from foxforge.application.commands import (
     InMemoryCommandIdempotencyStore,
 )
 from foxforge.application.fleet import FleetService
-from foxforge.application.inventory import InventoryService
-from foxforge.application.queue import QueueService
+from foxforge.application.inventory import InMemoryInventoryStore, InventoryService
+from foxforge.application.queue import InMemoryQueueStore, QueueService
 from foxforge.domain.printers import (
     ActiveJobSnapshot,
     ConnectionState,
@@ -38,8 +38,6 @@ from foxforge.domain.printers.capabilities import (
     JobControlReceipt,
     JobControlRequest,
 )
-from foxforge.infrastructure.inventory import InMemoryInventoryStore
-from foxforge.infrastructure.queue import InMemoryQueueStore
 from foxforge.testing import FakePrinterAdapter
 
 _TOKEN = "test-job-control-token"
