@@ -12,6 +12,7 @@ from foxforge.application.queue import QueueEntry, QueueService
 from foxforge.domain.inventory import Spool
 from foxforge.domain.printers import ActiveJobSnapshot, PrinterSnapshot
 from foxforge.domain.printers.capabilities import (
+    JobControlCapability,
     MaterialSystemCapability,
     MaterialSystemSnapshot,
     PrintExecutionCapability,
@@ -29,6 +30,7 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
         snapshot = fleet.snapshot(printer_id)
         print_execution = fleet.capability(printer_id, PrintExecutionCapability)
         material_system = fleet.capability(printer_id, MaterialSystemCapability)
+        job_control = fleet.capability(printer_id, JobControlCapability)
 
         capabilities: list[dict[str, Any]] = []
         for capability in (print_execution, material_system):
@@ -39,6 +41,16 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
                 {
                     "capabilityId": descriptor.capability_id,
                     "majorVersion": descriptor.major_version,
+                }
+            )
+        if job_control is not None:
+            descriptor = job_control.descriptor
+            capabilities.append(
+                {
+                    "capabilityId": descriptor.capability_id,
+                    "majorVersion": descriptor.major_version,
+                    "supportedActions": sorted(action.value for action in descriptor.supported_actions),
+                    "requiresVendorJobIdentity": descriptor.requires_vendor_job_identity,
                 }
             )
 

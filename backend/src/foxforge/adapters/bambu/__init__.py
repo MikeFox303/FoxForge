@@ -3,6 +3,7 @@
 
 from .adapter import BambuAdapter
 from .factory import create_bambu_lan_adapter
+from .job_control import BambuJobControlCapability
 from .lan_transport import BambuLanTransport
 from .lan_wire import BambuLanSettings
 from .material_system import BambuMaterialSystemCapability
@@ -10,6 +11,8 @@ from .native import (
     BambuMaterialUnitKind,
     BambuNativeDispatchResult,
     BambuNativeFault,
+    BambuNativeJobControlAction,
+    BambuNativeJobControlResult,
     BambuNativeMaterialRoute,
     BambuNativeMaterialUnit,
     BambuNativePrintRequest,
@@ -27,12 +30,15 @@ from .transport import BambuTransport, BambuTransportError, BambuTransportErrorK
 
 __all__ = [
     "BambuAdapter",
+    "BambuJobControlCapability",
     "BambuLanSettings",
     "BambuLanTransport",
     "BambuMaterialSystemCapability",
     "BambuMaterialUnitKind",
     "BambuNativeDispatchResult",
     "BambuNativeFault",
+    "BambuNativeJobControlAction",
+    "BambuNativeJobControlResult",
     "BambuNativeMaterialRoute",
     "BambuNativeMaterialUnit",
     "BambuNativePrintRequest",

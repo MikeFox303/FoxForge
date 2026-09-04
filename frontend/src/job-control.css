@@ -1,0 +1,22 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.printer-control-message,
+.printer-control-warning {
+  margin-top: 0.65rem;
+  border: 1px solid var(--border, rgba(148, 163, 184, 0.2));
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.8rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
+.printer-control-message.warning,
+.printer-control-warning {
+  border-color: rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.printer-control-row button:disabled {
+  cursor: wait;
+}

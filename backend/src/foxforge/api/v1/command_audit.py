@@ -54,6 +54,12 @@ _COMMAND_ROUTES: Final = (
         "printer.reconnect",
         "printer_id",
     ),
+    _CommandRoute(
+        "POST",
+        re.compile(r"^/api/v1/printers/(?P<printer_id>[^/]+)/job-control$"),
+        "printer.job_control",
+        "printer_id",
+    ),
     _CommandRoute("POST", re.compile(r"^/api/v1/inventory/spools$"), "inventory.spool.add"),
     _CommandRoute(
         "POST",
@@ -160,9 +166,6 @@ def install_command_audit(
         error_code = _response_error_code(response)
         outcome = _outcome_for_status(response.status)
         if principal is None and outcome != CommandAuditOutcome.DENIED:
-            # Authentication failures are normalized by the guarded route. If a
-            # future command route changes that contract, keep the audit result
-            # conservative rather than claiming successful anonymous execution.
             outcome = CommandAuditOutcome.DENIED
 
         if accepted_recorded or outcome == CommandAuditOutcome.DENIED:
@@ -177,9 +180,6 @@ def install_command_audit(
                     error_code=error_code,
                 )
             except Exception:
-                # The accepted audit record was persisted before any authorized
-                # side effect. Do not replace the real command result with a
-                # generic failure that could encourage an unsafe client retry.
                 _LOG.exception("command audit terminal write failed for %s", route.action)
         return response
 

@@ -18,8 +18,13 @@ from foxforge.domain.printers import (
     PrinterSnapshot,
     utc_now,
 )
-from foxforge.domain.printers.capabilities import MaterialSystemCapability, PrintExecutionCapability
+from foxforge.domain.printers.capabilities import (
+    JobControlCapability,
+    MaterialSystemCapability,
+    PrintExecutionCapability,
+)
 
+from .job_control import BambuJobControlCapability
 from .mapping import map_bambu_material_system, map_bambu_state
 from .material_system import BambuMaterialSystemCapability
 from .native import BambuNativeState
@@ -71,9 +76,11 @@ class BambuAdapter:
             self.snapshot,
             self.native_snapshot,
         )
+        self._job_control = BambuJobControlCapability(transport, self.snapshot)
         self._capabilities: dict[type[object], object] = {
             cast(type[object], MaterialSystemCapability): self._material,
             cast(type[object], PrintExecutionCapability): self._printing,
+            cast(type[object], JobControlCapability): self._job_control,
         }
 
     @property

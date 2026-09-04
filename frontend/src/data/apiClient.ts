@@ -3,6 +3,7 @@
 
 import type {
   FleetData,
+  JobControlAction,
   MaterialActivity,
   MaterialPresence,
   MaterialUnitKind,
@@ -14,6 +15,8 @@ import type {
 interface ApiCapability {
   capabilityId: string;
   majorVersion: number;
+  supportedActions?: JobControlAction[];
+  requiresVendorJobIdentity?: boolean;
 }
 
 interface ApiActiveJob {
@@ -182,6 +185,8 @@ function mapPrinter(printer: ApiPrinter): PrinterViewModel {
       capabilityId: capability.capabilityId,
       majorVersion: capability.majorVersion,
       label: capability.capabilityId,
+      supportedActions: capability.supportedActions,
+      requiresVendorJobIdentity: capability.requiresVendorJobIdentity,
     })),
     materialSystem: printer.materialSystem ? mapMaterialSystem(printer.materialSystem) : undefined,
   };

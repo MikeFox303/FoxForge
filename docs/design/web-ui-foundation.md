@@ -1,6 +1,6 @@
 # FoxForge web UI foundation
 
-**Status:** implemented and evolving from the `v0.1.0-alpha.3` released foundation
+**Status:** implemented and evolving beyond the `v0.1.0-alpha.3` released foundation
 
 ## Purpose
 
@@ -28,7 +28,9 @@ Current data/command seams include:
 - `src/features/inventory/inventoryGateway.ts` — live spool inventory reads;
 - `src/data/commandClient.ts` — shared browser operator-session/authentication/idempotency/error plumbing;
 - `src/data/printerSetupClient.ts` — printer configuration commands;
-- `src/features/queue/queueCommandClient.ts` — typed artifact/enqueue/dispatch/reconciliation commands.
+- `src/features/queue/queueCommandClient.ts` — typed artifact/enqueue/dispatch/reconciliation commands;
+- `src/features/printers/jobControlClient.ts` — typed Pause/Resume/Cancel commands against `foxforge.job_control` v1;
+- `src/features/printers/JobControlActions.tsx` — capability/state-gated printer cockpit controls and uncertainty UX.
 
 Feature components do not receive raw Bambu MQTT payloads, Moonraker JSON-RPC responses, Python domain objects or local server paths.
 
@@ -46,7 +48,7 @@ Top-level and printer-detail pages are URL-addressable:
 ## Product structure
 
 1. **Overview** — fleet KPIs, active jobs, queue pulse and material-system summary.
-2. **Printers** — common fleet cards, printer setup and route-based printer cockpit.
+2. **Printers** — common fleet cards, printer setup, route-based printer cockpit and typed common job controls.
 3. **Print queue** — durable queue state plus safe file staging/enqueue/dispatch/reconciliation.
 4. **Materials** — capability-driven physical multi-slot/external material systems.
 5. **Spool inventory** — FoxForge-owned spool state, remaining mass and opaque physical assignments.
@@ -75,6 +77,8 @@ Printer cards/cockpits may render identity, connection state, operational state,
 
 Fleet, queue and inventory reads enter through typed query/data gateways. Query invalidation/refetch is the current synchronization mechanism after commands. Future realtime delivery should update the same cache instead of creating a second presentation state model.
 
+P1 job-control commands invalidate the fleet snapshot after either a conclusive result or an ambiguous outcome. An ambiguous outcome never triggers a hidden command retry; only observation is refreshed.
+
 ### Command plumbing is shared; feature semantics are not
 
 `commandClient.ts` owns only cross-cutting browser command concerns:
@@ -87,19 +91,34 @@ Fleet, queue and inventory reads enter through typed query/data gateways. Query 
 
 It must not learn printer-, queue- or inventory-specific business rules. Feature clients remain typed and independent.
 
+For job control, `jobControlClient.ts` owns the P1 request DTO and keeps logical `controlId` separate from HTTP `Idempotency-Key`. `JobControlActions.tsx` owns only presentation/state gating and never translates actions into Bambu or Moonraker commands.
+
 ### Routes are product URLs
 
 A printer cockpit is a first-class deep link at `/printers/:printerId`. The route parameter is opaque and resolved against normalized fleet data; routing never infers vendor/model semantics from it.
 
 ### Printer cockpit keeps technical details secondary
 
-The default cockpit is user-facing: connection, state, job progress, ETA, layers, materials and printer queue context. Raw capability IDs, adapter names and exact observation timestamps belong in Diagnostics.
+The default cockpit is user-facing: connection, state, job progress, ETA, layers, materials, common job controls and printer queue context. Raw capability IDs, adapter names and exact observation timestamps belong in Diagnostics.
+
+### Common job controls are capability-driven
+
+Pause/Resume/Cancel render only when `/api/v1/fleet` advertises `foxforge.job_control` v1 for that printer. The UI additionally requires a fresh connected snapshot and the exact active `vendorJobId` before sending a command.
+
+P1 state presentation is:
+
+- `printing` → Pause and Cancel when advertised;
+- `paused` → Resume and Cancel when advertised;
+- `preparing` → Cancel when advertised;
+- stale/offline/no vendor job identity → no actionable device control.
+
+Cancel requires explicit operator confirmation. If the HTTP/device outcome is ambiguous, the control area enters an uncertainty state, refreshes fleet observation and does not automatically resend the side effect. See [job-control.md](job-control.md).
 
 ### Vendor-specific UI mounts through typed capabilities
 
 Deep Bambu controls such as AMS operations/drying, HMS, K profiles, dual-nozzle workflows and Virtual Printer should become capability panels only after corresponding typed domain/application capabilities exist.
 
-A Moonraker printer must never receive placeholder Bambu controls simply because another adapter supports them.
+A Moonraker printer must never receive placeholder Bambu controls simply because another adapter supports them. The same rule applies in reverse. Common Pause/Resume/Cancel are shared only because both adapters explicitly implement the same FoxForge capability.
 
 ### Material systems stay vendor-neutral
 
@@ -122,9 +141,11 @@ The browser queue workflow follows [queue-command-ui.md](queue-command-ui.md):
 - never expose blind retry for `INDETERMINATE`;
 - expose failed-entry retry only when backend read state marks it retryable.
 
+The same no-blind-retry principle now also applies to ambiguous P1 job-control side effects.
+
 ### Localization uses one component tree
 
-English, Russian and Ukrainian share one component/data model. Translation parity tests prevent one locale from silently missing command/safety copy.
+English, Russian and Ukrainian share one component/data model. Translation parity tests prevent one locale from silently missing command/safety copy. P1 job-control strings have their own key-parity test in addition to the existing application translation checks.
 
 ### Funding links remain secondary
 
@@ -148,12 +169,14 @@ The UI has progressed from static/demo foundation to functional alpha:
 - safe queue file hashing/staging/enqueue/dispatch workflow;
 - explicit blocked/retryable failure semantics;
 - explicit `INDETERMINATE` started/not-started reconciliation;
+- P1 capability-driven Pause/Resume/Cancel with exact vendor-job targeting;
+- P1 ambiguity UX that refreshes observation without blind side-effect replay;
+- explicit confirmation before cancelling a print;
 - restrained Ko-fi support link;
 - responsive/mobile layout.
 
 Still absent until real contracts exist:
 
-- common pause/resume/cancel UI;
 - realtime WebSocket/SSE delivery;
 - inventory mutation controls for every already-available backend inventory command;
 - deeper Bambu capability panels;
@@ -184,6 +207,8 @@ Future realtime delivery should carry FoxForge application events and update Tan
 
 The frontend builds to static assets and runs inside the unified FoxForge server/container. Production does not require a separate Node process. This keeps deployment suitable for Docker, ARM64 and Umbrel.
 
+The immutable `v0.1.0-alpha.3` image predates P1. P1 controls become deployable only after a later guarded FoxForge release and corresponding Umbrel Store update.
+
 ## Acceptance criteria
 
 The current web UI foundation is acceptable when:
@@ -199,6 +224,9 @@ The current web UI foundation is acceptable when:
 - selected print files are staged without leaking client paths;
 - queue command UI preserves backend idempotency/reconciliation rules;
 - printer setup uses guarded command APIs rather than local mock mutations;
+- P1 job controls are rendered from `foxforge.job_control` metadata rather than vendor inference;
+- P1 controls require a fresh exact active vendor job identity;
+- ambiguous P1 control outcomes never trigger an automatic resend;
 - unavailable printer controls are not fabricated;
 - responsive layout remains usable on desktop and narrow/mobile widths;
 - upstream provenance remains clear;
@@ -215,4 +243,4 @@ The current web UI foundation is acceptable when:
 
 The unified container workflow independently builds the production application image and smoke-tests server startup/health/UI delivery.
 
-Queue command client tests cover browser hashing, byte-only staging and separation of durable queue identities from HTTP command idempotency keys. Translation parity tests cover EN/RU/UK command copy.
+Queue command client tests cover browser hashing, byte-only staging and separation of durable queue identities from HTTP command idempotency keys. P1 tests cover separation of `controlId` from HTTP idempotency identity, exact job-control request payloads and EN/RU/UK job-control key parity.
