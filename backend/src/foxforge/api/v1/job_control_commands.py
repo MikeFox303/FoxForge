@@ -211,7 +211,8 @@ def _completed_replay(
             status=status,
             code=code,
             message=f"The previous job-control command completed with {adapter_code.value}.",
-            retryable=adapter_code in {
+            retryable=adapter_code
+            in {
                 PrinterErrorCode.CONNECTION_UNAVAILABLE,
                 PrinterErrorCode.TIMEOUT,
                 PrinterErrorCode.BUSY,
