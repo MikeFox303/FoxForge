@@ -14,11 +14,14 @@ from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
 from foxforge.domain.printers import (
     ActiveJobSnapshot,
+    ConnectionState,
     JobState,
     OperationalState,
     PrinterAdapterError,
     PrinterErrorCode,
     PrinterIdentity,
+    PrinterSnapshot,
+    utc_now,
 )
 from foxforge.domain.printers.capabilities import (
     JOB_CONTROL_CAPABILITY_ID,
@@ -81,23 +84,24 @@ def _app() -> tuple[TestClient, _ControlCapability]:
         adapter_kind="fake",
     )
     adapter = FakePrinterAdapter(identity)
-
-    async def connect() -> None:
-        await adapter.connect()
-
-    asyncio.run(connect())
-    adapter.set_active_job(
-        ActiveJobSnapshot(
-            vendor_job_id="vendor-job-1",
-            name="job.gcode",
-            state=JobState.PRINTING,
-            progress=0.5,
-            elapsed_seconds=30,
-            remaining_seconds=30,
-            current_layer=2,
-            total_layers=4,
-        ),
-        operational_state=OperationalState.PRINTING,
+    adapter.set_snapshot(
+        PrinterSnapshot(
+            printer_id="printer-1",
+            connection=ConnectionState.CONNECTED,
+            operational_state=OperationalState.PRINTING,
+            active_job=ActiveJobSnapshot(
+                vendor_job_id="vendor-job-1",
+                name="job.gcode",
+                state=JobState.PRINTING,
+                progress=0.5,
+                elapsed_seconds=30,
+                remaining_seconds=30,
+                current_layer=2,
+                total_layers=4,
+            ),
+            observed_at=utc_now(),
+            stale=False,
+        )
     )
     capability = _ControlCapability(adapter)
     adapter.register_capability(JobControlCapability, capability)
