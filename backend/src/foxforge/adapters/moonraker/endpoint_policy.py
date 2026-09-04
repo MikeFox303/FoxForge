@@ -7,10 +7,11 @@ import ipaddress
 import socket
 from dataclasses import dataclass
 
+import aiohttp
 from aiohttp.resolver import DefaultResolver
 
 
-class MoonrakerEndpointSecurityError(ValueError):
+class MoonrakerEndpointSecurityError(aiohttp.ClientError):
     """Raised when a configured or resolved Moonraker endpoint violates policy."""
 
 
