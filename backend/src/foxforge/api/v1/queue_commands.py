@@ -14,6 +14,7 @@ from foxforge.application.artifacts import (
     ArtifactFormatConflictError,
     ArtifactHashMismatchError,
     ArtifactNotFoundError,
+    ArtifactStorageFullError,
     ArtifactStore,
     ArtifactTooLargeError,
 )
@@ -87,6 +88,8 @@ def register_queue_command_routes(
             )
         except ArtifactTooLargeError as error:
             return command_error(request, status=413, code="artifact_too_large", message=str(error))
+        except ArtifactStorageFullError as error:
+            return command_error(request, status=507, code="artifact_storage_full", message=str(error))
         except ArtifactHashMismatchError as error:
             return command_error(request, status=400, code="artifact_hash_mismatch", message=str(error))
         except ArtifactFormatConflictError as error:
