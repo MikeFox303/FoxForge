@@ -14,6 +14,7 @@ from aiohttp import web
 from foxforge.adapters.bambu import create_bambu_lan_adapter
 from foxforge.adapters.moonraker import create_moonraker_http_adapter
 from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions, create_api_v1_app
+from foxforge.api.v1.inventory_commands import register_inventory_command_routes
 from foxforge.application.commands import CommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
@@ -96,6 +97,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         command_idempotency=command_idempotency,
         printer_management=printer_manager,
     )
+    register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     app[_RUNTIME_KEY] = RuntimeComposition(
         fleet=fleet,
         queue=queue,

@@ -17,7 +17,7 @@ from foxforge.domain.inventory import (
     SpoolColor,
 )
 
-from .store import InventoryStore
+from .store import InventoryStore, InventoryStoreConflictError
 
 
 class SpoolNotFoundError(KeyError):
@@ -202,7 +202,7 @@ class InventoryService:
         if existing is not None:
             if existing.printer_id == printer_id.strip() and existing.slot_id == slot_id.strip():
                 return existing
-            raise SpoolAssignmentConflictError("spool is already assigned; unassign it before moving")
+            raise SpoolAssignmentConflictError("spool is already assigned; unassign it before moving or use move_spool")
 
         occupied = self._store.assignment_for_slot(printer_id.strip(), slot_id.strip())
         if occupied is not None and occupied.spool_id != spool_id:
@@ -214,7 +214,44 @@ class InventoryService:
             slot_id=slot_id,
             assigned_at=datetime.now(UTC),
         )
-        self._store.save_assignment(assignment)
+        try:
+            self._store.save_assignment(assignment)
+        except InventoryStoreConflictError as error:
+            raise SpoolAssignmentConflictError(str(error)) from error
+        return assignment
+
+    def move_spool(self, spool_id: UUID, printer_id: str, slot_id: str) -> SpoolAssignment:
+        """Atomically assign or move a spool to one physical material slot.
+
+        InventoryStore.save_assignment is the transaction boundary. SQLite uses
+        one upsert transaction, so a move never passes through a durable
+        unassigned intermediate state.
+        """
+
+        spool = self.get_spool(spool_id)
+        if spool.archived:
+            raise ArchivedSpoolError("archived spool cannot be assigned")
+
+        target_printer = printer_id.strip()
+        target_slot = slot_id.strip()
+        existing = self._store.assignment_for_spool(spool_id)
+        if existing is not None and existing.printer_id == target_printer and existing.slot_id == target_slot:
+            return existing
+
+        occupied = self._store.assignment_for_slot(target_printer, target_slot)
+        if occupied is not None and occupied.spool_id != spool_id:
+            raise SpoolAssignmentConflictError("material slot already has another spool assigned")
+
+        assignment = SpoolAssignment(
+            spool_id=spool_id,
+            printer_id=target_printer,
+            slot_id=target_slot,
+            assigned_at=datetime.now(UTC),
+        )
+        try:
+            self._store.save_assignment(assignment)
+        except InventoryStoreConflictError as error:
+            raise SpoolAssignmentConflictError(str(error)) from error
         return assignment
 
     def unassign_spool(self, spool_id: UUID) -> SpoolAssignment | None:
