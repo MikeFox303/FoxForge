@@ -15,29 +15,27 @@ export class CommandApiError extends Error {
   }
 }
 
-let browserToken: string | null = null;
-let sessionPromise: Promise<string> | null = null;
-
-export async function ensureOperatorSession(): Promise<string> {
-  if (browserToken) return browserToken;
-  if (sessionPromise) return sessionPromise;
-
-  sessionPromise = (async () => {
-    const response = await fetch('/api/v1/operator-session', { method: 'POST' });
-    const payload = await response.json().catch(() => null) as unknown;
-    if (!response.ok) throw commandApiError(response.status, payload);
-    if (!isRecord(payload) || typeof payload.accessToken !== 'string') {
-      throw new Error('FoxForge returned an invalid operator-session response.');
-    }
-    browserToken = payload.accessToken;
-    return browserToken;
-  })();
-
-  try {
-    return await sessionPromise;
-  } finally {
-    sessionPromise = null;
+export class CommandAuthenticationRequiredError extends Error {
+  constructor() {
+    super('FoxForge write controls are locked. Enter the operator command token to enable commands for this tab.');
+    this.name = 'CommandAuthenticationRequiredError';
   }
+}
+
+let operatorToken: string | null = null;
+
+export function setOperatorCommandToken(token: string): void {
+  const normalized = token.trim();
+  if (!normalized) throw new Error('Operator command token must not be empty.');
+  operatorToken = normalized;
+}
+
+export function clearOperatorCommandToken(): void {
+  operatorToken = null;
+}
+
+export function hasOperatorCommandToken(): boolean {
+  return operatorToken !== null;
 }
 
 export async function authenticatedCommandJson<T>(
@@ -66,9 +64,10 @@ export async function authenticatedCommandFetch(
     body?: BodyInit;
   } = {},
 ): Promise<Response> {
-  const token = await ensureOperatorSession();
+  if (!operatorToken) throw new CommandAuthenticationRequiredError();
+
   const headers = new Headers(options.headers);
-  headers.set('Authorization', `Bearer ${token}`);
+  headers.set('Authorization', `Bearer ${operatorToken}`);
   if (options.json) headers.set('Content-Type', 'application/json');
   if (options.idempotencyKey) headers.set('Idempotency-Key', options.idempotencyKey);
 
@@ -77,13 +76,12 @@ export async function authenticatedCommandFetch(
     headers,
     body: options.json ? JSON.stringify(options.json) : options.body,
   });
-  if (response.status === 401) browserToken = null;
+  if (response.status === 401) operatorToken = null;
   return response;
 }
 
 export function clearOperatorSessionForTests(): void {
-  browserToken = null;
-  sessionPromise = null;
+  clearOperatorCommandToken();
 }
 
 function commandApiError(status: number, payload: unknown): CommandApiError {
