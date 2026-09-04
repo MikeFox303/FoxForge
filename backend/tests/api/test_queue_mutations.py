@@ -7,7 +7,6 @@ import asyncio
 import hashlib
 from uuid import UUID
 
-from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
