@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { useFleetData } from './data/fleetGateway';
+import { type FleetRuntimeState, useFleetData } from './data/fleetGateway';
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from './domain';
 import { InventoryView } from './features/inventory/InventoryView';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
@@ -31,12 +31,15 @@ const navigation: NavItem[] = [
 ];
 
 export function FoxForgeApp() {
-  const fleet = useFleetData();
+  const fleetRuntime = useFleetData();
+  const fleet = fleetRuntime.data;
   const location = useLocation();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const current = navigation.find((item) => item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)) ?? navigation[0];
   const openPrinter = (printerId: string) => navigate(printerRoute(printerId));
+  const runtimeTone = fleetRuntime.phase === 'error' ? 'danger' : fleetRuntime.phase === 'loading' ? 'warning' : 'good';
+  const runtimeLabel = fleetRuntime.isRefreshing ? t('alpha.runtime.refreshing') : t(`alpha.runtime.${fleetRuntime.phase}`);
 
   return (
     <div className="app-shell">
@@ -60,10 +63,10 @@ export function FoxForgeApp() {
 
         <div className="sidebar-footer">
           <div className="runtime-status">
-            <span className="status-dot good" />
+            <span className={`status-dot ${runtimeTone}`} />
             <div>
               <strong>{t('alpha.shell.build')}</strong>
-              <span>{t('alpha.shell.liveApi')}</span>
+              <span>{runtimeLabel}</span>
             </div>
           </div>
           <a className="support-link" href="https://ko-fi.com/mikefox303" target="_blank" rel="noreferrer">
@@ -81,12 +84,13 @@ export function FoxForgeApp() {
             <h1>{t(`nav.${current.key}`)}</h1>
           </div>
           <div className="topbar-actions">
-            <div className="live-pill"><span className="status-dot good" /> {t('alpha.shell.liveApi')}</div>
+            <div className={`live-pill tone-${runtimeTone}`} aria-live="polite"><span className={`status-dot ${runtimeTone}`} /> {runtimeLabel}</div>
             <button className="secondary-button" disabled title={t('alpha.shell.unavailableAlpha')}>{t('alpha.shell.addPrinter')}</button>
           </div>
         </header>
 
         <div className="content">
+          <FleetRuntimeNotice runtime={fleetRuntime} />
           <Routes>
             <Route path="/" element={<OverviewView fleet={fleet} onOpenPrinter={openPrinter} />} />
             <Route path="/printers" element={<PrintersView fleet={fleet} onOpenPrinter={openPrinter} />} />
@@ -101,6 +105,28 @@ export function FoxForgeApp() {
         </div>
       </main>
     </div>
+  );
+}
+
+function FleetRuntimeNotice({ runtime }: { runtime: FleetRuntimeState }) {
+  const { t } = useTranslation();
+  if (runtime.phase === 'ready') return null;
+
+  if (runtime.phase === 'loading') {
+    return (
+      <section className="runtime-notice loading" role="status" aria-live="polite">
+        <span className="runtime-spinner" aria-hidden="true" />
+        <div><strong>{t('alpha.runtime.loadingTitle')}</strong><span>{t('alpha.runtime.loadingText')}</span></div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="runtime-notice error" role="alert">
+      <span className="status-dot danger" aria-hidden="true" />
+      <div><strong>{t('alpha.runtime.errorTitle')}</strong><span>{t('alpha.runtime.errorText')}</span></div>
+      <button className="secondary-button" type="button" onClick={runtime.retry}>{t('alpha.runtime.retry')}</button>
+    </section>
   );
 }
 

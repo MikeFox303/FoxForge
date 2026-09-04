@@ -10,11 +10,30 @@ import { demoModeEnabled, loadFleetFromApi } from './apiClient';
 const fleetQueryKey = ['fleet', 'snapshot'] as const;
 const emptyFleet: FleetData = { printers: [], queue: [] };
 
+export type FleetRuntimePhase = 'loading' | 'ready' | 'error';
+
+export interface FleetRuntimeState {
+  data: FleetData;
+  phase: FleetRuntimePhase;
+  isRefreshing: boolean;
+  retry: () => void;
+}
+
+export function fleetRuntimePhase(state: {
+  isError: boolean;
+  isPending: boolean;
+  isPlaceholderData: boolean;
+}): FleetRuntimePhase {
+  if (state.isError) return 'error';
+  if (state.isPending || state.isPlaceholderData) return 'loading';
+  return 'ready';
+}
+
 async function loadFleetSnapshot(): Promise<FleetData> {
   return demoModeEnabled() ? fleetData : loadFleetFromApi();
 }
 
-export function useFleetData(): FleetData {
+export function useFleetData(): FleetRuntimeState {
   const demo = demoModeEnabled();
   const query = useQuery({
     queryKey: [...fleetQueryKey, demo ? 'demo' : 'live'],
@@ -24,5 +43,11 @@ export function useFleetData(): FleetData {
     refetchInterval: demo ? false : 5_000,
   });
 
-  return query.data ?? emptyFleet;
+  const phase = fleetRuntimePhase(query);
+  return {
+    data: query.data ?? emptyFleet,
+    phase,
+    isRefreshing: phase === 'ready' && query.isFetching,
+    retry: () => void query.refetch(),
+  };
 }

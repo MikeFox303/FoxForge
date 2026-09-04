@@ -23,6 +23,11 @@ const extras = {
         active: 'Active',
         inactive: 'Inactive',
       },
+      runtime: {
+        loading: 'Connecting', ready: 'Live API', error: 'API unavailable', refreshing: 'Refreshing',
+        loadingTitle: 'Connecting to FoxForge', loadingText: 'Loading the latest fleet and queue snapshot.',
+        errorTitle: 'Live data is temporarily unavailable', errorText: 'The interface is still running. Check the server connection or try again.', retry: 'Try again',
+      },
     },
   },
   ru: {
@@ -44,6 +49,11 @@ const extras = {
         active: 'Активно',
         inactive: 'Неактивно',
       },
+      runtime: {
+        loading: 'Подключение', ready: 'Живой API', error: 'API недоступен', refreshing: 'Обновление',
+        loadingTitle: 'Подключение к FoxForge', loadingText: 'Загружаем актуальное состояние принтеров и очереди.',
+        errorTitle: 'Живые данные временно недоступны', errorText: 'Интерфейс продолжает работать. Проверьте связь с сервером или повторите попытку.', retry: 'Повторить',
+      },
     },
   },
   uk: {
@@ -64,6 +74,11 @@ const extras = {
         empty: 'Порожньо',
         active: 'Активно',
         inactive: 'Неактивно',
+      },
+      runtime: {
+        loading: 'Підключення', ready: 'Живий API', error: 'API недоступний', refreshing: 'Оновлення',
+        loadingTitle: 'Підключення до FoxForge', loadingText: 'Завантажуємо актуальний стан принтерів і черги.',
+        errorTitle: 'Живі дані тимчасово недоступні', errorText: 'Інтерфейс продовжує працювати. Перевірте зв’язок із сервером або повторіть спробу.', retry: 'Повторити',
       },
     },
   },

@@ -30,6 +30,28 @@
 .support-link:hover { color: #c7d0dd; background: rgba(255,255,255,.025); }
 .support-link:focus-visible { outline: 2px solid rgba(249,115,22,.45); outline-offset: 2px; }
 
+.live-pill.tone-warning { color: #fcd34d; border-color: rgba(245,158,11,.24); }
+.live-pill.tone-danger { color: #fca5a5; border-color: rgba(239,68,68,.25); }
+.runtime-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 13px 15px;
+  border: 1px solid var(--border-soft);
+  border-radius: 13px;
+  background: rgba(17,23,32,.96);
+}
+.runtime-notice.loading { border-color: rgba(245,158,11,.2); }
+.runtime-notice.error { border-color: rgba(239,68,68,.28); background: rgba(239,68,68,.045); }
+.runtime-notice > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.runtime-notice strong { font-size: 12px; }
+.runtime-notice div span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+.runtime-spinner { width: 15px; height: 15px; border: 2px solid rgba(245,158,11,.22); border-top-color: var(--yellow); border-radius: 50%; animation: runtime-spin .8s linear infinite; }
+@keyframes runtime-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .runtime-spinner { animation: none; } }
+
 .printer-card.expanded { min-height: 330px; }
 .printer-info-strip {
   display: grid;
@@ -173,6 +195,8 @@
 }
 
 @media (max-width: 620px) {
+  .runtime-notice { grid-template-columns: auto minmax(0, 1fr); align-items: start; }
+  .runtime-notice .secondary-button { grid-column: 1 / -1; width: 100%; }
   .drawer-head { padding: 18px; }
   .drawer-body { padding: 18px; }
   .printer-tabs { top: 96px; padding: 9px 18px; overflow-x: auto; }
