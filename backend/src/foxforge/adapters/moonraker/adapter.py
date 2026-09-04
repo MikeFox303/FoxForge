@@ -18,8 +18,9 @@ from foxforge.domain.printers import (
     PrinterSnapshot,
     utc_now,
 )
-from foxforge.domain.printers.capabilities import MaterialSystemCapability, PrintExecutionCapability
+from foxforge.domain.printers.capabilities import JobControlCapability, MaterialSystemCapability, PrintExecutionCapability
 
+from .job_control import MoonrakerJobControlCapability
 from .mapping import map_moonraker_material_system, map_moonraker_state
 from .material_system import MoonrakerMaterialSystemCapability
 from .native import MoonrakerNativeState
@@ -67,9 +68,11 @@ class MoonrakerAdapter:
         self._pump_task: asyncio.Task[None] | None = None
         self._material = MoonrakerMaterialSystemCapability(identity.printer_id, self.native_snapshot)
         self._printing = MoonrakerPrintExecutionCapability(transport, self.snapshot)
+        self._job_control = MoonrakerJobControlCapability(transport, self.snapshot)
         self._capabilities: dict[type[object], object] = {
             cast(type[object], MaterialSystemCapability): self._material,
             cast(type[object], PrintExecutionCapability): self._printing,
+            cast(type[object], JobControlCapability): self._job_control,
         }
 
     @property
