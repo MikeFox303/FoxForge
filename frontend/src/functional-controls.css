@@ -1,0 +1,38 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+/* The original alpha shell exposed disabled placeholders. Keep unavailable
+   actions out of the production UI until a real backend mutation exists. */
+.topbar-actions > .secondary-button:disabled,
+.page-intro > .primary-button:disabled,
+.printer-control-row button:disabled,
+.printer-detail-queue-panel .primary-button:disabled {
+  display: none;
+}
+
+.printer-setup-launcher {
+  position: fixed;
+  top: 26px;
+  right: 28px;
+  z-index: 55;
+}
+
+@media (max-width: 900px) {
+  .printer-setup-launcher {
+    top: 18px;
+    right: 18px;
+  }
+}
+
+@media (max-width: 620px) {
+  .printer-setup-launcher {
+    position: fixed;
+    top: auto;
+    right: 16px;
+    bottom: 18px;
+    min-height: 46px;
+    padding-inline: 16px;
+    border-radius: 999px;
+    box-shadow: 0 14px 34px rgba(2, 6, 23, 0.36);
+  }
+}
