@@ -44,10 +44,14 @@ def test_default_policy_rejects_non_lan_or_special_addresses(address: str) -> No
 
 def test_explicit_advanced_overrides_are_narrow() -> None:
     MoonrakerEndpointPolicy(allow_loopback_endpoint=True).validate_ip("127.0.0.1")
+    MoonrakerEndpointPolicy(allow_link_local_endpoint=True).validate_ip("169.254.20.30")
+    MoonrakerEndpointPolicy(allow_link_local_endpoint=True).validate_ip("fe80::1")
     MoonrakerEndpointPolicy(allow_public_endpoint=True).validate_ip("8.8.8.8")
 
     with pytest.raises(MoonrakerEndpointSecurityError):
         MoonrakerEndpointPolicy(allow_public_endpoint=True).validate_ip("127.0.0.1")
+    with pytest.raises(MoonrakerEndpointSecurityError):
+        MoonrakerEndpointPolicy(allow_public_endpoint=True).validate_ip("169.254.169.254")
 
 
 def test_resolver_rejects_mixed_safe_and_unsafe_dns_results() -> None:
@@ -55,8 +59,22 @@ def test_resolver_rejects_mixed_safe_and_unsafe_dns_results() -> None:
         async def resolve(self, host: str, port: int = 0, family: int = 0):
             del host, family
             return [
-                {"hostname": "printer.local", "host": "192.168.1.50", "port": port, "family": 2, "proto": 0, "flags": 0},
-                {"hostname": "printer.local", "host": "127.0.0.1", "port": port, "family": 2, "proto": 0, "flags": 0},
+                {
+                    "hostname": "printer.local",
+                    "host": "192.168.1.50",
+                    "port": port,
+                    "family": 2,
+                    "proto": 0,
+                    "flags": 0,
+                },
+                {
+                    "hostname": "printer.local",
+                    "host": "127.0.0.1",
+                    "port": port,
+                    "family": 2,
+                    "proto": 0,
+                    "flags": 0,
+                },
             ]
 
         async def close(self) -> None:
