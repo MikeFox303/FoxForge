@@ -14,13 +14,17 @@ from aiohttp import web
 from foxforge.adapters.bambu import create_bambu_lan_adapter
 from foxforge.adapters.moonraker import create_moonraker_http_adapter
 from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions, create_api_v1_app
+from foxforge.api.v1.command_audit import install_command_audit
 from foxforge.api.v1.inventory_commands import register_inventory_command_routes
-from foxforge.application.commands import CommandIdempotencyStore
+from foxforge.api.v1.queue_commands import register_queue_command_routes
+from foxforge.application.artifacts import ArtifactStore
+from foxforge.application.commands import CommandAuditStore, CommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
 from foxforge.domain.printers import ConnectionState, PrinterAdapterError
-from foxforge.infrastructure.commands import SQLiteCommandIdempotencyStore
+from foxforge.infrastructure.artifacts import FilesystemArtifactStore
+from foxforge.infrastructure.commands import SQLiteCommandAuditStore, SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
 from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
@@ -50,7 +54,9 @@ class RuntimeComposition:
     fleet: FleetService
     queue: QueueService
     inventory: InventoryService
+    artifacts: ArtifactStore
     command_idempotency: CommandIdempotencyStore
+    command_audit: CommandAuditStore
     printer_manager: RuntimePrinterManager
 
 
@@ -79,7 +85,9 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     database_path = settings.data_dir / "foxforge.sqlite3"
     queue = QueueService(fleet, SQLiteQueueStore(database_path))
     inventory = InventoryService(SQLiteInventoryStore(database_path))
+    artifacts = FilesystemArtifactStore(settings.data_dir / "artifacts")
     command_idempotency = SQLiteCommandIdempotencyStore(database_path)
+    command_audit = SQLiteCommandAuditStore(database_path)
     browser_sessions = TrustedBrowserCommandSessions(enabled=settings.trusted_browser_sessions)
     command_security = BearerCommandSecurity(settings.command_token, browser_sessions=browser_sessions)
     printer_manager = RuntimePrinterManager(
@@ -98,11 +106,15 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         printer_management=printer_manager,
     )
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
+    register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts)
+    install_command_audit(app, security=command_security, store=command_audit)
     app[_RUNTIME_KEY] = RuntimeComposition(
         fleet=fleet,
         queue=queue,
         inventory=inventory,
+        artifacts=artifacts,
         command_idempotency=command_idempotency,
+        command_audit=command_audit,
         printer_manager=printer_manager,
     )
     app.on_startup.append(lambda runtime_app: _start_runtime(runtime_app, settings.reconnect_seconds))
