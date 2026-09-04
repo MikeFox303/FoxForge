@@ -4,7 +4,7 @@
 
 FoxForge is building a common printer-management core for Bambu Lab, Moonraker/Klipper, print queues, material systems, filament inventory and farm-management workflows. Common behavior is exposed through vendor-neutral contracts, while advanced platform features remain available through typed vendor capabilities instead of being reduced to a lowest-common-denominator API.
 
-> **Development status:** `0.1.0.dev0` — first runnable alpha candidate. FoxForge now ships a unified backend + web UI runtime with a versioned read API, SQLite persistence and Docker packaging. It is **not production-ready yet**: real printer command APIs, realtime delivery, physical hardware validation, automatic filament accounting, farm scheduling and Umbrel packaging remain active work.
+> **Development status:** `v0.1.0-alpha.1` — first public runnable alpha pre-release. FoxForge ships a unified backend + web UI runtime with a versioned read API, SQLite persistence, Docker packaging and a versioned Linux `amd64`/`arm64` GHCR image. It is **not production-ready yet**: real printer command APIs, realtime delivery, physical hardware validation, automatic filament accounting, farm scheduling and Umbrel packaging remain active work.
 
 ## Current alpha capabilities
 
@@ -24,7 +24,7 @@ The current `main` branch includes:
 - persistent `/data/config.json` and `foxforge.sqlite3` state;
 - non-root steady-state container execution;
 - CI coverage for Python 3.12/3.13, frontend type/tests/build and container startup smoke tests;
-- multi-architecture image publication preparation for Linux `amd64` and `arm64`.
+- a guarded release workflow publishing the versioned `v0.1.0-alpha.1` image for Linux `amd64` and `arm64`.
 
 ## Project goals
 
@@ -81,7 +81,14 @@ The governing rule is:
 
 The common printer domain owns printer identity, normalized snapshots/events/errors and capability discovery. Inventory remains a separate vendor-independent bounded context. Vendor payloads and model-specific behavior stay behind their adapter boundaries. Runtime-only vendor imports are restricted to the composition root.
 
-See [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md) and [Printer contracts v1](docs/design/printer-contracts.md).
+FoxForge uses upstream projects as specialized references rather than as a base framework:
+
+- **Bambuddy** — primary reference for deep Bambu protocol, state and product behavior;
+- **PrintBuddy** — primary reference for multi-vendor/provider isolation ideas;
+- **PrintOps** — primary reference for farm, scheduling and production-operations ideas;
+- **FoxForge** — owner of the common domain, typed capability model, event model, durable queue, spool inventory, API/frontend contracts and deployment behavior.
+
+See [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md), [ADR 0003: Upstream architecture synthesis](docs/adr/0003-upstream-architecture-synthesis.md), [Printer contracts v1](docs/design/printer-contracts.md) and the [Upstream adoption map](docs/design/upstream-adoption-map.md).
 
 ## Runtime model
 
@@ -111,7 +118,7 @@ The public API is intentionally read-only at this stage. No anonymous printer-co
 | Bambu LAN transport | MQTT/TLS + implicit FTPS implementation; physical X2D/Bambu validation pending |
 | Moonraker transport | HTTP/WebSocket implementation; physical OpenKE/Moonraker validation pending |
 | Docker | Unified image + Compose implemented and startup-smoke-tested on CI |
-| ARM64 | Image publication path prepared; release-grade ARM64 runtime validation remains pending |
+| ARM64 | `v0.1.0-alpha.1` multi-architecture image published; representative ARM64 runtime validation remains pending |
 | Umbrel | Packaging boundary defined; actual FoxForge Umbrel app still pending |
 | Farm scheduler | Single-pass queue runner exists; persistent farm policy/scheduler is not implemented yet |
 
@@ -127,7 +134,7 @@ Priority remaining work includes:
 4. **Automatic filament accounting** linked to print completion, material selection and trustworthy usage estimates.
 5. **Farm scheduling** above `QueueRunner.run_once()`: printer selection, priority/deadline policy and durable multi-process lease/CAS semantics.
 6. **Deep Bambu capabilities** including AMS operations/drying, HMS, K profiles, dual nozzle and Virtual Printer/X2D-specific behavior.
-7. **Release-grade Docker/ARM64 validation and Umbrel packaging** using the same FoxForge runtime rather than a divergent fork.
+7. **Release-grade ARM64 validation and Umbrel packaging** using the same FoxForge runtime rather than a divergent fork.
 8. Additional vendor adapters only after the common contracts are proven by real hardware use.
 
 ## Safety invariants
@@ -144,9 +151,9 @@ Several rules are deliberate and should remain true as the project grows:
 
 ## Bambu and upstream projects
 
-FoxForge is its own project and is **not a Bambuddy distribution or permanent fork**.
+FoxForge is its own project and is **not a Bambuddy, PrintBuddy or PrintOps distribution or permanent fork**.
 
-Bambuddy, PrintBuddy and PrintOps were studied while defining architecture and interface workflows. FoxForge keeps its multi-vendor core and newly written UI independent while documenting provenance where upstream behavior or product patterns informed implementation.
+Bambuddy, PrintBuddy and PrintOps are studied for different architectural purposes. The accepted strategy is recorded in [ADR 0003](docs/adr/0003-upstream-architecture-synthesis.md): use Bambuddy for Bambu depth, PrintBuddy for multi-vendor/provider ideas, PrintOps for operations/farm ideas, and keep FoxForge's own domain/capability/event/queue/inventory architecture as the integration skeleton.
 
 The remaining [`integrations/bambuddy/`](integrations/bambuddy/) content is limited to migration/provenance and localization records. The retired X2D port-6000 experiment was removed instead of being carried forward as dormant implementation code. Any future X2D/eMMC transport will be implemented behind `BambuProjectStorage` after physical validation.
 
@@ -161,6 +168,8 @@ Key documents include:
 - [Current project status](docs/project-status.md)
 - [ADR 0001: PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md)
 - [ADR 0002: Repository layout](docs/adr/0002-repository-layout.md)
+- [ADR 0003: Upstream architecture synthesis](docs/adr/0003-upstream-architecture-synthesis.md)
+- [Upstream adoption map](docs/design/upstream-adoption-map.md)
 - [Printer contracts v1](docs/design/printer-contracts.md)
 - [Bambu LAN production transport](docs/design/bambu-lan-transport.md)
 - [Bambu project storage strategy](docs/design/bambu-project-storage.md)
@@ -173,6 +182,8 @@ Key documents include:
 - [Public API v1](docs/design/public-api-v1.md)
 - [Web UI foundation](docs/design/web-ui-foundation.md)
 - [Frontend parallel development policy](docs/design/frontend-parallel-development.md)
+
+Repository-level implementation guardrails are summarized in [`AGENTS.md`](AGENTS.md) so contributors and coding agents discover the same accepted rules from the repository rather than relying on chat memory.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for implementation and validation history.
 
