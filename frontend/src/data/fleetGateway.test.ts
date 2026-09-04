@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { combinedFleetRuntimePhase, fleetRuntimePhase } from './fleetGateway';
+import { combinedFleetRuntimePhase, fleetRuntimePhase, fleetRuntimeTone } from './fleetGateway';
 
 const ready = { isError: false, isPending: false, isPlaceholderData: false };
 const loading = { isError: false, isPending: false, isPlaceholderData: true };
@@ -24,5 +24,11 @@ describe('fleet runtime feedback', () => {
     expect(combinedFleetRuntimePhase([ready, loading])).toBe('loading');
     expect(combinedFleetRuntimePhase([ready, failed])).toBe('error');
     expect(combinedFleetRuntimePhase([failed, ready])).toBe('error');
+  });
+
+  it('maps runtime availability to an honest status tone', () => {
+    expect(fleetRuntimeTone('loading')).toBe('warning');
+    expect(fleetRuntimeTone('ready')).toBe('good');
+    expect(fleetRuntimeTone('error')).toBe('danger');
   });
 });
