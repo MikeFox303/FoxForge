@@ -91,10 +91,10 @@ class FilesystemArtifactStore:
 
             try:
                 temp_dir.rename(existing)
-            except FileExistsError:
+            except FileExistsError as error:
                 artifact = self.get(expected)
                 if artifact.format != format:
-                    raise ArtifactFormatConflictError(expected)
+                    raise ArtifactFormatConflictError(expected) from error
                 return ArtifactStageResult(artifact=artifact, replayed=True)
 
             return ArtifactStageResult(artifact=self.get(expected), replayed=False)
