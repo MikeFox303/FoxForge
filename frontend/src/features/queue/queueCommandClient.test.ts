@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clearOperatorSessionForTests } from '../../data/commandClient';
+import { clearOperatorSessionForTests, setOperatorCommandToken } from '../../data/commandClient';
 import {
   createQueueJobIdentity,
   dispatchPrintJob,
@@ -55,31 +55,30 @@ describe('queue command client', () => {
   });
 
   it('stages bytes without sending a client filesystem path', async () => {
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'browser-token' }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        artifactId: 'a'.repeat(64),
-        filename: 'part.gcode',
-        format: 'gcode',
-        sizeBytes: 3,
-        sha256: 'a'.repeat(64),
-        replayed: false,
-      }), { status: 201 }));
+    setOperatorCommandToken('operator-token-0123456789abcdef0123456789');
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      artifactId: 'a'.repeat(64),
+      filename: 'part.gcode',
+      format: 'gcode',
+      sizeBytes: 3,
+      sha256: 'a'.repeat(64),
+      replayed: false,
+    }), { status: 201 }));
 
     const file = new File(['abc'], 'part.gcode', { type: 'text/plain' });
     await stagePrintArtifact(file, 'a'.repeat(64));
 
-    const request = fetchMock.mock.calls[1];
+    const request = fetchMock.mock.calls[0];
     const headers = request?.[1]?.headers as Headers;
-    expect(headers.get('Authorization')).toBe('Bearer browser-token');
+    expect(headers.get('Authorization')).toBe('Bearer operator-token-0123456789abcdef0123456789');
     expect(headers.get('X-FoxForge-Filename')).toBe('part.gcode');
     expect(request?.[1]?.body).toBe(file);
     expect(JSON.stringify(request?.[1])).not.toContain('C:\\');
   });
 
   it('keeps queue dispatchId stable while the caller controls each HTTP dispatch idempotency key', async () => {
+    setOperatorCommandToken('operator-token-0123456789abcdef0123456789');
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'browser-token' }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         queueId: 'queue-1', printerId: 'x2d', state: 'pending',
       }), { status: 201 }))
@@ -99,13 +98,13 @@ describe('queue command client', () => {
     await dispatchPrintJob(identity.queueId, 'dispatch-attempt-1');
     await dispatchPrintJob(identity.queueId, 'dispatch-attempt-2');
 
-    const enqueueRequest = fetchMock.mock.calls[1];
+    const enqueueRequest = fetchMock.mock.calls[0];
     const enqueueHeaders = enqueueRequest?.[1]?.headers as Headers;
     expect(enqueueHeaders.get('Idempotency-Key')).toBe('enqueue-fixed');
     expect(enqueueRequest?.[1]?.body).toContain(identity.dispatchId);
 
-    const firstDispatchHeaders = fetchMock.mock.calls[2]?.[1]?.headers as Headers;
-    const secondDispatchHeaders = fetchMock.mock.calls[3]?.[1]?.headers as Headers;
+    const firstDispatchHeaders = fetchMock.mock.calls[1]?.[1]?.headers as Headers;
+    const secondDispatchHeaders = fetchMock.mock.calls[2]?.[1]?.headers as Headers;
     expect(firstDispatchHeaders.get('Idempotency-Key')).toBe('dispatch-attempt-1');
     expect(secondDispatchHeaders.get('Idempotency-Key')).toBe('dispatch-attempt-2');
   });
