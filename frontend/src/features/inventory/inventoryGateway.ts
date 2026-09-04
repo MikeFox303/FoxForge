@@ -10,6 +10,25 @@ import type { InventoryData, SpoolInventoryView } from './types';
 const inventoryQueryKey = ['inventory', 'spools'] as const;
 const emptyInventory: InventoryData = { spools: [], observedAt: new Date(0).toISOString() };
 
+export type InventoryRuntimePhase = 'loading' | 'ready' | 'error';
+
+export interface InventoryRuntimeState {
+  data: InventoryData;
+  phase: InventoryRuntimePhase;
+  isRefreshing: boolean;
+  retry: () => void;
+}
+
+export function inventoryRuntimePhase(state: {
+  isError: boolean;
+  isPending: boolean;
+  isPlaceholderData: boolean;
+}): InventoryRuntimePhase {
+  if (state.isError) return 'error';
+  if (state.isPending || state.isPlaceholderData) return 'loading';
+  return 'ready';
+}
+
 interface ApiInventoryResponse {
   apiVersion: '1';
   spools: Array<{
@@ -44,7 +63,7 @@ async function loadInventory(): Promise<InventoryData> {
   };
 }
 
-export function useInventoryData(): InventoryData {
+export function useInventoryData(): InventoryRuntimeState {
   const demo = demoModeEnabled();
   const query = useQuery({
     queryKey: [...inventoryQueryKey, demo ? 'demo' : 'live'],
@@ -54,7 +73,13 @@ export function useInventoryData(): InventoryData {
     refetchInterval: demo ? false : 10_000,
   });
 
-  return query.data ?? emptyInventory;
+  const phase = inventoryRuntimePhase(query);
+  return {
+    data: query.data ?? emptyInventory,
+    phase,
+    isRefreshing: phase === 'ready' && query.isFetching,
+    retry: () => void query.refetch(),
+  };
 }
 
 function mapSpool(spool: ApiInventoryResponse['spools'][number]): SpoolInventoryView {

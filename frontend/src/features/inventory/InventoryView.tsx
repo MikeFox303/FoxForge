@@ -18,7 +18,8 @@ import type { SpoolInventoryView } from './types';
 
 export function InventoryView({ fleet }: { fleet: FleetData }) {
   const { t } = useTranslation();
-  const inventory = useInventoryData();
+  const inventoryRuntime = useInventoryData();
+  const inventory = inventoryRuntime.data;
   const [search, setSearch] = useState('');
   const [showArchived, setShowArchived] = useState(false);
   const summary = useMemo(() => summarizeInventory(inventory), [inventory]);
@@ -44,7 +45,29 @@ export function InventoryView({ fleet }: { fleet: FleetData }) {
         <button className="primary-button" disabled title={t('inventory.requiresApi')}>{t('inventory.addSpool')}</button>
       </div>
 
-      <section className="metric-grid inventory-metrics" aria-label={t('inventory.summary')}>
+      {inventoryRuntime.phase === 'loading' && (
+        <section className="runtime-notice loading" role="status" aria-live="polite">
+          <span className="runtime-spinner" aria-hidden="true" />
+          <div><strong>{t('inventory.loadingTitle')}</strong><span>{t('inventory.loadingText')}</span></div>
+        </section>
+      )}
+
+      {inventoryRuntime.phase === 'error' && (
+        <section className="runtime-notice error" role="alert">
+          <span className="status-dot danger" aria-hidden="true" />
+          <div><strong>{t('inventory.errorTitle')}</strong><span>{t('inventory.errorText')}</span></div>
+          <button className="secondary-button" type="button" onClick={inventoryRuntime.retry}>{t('inventory.retry')}</button>
+        </section>
+      )}
+
+      {inventoryRuntime.isRefreshing && (
+        <div className="inventory-refreshing" role="status" aria-live="polite">
+          <span className="runtime-spinner" aria-hidden="true" />
+          <span>{t('inventory.refreshing')}</span>
+        </div>
+      )}
+
+      {inventoryRuntime.phase === 'ready' && <><section className="metric-grid inventory-metrics" aria-label={t('inventory.summary')}>
         <InventoryMetric label={t('inventory.activeSpools')} value={String(summary.activeSpools)} detail={t('inventory.activeSpoolsDetail')} />
         <InventoryMetric label={t('inventory.assigned')} value={String(summary.assignedSpools)} detail={t('inventory.assignedDetail')} />
         <InventoryMetric label={t('inventory.low')} value={String(summary.lowSpools)} detail={t('inventory.lowDetail')} warning={summary.lowSpools > 0} />
@@ -72,7 +95,13 @@ export function InventoryView({ fleet }: { fleet: FleetData }) {
         ))}
       </div>
 
-      {visibleSpools.length === 0 && <div className="panel empty-state">{t('inventory.noMatches')}</div>}
+      {visibleSpools.length === 0 && (
+        <div className="panel empty-state">
+          {inventory.spools.length === 0 ? t('inventory.noSpools') : t('inventory.noMatches')}
+        </div>
+      )}
+
+      </>}
 
       <section className="callout inventory-boundary-note">
         <strong>{t('inventory.boundaryTitle')}</strong>
