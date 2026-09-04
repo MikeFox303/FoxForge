@@ -1,0 +1,50 @@
+name: Verify dependency locks
+
+on:
+  push:
+    paths:
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'backend/pyproject.toml'
+      - 'backend/constraints.txt'
+      - '.github/workflows/generate-locks.yml'
+  pull_request:
+    paths:
+      - 'frontend/package.json'
+      - 'frontend/package-lock.json'
+      - 'backend/pyproject.toml'
+      - 'backend/constraints.txt'
+      - '.github/workflows/generate-locks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  locks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Verify npm lock
+        working-directory: frontend
+        run: |
+          cp package-lock.json "${RUNNER_TEMP}/package-lock.json"
+          npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+          diff -u "${RUNNER_TEMP}/package-lock.json" package-lock.json
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Verify Python constraints
+        working-directory: backend
+        run: |
+          cp constraints.txt "${RUNNER_TEMP}/constraints.txt"
+          python -m pip install 'uv==0.8.17'
+          uv pip compile pyproject.toml --extra dev --output-file constraints.txt
+          diff -u "${RUNNER_TEMP}/constraints.txt" constraints.txt

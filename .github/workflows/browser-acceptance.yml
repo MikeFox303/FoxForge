@@ -1,0 +1,87 @@
+name: Browser acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/docker/**'
+      - '.github/workflows/browser-acceptance.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/docker/**'
+      - '.github/workflows/browser-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    env:
+      FOXFORGE_E2E_COMMAND_TOKEN: foxforge-e2e-command-token-0123456789abcdef
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
+      - name: Build production image
+        run: |
+          docker build \
+            --file deployment/docker/Dockerfile \
+            --build-arg VCS_REF="$GITHUB_SHA" \
+            --build-arg VERSION="browser-acceptance" \
+            --tag foxforge:browser-acceptance \
+            .
+
+      - name: Start production container
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-browser-data"
+          docker run -d --name foxforge-browser \
+            -p 18080:8000 \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_E2E_COMMAND_TOKEN" \
+            -v "${RUNNER_TEMP}/foxforge-browser-data:/data" \
+            foxforge:browser-acceptance
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/healthz >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/healthz
+
+      - name: Browser acceptance
+        working-directory: frontend
+        run: npm run test:e2e
+
+      - name: Verify production assets contain no public source maps
+        run: |
+          if docker exec foxforge-browser sh -c "find /app/static -type f -name '*.map' | grep -q ."; then
+            echo 'Public source maps found in production image' >&2
+            docker exec foxforge-browser find /app/static -type f -name '*.map'
+            exit 1
+          fi
+
+      - name: Container logs
+        if: always()
+        run: docker logs foxforge-browser || true
+
+      - name: Stop browser container
+        if: always()
+        run: docker rm -f foxforge-browser || true

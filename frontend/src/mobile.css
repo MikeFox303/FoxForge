@@ -19,8 +19,9 @@
   .topbar { min-height: 64px; padding: 11px 14px; gap: 10px; position: static; }
   .topbar h1 { font-size: 20px; }
   .topbar .eyebrow { font-size: 9px; }
-  .topbar-actions { gap: 6px; }
-  .topbar-actions .secondary-button { display: none; }
+  .topbar-actions { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .topbar-actions .secondary-button:not(.printer-setup-launcher) { display: none; }
+  .printer-setup-launcher { min-height: 36px; padding: 7px 9px; font-size: 10px; }
   .live-pill { display: inline-flex; padding: 7px 9px; font-size: 10px; }
   .content { padding: 16px 14px 32px; }
   .stack-xl { gap: 20px; }
