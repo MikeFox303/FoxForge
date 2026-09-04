@@ -8,6 +8,7 @@ from contextlib import suppress
 from dataclasses import replace
 from pathlib import Path
 
+from foxforge.application.events import ApplicationEventJournal, ApplicationEventTopic
 from foxforge.application.fleet import FleetService
 from foxforge.application.printer_management import (
     PrinterConfiguration,
@@ -37,11 +38,13 @@ class RuntimePrinterManager:
         registry: AdapterRegistry,
         config_path: Path,
         config: RuntimeConfig,
+        events: ApplicationEventJournal | None = None,
     ) -> None:
         self._fleet = fleet
         self._registry = registry
         self._config_path = config_path
         self._config = config
+        self._events = events
         self._lock = asyncio.Lock()
 
     def configurations(self) -> tuple[PrinterConfiguration, ...]:
@@ -86,6 +89,7 @@ class RuntimePrinterManager:
                 save_runtime_config(self._config_path, previous)
                 raise
             self._config = updated
+            self._publish_configuration_change(printer_id, "printer_added")
 
         return await self._connect(configuration)
 
@@ -119,6 +123,7 @@ class RuntimePrinterManager:
                     await self._fleet.connect(printer_id)
                 raise
             self._config = updated
+            self._publish_configuration_change(printer_id, "printer_updated")
 
         return await self._connect(configuration)
 
@@ -134,6 +139,7 @@ class RuntimePrinterManager:
             self._config = updated
             with suppress(PrinterAdapterError):
                 await self._fleet.remove_adapter(printer_id)
+            self._publish_configuration_change(printer_id, "printer_removed")
 
     async def reconnect(self, printer_id: str) -> PrinterSetupOutcome:
         configuration = self.configuration(printer_id)
@@ -156,6 +162,15 @@ class RuntimePrinterManager:
             configuration=configuration,
             snapshot=self._fleet.snapshot(printer_id),
             connection_error=connection_error,
+        )
+
+    def _publish_configuration_change(self, printer_id: str, change: str) -> None:
+        if self._events is None:
+            return
+        self._events.publish(
+            ApplicationEventTopic.PRINTER_CONFIGURATION,
+            change,
+            resource_id=printer_id,
         )
 
 
