@@ -10,6 +10,7 @@ import './styles.css';
 import './refinements.css';
 import './inventory.css';
 import './printer-detail.css';
+import './printer-setup.css';
 import './mobile.css';
 
 createRoot(document.getElementById('root')!).render(
