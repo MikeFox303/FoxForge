@@ -19,13 +19,18 @@ export interface QueueCommandResult {
   state: QueueEntryState;
   replayed?: boolean;
   reconciliationRequired?: boolean;
+  error?: {
+    code: string;
+    message: string;
+    retryable: boolean;
+    vendorCode?: string | null;
+  } | null;
 }
 
 export interface QueueJobIdentity {
   queueId: string;
   dispatchId: string;
   enqueueIdempotencyKey: string;
-  dispatchIdempotencyKey: string;
 }
 
 export function createQueueJobIdentity(): QueueJobIdentity {
@@ -33,7 +38,6 @@ export function createQueueJobIdentity(): QueueJobIdentity {
     queueId: crypto.randomUUID(),
     dispatchId: crypto.randomUUID(),
     enqueueIdempotencyKey: crypto.randomUUID(),
-    dispatchIdempotencyKey: crypto.randomUUID(),
   };
 }
 
