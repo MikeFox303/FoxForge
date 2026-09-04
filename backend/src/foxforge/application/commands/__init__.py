@@ -17,7 +17,12 @@ from .service import (
     idempotency_key_hash,
     validate_idempotency_key,
 )
-from .store import CommandAuditStore, CommandIdempotencyStore
+from .store import (
+    CommandAuditStore,
+    CommandIdempotencyStore,
+    CommandStoreMissingError,
+    InMemoryCommandStore,
+)
 
 __all__ = [
     "CommandAuditOutcome",
@@ -30,6 +35,8 @@ __all__ = [
     "CommandIdempotencyRecord",
     "CommandIdempotencyService",
     "CommandIdempotencyStore",
+    "CommandStoreMissingError",
+    "InMemoryCommandStore",
     "canonical_json",
     "command_request_fingerprint",
     "idempotency_key_hash",
