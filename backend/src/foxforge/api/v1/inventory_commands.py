@@ -125,7 +125,7 @@ def register_inventory_command_routes(
             "inventory.spool.correct",
             payload,
             route_identity=str(spool_id),
-            result_ref=str(adjustment.adjustment_id),
+            result_ref=str(spool_id),
         )
         result = _balance_result(inventory, spool_id, replayed=not reservation.created)
         result["adjustmentId"] = str(adjustment.adjustment_id)
