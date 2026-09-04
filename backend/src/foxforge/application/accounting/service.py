@@ -168,6 +168,46 @@ class FilamentAccountingService:
     def available_mass(self, spool_id: UUID) -> Decimal:
         return self._inventory.balance(spool_id).remaining_filament_mass_g - self.reserved_mass(spool_id)
 
+    def verify_dispatch(self, entry: QueueEntry) -> None:
+        for reservation in self._store.list_for_queue(entry.queue_id):
+            if reservation.state == FilamentReservationState.RECONCILIATION_REQUIRED:
+                raise FilamentReconciliationRequiredError(
+                    "filament accounting must be reconciled before another dispatch attempt"
+                )
+            if reservation.state != FilamentReservationState.RESERVED:
+                continue
+            assignment = self._inventory.assignment_for_slot(reservation.printer_id, reservation.slot_id)
+            if assignment is None or assignment.spool_id != reservation.spool_id:
+                raise FilamentAssignmentRequiredError(
+                    f"reserved spool {reservation.spool_id} is no longer assigned to "
+                    f"{reservation.printer_id}/{reservation.slot_id}"
+                )
+            if self._inventory.balance(reservation.spool_id).remaining_filament_mass_g < reservation.estimated_mass_g:
+                raise FilamentCapacityError(
+                    f"spool {reservation.spool_id} no longer contains the reserved estimate"
+                )
+
+    def release_unstarted(self, entry: QueueEntry) -> tuple[FilamentReservation, ...]:
+        if entry.receipt is not None or entry.state in {
+            QueueEntryState.DISPATCHING,
+            QueueEntryState.INDETERMINATE,
+            QueueEntryState.ACCEPTED,
+            QueueEntryState.PREPARING,
+            QueueEntryState.PRINTING,
+            QueueEntryState.PAUSED,
+            QueueEntryState.COMPLETED,
+            QueueEntryState.CANCELLED,
+        }:
+            raise FilamentReconciliationRequiredError("started or uncertain queue entries cannot release reservations")
+        changed = tuple(
+            self._release(reservation, "operator released reservation before confirmed print start")
+            for reservation in self._store.list_for_queue(entry.queue_id)
+            if reservation.state == FilamentReservationState.RESERVED
+        )
+        if changed:
+            self._changed(entry.queue_id)
+        return changed
+
     def sync_queue_entry(self, entry: QueueEntry) -> tuple[FilamentReservation, ...]:
         reservations = self._store.list_for_queue(entry.queue_id)
         if not reservations:
