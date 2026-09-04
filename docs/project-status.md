@@ -1,7 +1,7 @@
 # FoxForge project status
 
 **Snapshot date:** 2026-09-04  
-**Canonical branch:** `main` after merge of the current queue-UI candidate  
+**Canonical branch:** `main` after merge of PR #51  
 **Published pre-release:** `v0.1.0-alpha.2` (`0.1.0a2` backend package)  
 **Umbrel Community App:** `my3d-foxforge` in `MikeFox303/umbrel-3d-printing-store`  
 **Maturity:** runnable/installable alpha; not production-ready
@@ -86,12 +86,14 @@ For the merged queue-command backend (#50):
 - the backend suite passed with **171 tests** at the #50 gate;
 - unified container build/start/health/UI smoke passed on the merge candidate and again on `main`.
 
-For the queue-command UI candidate (#51):
+For merged PR #51:
 
-- TypeScript typecheck passes;
-- Vitest unit tests pass;
-- production Vite build passes;
-- unified container build/start/health/UI smoke passes.
+- TypeScript typecheck passed on the PR head and again on the exact `main` merge commit;
+- Vitest unit tests passed on the PR head and again on the exact `main` merge commit;
+- production Vite build passed on the PR head and again on the exact `main` merge commit;
+- unified container build/start/health/UI smoke passed on the PR head and again on the exact `main` merge commit;
+- post-merge multi-architecture image publication completed successfully;
+- there are no unresolved PR review threads.
 
 These automated gates validate architecture, packaging and replay behavior but do not replace physical printer testing.
 
@@ -124,7 +126,7 @@ Documentation must not call these transports or the full deployment production-v
 
 ## Recommended next sequence
 
-1. **Physical print validation:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → lifecycle → completion/reconciliation matrices using the now-connected browser/backend flow.
+1. **Physical print validation:** Bambu LAN/X2D and Moonraker/OpenKE connect → state → upload → print start → lifecycle → completion/reconciliation matrices using the merged browser/backend flow.
 2. **Representative Umbrel validation:** Raspberry Pi 5/UmbrelOS install/restart/persistence and explicit-IP reachability to both printer families.
 3. **Common printer controls:** pause/resume/cancel only through a typed common capability and ADR 0004 command semantics.
 4. **Realtime application events:** WebSocket/SSE reconnect/replay semantics and TanStack Query cache updates without vendor transport leakage.
