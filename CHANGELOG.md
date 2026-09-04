@@ -8,6 +8,7 @@ FoxForge has not published a stable release yet, so development milestones are l
 
 ### Added
 
+- Responsive live-runtime feedback for initial API connection, background refresh and recoverable API failures, with an explicit retry action and EN/RU/UK copy instead of silently rendering an empty fleet.
 - Bambu adapter foundation under `foxforge.adapters.bambu`.
 - Bambu-native transport protocol and DTO boundary so vendor-specific MQTT/storage details remain outside the common printer domain.
 - Anti-corruption mappings from Bambu printer states, job progress, faults and material systems into FoxForge normalized printer contracts.
