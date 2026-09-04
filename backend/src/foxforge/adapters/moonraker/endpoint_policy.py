@@ -44,9 +44,7 @@ class MoonrakerEndpointPolicy:
         if address.is_loopback:
             if self.allow_loopback_endpoint:
                 return
-            raise MoonrakerEndpointSecurityError(
-                "Moonraker loopback endpoint requires allow_loopback_endpoint=true"
-            )
+            raise MoonrakerEndpointSecurityError("Moonraker loopback endpoint requires allow_loopback_endpoint=true")
         if address.is_link_local:
             if self.allow_link_local_endpoint:
                 return
