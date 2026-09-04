@@ -107,18 +107,18 @@ class FleetService:
     async def remove_adapter(self, printer_id: str) -> None:
         """Disconnect and remove one adapter from the live fleet.
 
-        The adapter is removed even if disconnect reports a normalized transport
-        error. This is important for deleting an unreachable configured printer;
-        callers may still observe the disconnect error if they need diagnostics.
+        The adapter is removed even if disconnect reports a transport/runtime
+        error. Cancellation still propagates normally rather than being turned
+        into a removal result.
         """
 
         self._ensure_open()
         adapter = self._require_adapter(printer_id)
         await self._stop_relay(printer_id)
-        disconnect_error: BaseException | None = None
+        disconnect_error: Exception | None = None
         try:
             await adapter.disconnect()
-        except BaseException as error:
+        except Exception as error:
             disconnect_error = error
         finally:
             self._adapters.pop(printer_id, None)
@@ -149,8 +149,6 @@ class FleetService:
 
     def events(self) -> AsyncIterator[PrinterEvent]:
         self._ensure_open()
-        # Relays require an active asyncio loop, which is also the only context
-        # in which consuming an AsyncIterator is meaningful.
         asyncio.get_running_loop()
         subscription = _FleetEventSubscription(self)
         self._ensure_relays()
