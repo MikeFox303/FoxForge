@@ -2,13 +2,34 @@
 
 **Snapshot date:** 2026-09-04  
 **Canonical branch:** `main`  
-**Implementation head reviewed:** `44dcabe391dd5931f4548de32c9a561c9cbf9744`  
-**Development version:** `0.1.0.dev0`  
-**Maturity:** first runnable alpha candidate; not production-ready
+**Implementation head reviewed:** `d5b69835f04751b47ba710cccf59a26e6d0734c9`  
+**Published pre-release:** `v0.1.0-alpha.1` (`0.1.0a1` backend package)  
+**Maturity:** first public runnable alpha pre-release; not production-ready
 
-This document is the concise current-state snapshot for merged FoxForge work. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains the implementation history.
+This document is the concise current-state snapshot for merged FoxForge work. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains the implementation history; `release/` contains durable release metadata/notes.
 
-At this snapshot there are no open pull requests or issues. The next development work should therefore be recorded as explicit repository milestones/issues/PRs rather than existing only in chat or planning notes.
+At this snapshot, PR #29 (`feat(ui): surface live API runtime state`) is open against `main`. Architecture and implementation work may continue in parallel, but merged `main` remains the authoritative contract state.
+
+## Release status
+
+FoxForge `v0.1.0-alpha.1` is published as the first public pre-release.
+
+The release workflow now:
+
+- validates release manifest/version consistency;
+- runs backend lint/format/tests;
+- runs frontend typecheck/tests/build;
+- builds and smoke-tests the unified application image;
+- publishes a versioned GHCR image for Linux `amd64` and `arm64`;
+- creates the GitHub tag/pre-release only after guarded validation succeeds.
+
+Published image:
+
+```text
+ghcr.io/mikefox303/foxforge:0.1.0-alpha.1
+```
+
+The multi-architecture image is published, but representative ARM64 device runtime validation remains pending. The pre-release is for early testing and architecture validation, not production use.
 
 ## Current repository shape
 
@@ -43,7 +64,8 @@ Backend, frontend and deployment are independently testable ownership areas but 
 | Bambu project storage | Implemented seam | FTPS default; future validated X2D/N6 internal-eMMC delivery remains behind `BambuProjectStorage`. |
 | Moonraker transport | Implemented, hardware validation pending | HTTP/WebSocket, API-key auth, upload/start flow and normalized live state covered by integration tests. |
 | Docker deployment | Runnable alpha implemented | Multi-stage unified image, standalone Compose, persistent `/data`, non-root steady state and startup smoke test in CI. |
-| ARM64 delivery | Prepared, release validation pending | Multi-architecture publication path targets Linux amd64 + arm64; release-grade ARM64 execution still needs validation. |
+| Release pipeline | First pre-release published | `v0.1.0-alpha.1` guarded workflow publishes a versioned multi-architecture GHCR image and GitHub pre-release. |
+| ARM64 delivery | Published, runtime validation pending | Release image targets Linux `amd64` + `arm64`; representative ARM64 execution still needs validation. |
 | Umbrel deployment | Not implemented yet | Packaging boundary exists and must reuse the same FoxForge runtime/image contract. |
 | Command/write API | Not implemented | Printer control, queue mutations and inventory mutations remain intentionally unavailable over HTTP. |
 | Realtime API | Not implemented | WebSocket/SSE delivery into the frontend cache remains future work. |
@@ -51,7 +73,7 @@ Backend, frontend and deployment are independently testable ownership areas but 
 
 ## First runnable alpha runtime
 
-PR #25 changed the project from separate backend/frontend foundations into a unified runnable application candidate.
+PR #25 changed the project from separate backend/frontend foundations into a unified runnable application candidate. PR #28 then prepared and published the first guarded public alpha pre-release.
 
 Implemented behavior:
 
@@ -67,7 +89,7 @@ Implemented behavior:
 - unified multi-stage Docker image and standalone Compose stack;
 - mounted data directory prepared before privilege drop, then non-root steady-state execution;
 - CI smoke test that starts the image and checks `/healthz`, the SPA and durable files;
-- multi-architecture publication preparation for Linux `amd64` and `arm64`.
+- guarded versioned multi-architecture publication for Linux `amd64` and `arm64`.
 
 Runtime safety boundaries remain explicit:
 
@@ -162,7 +184,20 @@ The merged UI currently provides:
 - translation parity tests to prevent missing alpha keys;
 - frontend CI for typechecking, Vitest and production Vite build.
 
+PR #29 is improving the first-run/degraded-server presentation so the UI distinguishes connecting, ready, refreshing and API-failure states without inventing backend capabilities.
+
 Deep vendor controls must continue to appear only after corresponding typed backend capabilities are merged. The UI should not invent unsupported Bambu or Moonraker controls.
+
+## Upstream architecture strategy
+
+ADR 0003 records the accepted roles of the upstream projects:
+
+- **Bambuddy** is the primary Bambu protocol/behavior reference;
+- **PrintBuddy** is the primary multi-vendor/provider-isolation reference;
+- **PrintOps** is the primary operations/farm/scheduling reference;
+- **FoxForge** retains ownership of the common domain, capability model, events, durable queue, inventory, API/frontend contracts and deployment behavior.
+
+This strategy is intentionally not a wholesale merge or fork. Upstream ideas are translated through FoxForge boundaries, and any copied/derived material must retain traceable provenance and required notices.
 
 ## Hardware validation boundary
 
@@ -190,7 +225,7 @@ Documentation must not call these transports production-validated until physical
 
 ## Deployment status
 
-The Docker boundary has moved from placeholder to runnable alpha:
+The Docker boundary has moved from placeholder to published runnable alpha:
 
 - unified backend + compiled frontend image;
 - standalone `docker-compose.yml`;
@@ -198,16 +233,17 @@ The Docker boundary has moved from placeholder to runnable alpha:
 - safe first-start config/database creation;
 - non-root application execution after volume preparation;
 - health/startup smoke testing in CI;
-- Linux amd64 + arm64 publication workflow preparation.
+- guarded Linux `amd64` + `arm64` publication workflow;
+- first versioned image published as `ghcr.io/mikefox303/foxforge:0.1.0-alpha.1`.
 
-Still required before a public deployment release:
+Still required before a production-grade deployment release:
 
-- release/tag image publication and digest policy;
-- explicit ARM64 runtime smoke test on representative hardware;
+- representative ARM64 runtime smoke test on target hardware;
 - upgrade/migration policy for persisted state;
 - user-facing configuration documentation;
 - Umbrel App Store manifest/icon/gallery/runtime integration;
-- Umbrel end-to-end ARM64 smoke test using the same application image/behavior.
+- Umbrel end-to-end ARM64 smoke test using the same application image/behavior;
+- later stable-channel/digest/upgrade policy beyond the initial alpha release path.
 
 ## Current architecture and safety invariants
 
@@ -221,6 +257,8 @@ Still required before a public deployment release:
 8. Missing write APIs remain visibly unavailable instead of simulated as durable operations.
 9. Docker and Umbrel must package the same FoxForge application behavior rather than becoming divergent forks.
 10. Upstream-derived code/material must retain required license/copyright provenance; newly written FoxForge code remains clearly distinguishable.
+11. Bambuddy, PrintBuddy and PrintOps are specialized references, not FoxForge's base framework; architectural translation happens through FoxForge contracts.
+12. Scheduler/farm logic must depend on FoxForge capabilities and persisted application state, never directly on vendor transports.
 
 ## Recommended next sequence
 
@@ -229,10 +267,10 @@ Still required before a public deployment release:
 3. **Queue/printer/inventory mutations:** add narrowly scoped tested command endpoints and enable matching UI actions only after contracts exist.
 4. **Realtime updates:** add WebSocket/SSE application events and update TanStack Query caches without leaking vendor transports.
 5. **Automatic filament accounting:** reservations, per-material estimates, queue-completion consumption and reconciliation.
-6. **Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics before distributed runners.
-7. **Deep Bambu expansion:** AMS operations/drying, HMS, K profiles, dual nozzle and Virtual Printer/X2D-specific capabilities behind typed Bambu interfaces.
-8. **Release deployment:** validate ARM64, publish immutable images, define upgrades and build the Umbrel package around the same runtime.
-9. **Additional vendors:** only after common contracts have been exercised by the first two real adapter families on hardware.
+6. **Farm scheduler:** persistent scheduling, printer selection, priorities/deadlines and durable lease/CAS semantics before distributed runners; use PrintOps as an operations reference without weakening FoxForge queue safety.
+7. **Deep Bambu expansion:** AMS operations/drying, HMS, K profiles, dual nozzle and Virtual Printer/X2D-specific capabilities behind typed Bambu interfaces; use Bambuddy as the primary behavior reference.
+8. **Release deployment:** validate ARM64, define upgrades and build the Umbrel package around the same runtime.
+9. **Additional vendors:** only after common contracts have been exercised by the first two real adapter families on hardware; use the PrintBuddy/provider pattern only as structural guidance.
 
 ## Acceptance criteria for the next major milestone
 
@@ -246,5 +284,6 @@ The next major alpha milestone should not be considered complete until:
 - API/application layers still contain no vendor transport imports;
 - `INDETERMINATE` and receipt-bearing queue safety semantics are preserved;
 - inventory Decimal/idempotency/restart guarantees remain intact;
-- README, project status and deployment docs agree on what is live, what is read-only and what is physically validated;
+- architecture-significant work follows ADR 0003's upstream role/provenance rules;
+- README, project status and deployment docs agree on what is live, what is read-only, what is released and what is physically validated;
 - no documentation claims production-ready hardware support before the corresponding physical test evidence exists.
