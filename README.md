@@ -4,7 +4,7 @@
 
 FoxForge is building a common printer-management core for Bambu Lab, Moonraker/Klipper, print queues, material systems, filament inventory and farm-management workflows. Common behavior is exposed through vendor-neutral contracts, while advanced platform features remain available through typed vendor capabilities instead of being reduced to a lowest-common-denominator API.
 
-> **Development status:** `v0.1.0-alpha.1` — first public runnable alpha pre-release. FoxForge ships a unified backend + web UI runtime with a versioned read API, SQLite persistence, Docker packaging and a versioned Linux `amd64`/`arm64` GHCR image. It is **not production-ready yet**: real printer command APIs, realtime delivery, physical hardware validation, automatic filament accounting, farm scheduling and Umbrel packaging remain active work.
+> **Development status:** `v0.1.0-alpha.1` — first public runnable alpha pre-release. FoxForge ships a unified backend + web UI runtime with a versioned read API, SQLite persistence, Docker packaging, a Linux `amd64`/`arm64` GHCR image and a tested Umbrel Community App package. It is **not production-ready yet**: authenticated printer command APIs, realtime delivery, physical Bambu/Moonraker validation, automatic filament accounting and farm scheduling remain active work.
 
 ## Current alpha capabilities
 
@@ -24,7 +24,8 @@ The current `main` branch includes:
 - persistent `/data/config.json` and `foxforge.sqlite3` state;
 - non-root steady-state container execution;
 - CI coverage for Python 3.12/3.13, frontend type/tests/build and container startup smoke tests;
-- a guarded release workflow publishing the versioned `v0.1.0-alpha.1` image for Linux `amd64` and `arm64`.
+- a guarded release workflow publishing the versioned `v0.1.0-alpha.1` image for Linux `amd64` and `arm64`;
+- an Umbrel Community App package (`my3d-foxforge`) pinned to the immutable `v0.1.0-alpha.1` image, with authenticated App Proxy access and dedicated amd64/arm64 anonymous-pull runtime tests.
 
 ## Project goals
 
@@ -47,7 +48,7 @@ Bambu-specific capabilities such as AMS-family operations, drying, HMS, K profil
 FoxForge/
 ├── backend/       Python 3.12+ domain, adapters, services, API and runtime
 ├── frontend/      TypeScript/React/Vite web application
-├── deployment/    Docker runtime and future Umbrel packaging
+├── deployment/    Docker and Umbrel deployment contracts/documentation
 ├── docs/          ADRs, design specifications and project status
 └── integrations/  isolated migration/provenance material
 ```
@@ -118,9 +119,31 @@ The public API is intentionally read-only at this stage. No anonymous printer-co
 | Bambu LAN transport | MQTT/TLS + implicit FTPS implementation; physical X2D/Bambu validation pending |
 | Moonraker transport | HTTP/WebSocket implementation; physical OpenKE/Moonraker validation pending |
 | Docker | Unified image + Compose implemented and startup-smoke-tested on CI |
-| ARM64 | `v0.1.0-alpha.1` multi-architecture image published; representative ARM64 runtime validation remains pending |
-| Umbrel | Packaging boundary defined; actual FoxForge Umbrel app still pending |
+| ARM64 | `v0.1.0-alpha.1` image published; anonymous arm64 runtime smoke passes under CI/QEMU; representative Raspberry Pi hardware validation remains pending |
+| Umbrel | `my3d-foxforge` Community App implemented and merged; immutable alpha image, App Proxy, persistence and amd64/arm64 runtime gates validated |
 | Farm scheduler | Single-pass queue runner exists; persistent farm policy/scheduler is not implemented yet |
+
+## UmbrelOS installation
+
+FoxForge `v0.1.0-alpha.1` is available in the companion Community App Store:
+
+```text
+https://github.com/MikeFox303/umbrel-3d-printing-store
+```
+
+After registering/refreshing that Community Store in UmbrelOS, install **FoxForge** from the normal Umbrel App Store UI. The package ID is `my3d-foxforge` and its dedicated Umbrel app port is `8283`.
+
+The package:
+
+- uses the exact immutable `v0.1.0-alpha.1` GHCR multi-architecture image;
+- leaves standard Umbrel App Proxy authentication enabled;
+- stores configuration, queue and inventory state under the Umbrel app data directory mounted as `/data`;
+- uses bridge networking and explicit printer addresses, with no Docker socket or privileged mode;
+- was tested through anonymous GHCR pulls and startup/health/UI/persistence smoke tests for `linux/amd64` and `linux/arm64`.
+
+The alpha UI does not yet write printer configuration. First-start Bambu LAN and Moonraker examples are documented in [`deployment/umbrel/`](deployment/umbrel/README.md) and in the Store package README.
+
+CI/QEMU arm64 validation proves the image is pullable and executable for the published architecture, but it does not replace representative Raspberry Pi 5 or real printer-network validation.
 
 ## What is not finished yet
 
@@ -134,7 +157,7 @@ Priority remaining work includes:
 4. **Automatic filament accounting** linked to print completion, material selection and trustworthy usage estimates.
 5. **Farm scheduling** above `QueueRunner.run_once()`: printer selection, priority/deadline policy and durable multi-process lease/CAS semantics.
 6. **Deep Bambu capabilities** including AMS operations/drying, HMS, K profiles, dual nozzle and Virtual Printer/X2D-specific behavior.
-7. **Release-grade ARM64 validation and Umbrel packaging** using the same FoxForge runtime rather than a divergent fork.
+7. **Representative ARM64/Umbrel hardware validation and upgrade testing** on Raspberry Pi-class hosts using the existing Community App package.
 8. Additional vendor adapters only after the common contracts are proven by real hardware use.
 
 ## Safety invariants
@@ -146,7 +169,8 @@ Several rules are deliberate and should remain true as the project grows:
 - printer material snapshots expose physical state and opaque slot IDs, not FoxForge `spool_id` values;
 - API DTOs and the frontend do not consume raw Bambu/Moonraker protocol payloads;
 - runtime secrets stay in local configuration and are not exposed by public read DTOs;
-- Docker and Umbrel must package the same application behavior;
+- Docker and Umbrel package the same application behavior;
+- Umbrel App Proxy authentication remains enabled until FoxForge has an explicit application authentication model;
 - upstream-derived material must retain required copyright/license provenance and remain distinguishable from newly written FoxForge code.
 
 ## Bambu and upstream projects
@@ -158,6 +182,10 @@ Bambuddy, PrintBuddy and PrintOps are studied for different architectural purpos
 The remaining [`integrations/bambuddy/`](integrations/bambuddy/) content is limited to migration/provenance and localization records. The retired X2D port-6000 experiment was removed instead of being carried forward as dormant implementation code. Any future X2D/eMMC transport will be implemented behind `BambuProjectStorage` after physical validation.
 
 Production Umbrel packaging of official Bambuddy releases remains a separate concern in `MikeFox303/umbrel-3d-printing-store`.
+
+## Release/version note
+
+The Community App is pinned to the released `v0.1.0-alpha.1` image. FoxForge `main` has continued to receive UI/UX improvements after that release. Those changes are intentionally **not** delivered through a floating container tag; they require the next guarded FoxForge release and a corresponding immutable Store package update.
 
 ## Documentation
 
@@ -182,6 +210,7 @@ Key documents include:
 - [Public API v1](docs/design/public-api-v1.md)
 - [Web UI foundation](docs/design/web-ui-foundation.md)
 - [Frontend parallel development policy](docs/design/frontend-parallel-development.md)
+- [Umbrel deployment](deployment/umbrel/README.md)
 
 Repository-level implementation guardrails are summarized in [`AGENTS.md`](AGENTS.md) so contributors and coding agents discover the same accepted rules from the repository rather than relying on chat memory.
 
@@ -215,7 +244,7 @@ npm test
 npm run build
 ```
 
-For the current standalone container/Compose runtime, see [`deployment/docker/`](deployment/docker/).
+For the standalone container/Compose runtime, see [`deployment/docker/`](deployment/docker/). For Umbrel packaging and validation details, see [`deployment/umbrel/`](deployment/umbrel/README.md).
 
 Frontend and backend development may proceed in parallel, but merged `main` is the authoritative contract state. Implementation changes should respect the ADR/design boundaries and include acceptance criteria plus tests for new contracts and failure semantics.
 
