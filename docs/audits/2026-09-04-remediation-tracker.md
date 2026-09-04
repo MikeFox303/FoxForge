@@ -29,13 +29,13 @@ This file tracks active remediation. The independent audit remains the immutable
 | AUD-010 | P2 | RESOLVED | PR #75 merged as `c53c8c776b333a744008d75a7e8ad885d3a26355`. Inventory adjustment idempotency, archive/balance validation and INSERT now share one atomic persistence boundary; concurrency/restart/duplicate/insufficient-balance tests pass. |
 | AUD-011 | P2 | RESOLVED | PR #76 merged as `df0818be2c3a98635b22c9d59d49894ed1c8fb57`. Artifact storage now has committed quota, minimum free-space reserve, normalized capacity failure, safe orphan retention/GC, stale-temp cleanup and non-secret storage diagnostics. Queue-referenced artifacts are never GC candidates. |
 | AUD-012 | P2 | RESOLVED | PR #77 merged as `273bcf2c7a43b40255063c53a1ac36ddca91d2fa`. Reconnect supervision uses per-printer workers, global bounded concurrency, independent exponential backoff/jitter and dynamic worker discovery; fairness/recovery/concurrency tests and exact-head packaged/browser/security gates passed. |
-| AUD-013 | P2 | OPEN | Design Bambu LAN certificate pinning/TOFU path; physical X2D validation is required before changing transport defaults. |
+| AUD-013 | P2 | VALIDATION REQUIRED | PR #82 merged as `9bc33338782ab841ded4798bfe7282772ea07f8d`. Bambu LAN now supports independent optional SHA-256 certificate pins for MQTT and FTPS, checks them before MQTT subscription/FTPS login, fails closed on mismatch without fingerprint disclosure, and does not assume both services share a certificate. The compatibility default remains unchanged until physical X2D certificate behavior is validated. |
 | AUD-014 | P2 | RESOLVED | PR #79 merged as `217a876a3b153e11ce6979aab361f8b861bdc5de`. Production Moonraker composition validates every resolved address against explicit RFC1918/ULA defaults, rejects mixed unsafe DNS answers, redirects and URL userinfo, and requires independent overrides for public/loopback/link-local targets. Exact-head backend/container/browser/security gates passed. |
 | AUD-015 | P2 | RESOLVED | PR #80 merged as `be04cf3e69abfe1beb99acc41ddcf761e91e439d`. `SecretStore` now separates Bambu access codes and Moonraker API keys from normal runtime config, migrates legacy inline credentials with a sensitive recovery backup, hydrates only at runtime adapter boundaries, and documents all `/data` backups as credential-bearing. Exact-head backend/container/browser/security gates passed. |
 | AUD-016 | P2 | RESOLVED | PR #62 disables public production Vite source maps. Production-container browser acceptance also asserts that public source-map assets are absent. |
 | AUD-017 | P2 | RESOLVED | PR #62 replaced unconditional recursive `/data` ownership changes with targeted/versioned ownership initialization, avoiding repeated whole-volume `chown -R`. |
-| AUD-018 | P2 | IN PROGRESS | PR #61 prevents duplicate Add Printer launcher trees; PR #62 added real production-container browser acceptance across desktop/tablet/mobile and authenticated/fail-closed flows. Broader feature-specific browser coverage can continue without blocking the closed launcher defect. |
-| AUD-019 | P3 | IN PROGRESS | PR #62 added `SECURITY.md`, Dependabot policy, frozen dependency audits and final-image HIGH/CRITICAL scanning. Coverage governance and remaining pre-Beta public-project policy are still open. |
+| AUD-018 | P2 | RESOLVED | PR #83 merged as `d105cb0fc9dcc8fa667fbe6010ab3e712d49d8cd`. Production-container Playwright now covers desktop/tablet/phone layouts, routing, the single Add Printer entry, Escape-close keyboard behavior, explicit memory-only write bootstrap, truthful unavailable queue state, browser file hashing/staging/enqueue, and deterministic realtime `resync_required` HTTP refetch. The expanded gate found and fixed a real Add Printer Escape defect; final 15/15 browser tests passed without retries. |
+| AUD-019 | P3 | RESOLVED | PR #84 merged as `0b4ab02e00657f30710952bfcd2b897932f2edd5`. Together with existing `SECURITY.md`, Dependabot, frozen npm/pip audits and final-image vulnerability scanning, FoxForge now measures backend branch coverage with pinned coverage.py. The measured baseline is 76% across 253 tests, 7,003 statements and 1,840 branches; CI enforces a 75% non-regression floor and documents governance in `docs/testing/coverage-policy.md`. Python static type checking is not currently adopted, so the audit's conditional type-checker recommendation does not apply yet. |
 
 ## P3 freeze record
 
@@ -46,18 +46,20 @@ P3 is not discarded. The draft already contains reservation/reconciliation seman
 ## Execution order
 
 1. **Release integrity:** AUD-001, AUD-002 — resolved in PR #60.
-2. **Browser/deployment security foundation:** AUD-003, AUD-004, AUD-007 — software design largely complete; representative deployment/Umbrel validation remains for AUD-003/004.
-3. **UI/build reproducibility:** AUD-005, AUD-006, AUD-016, AUD-017 — resolved through PR #61/#62; AUD-018 broader coverage continues.
+2. **Browser/deployment security foundation:** AUD-003, AUD-004, AUD-007 — software design is complete; representative deployment/Umbrel validation remains for AUD-003/004.
+3. **UI/build/browser reproducibility:** AUD-005, AUD-006, AUD-016, AUD-017, AUD-018 — resolved through PR #61/#62/#83.
 4. **Persistent data foundation:** AUD-008 — resolved in PR #74.
 5. **Atomic inventory concurrency:** AUD-010 — resolved in PR #75.
 6. **Artifact lifecycle:** AUD-011 — resolved in PR #76.
 7. **Reconnect scalability:** AUD-012 — resolved in PR #77.
 8. **Moonraker endpoint security:** AUD-014 — resolved in PR #79.
 9. **Credential storage boundary:** AUD-015 — resolved in PR #80.
-10. **Representative physical/deployment validation:** X2D, Moonraker/OpenKE, Raspberry Pi 5/Umbrel, including the remaining AUD-003/004 and certificate-trust evidence for AUD-013.
-11. **Remaining audit hardening:** AUD-013 certificate trust design/validation, broader AUD-018 browser coverage, AUD-019 coverage/public-project governance, and final AUD-009 roadmap synchronization.
-12. **Inventory operator workflow:** complete normal create/correct/move/assign/unassign/archive/history UX before automatic accounting is resumed.
-13. **Resume P3:** synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
+10. **Bambu certificate-trust foundation:** AUD-013 software work is complete in PR #82; physical X2D validation remains before any trust-default change.
+11. **Public-project governance:** AUD-019 — resolved through PR #62/#84 with security policy, dependency/update scanning and measured coverage governance.
+12. **Representative physical/deployment validation:** X2D, Moonraker/OpenKE, Raspberry Pi 5/Umbrel, including the remaining AUD-003/004 and certificate-trust evidence for AUD-013.
+13. **Roadmap synchronization:** close AUD-009 only after current status/roadmap and the frozen P3 resume gate are fully aligned with the completed stabilization sequence.
+14. **Inventory operator workflow:** complete normal create/correct/move/assign/unassign/archive/history UX before automatic accounting is resumed.
+15. **Resume P3:** synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
 
 ## Resolution rule
 
