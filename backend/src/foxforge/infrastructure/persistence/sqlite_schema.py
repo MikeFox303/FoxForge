@@ -83,7 +83,10 @@ _SCHEMA_V1_STATEMENTS = (
         FOREIGN KEY(spool_id) REFERENCES inventory_spools(spool_id) ON DELETE CASCADE
     )
     """,
-    "CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_spool_created ON inventory_adjustments(spool_id, created_at, adjustment_id)",
+    """
+    CREATE INDEX IF NOT EXISTS idx_inventory_adjustments_spool_created
+    ON inventory_adjustments(spool_id, created_at, adjustment_id)
+    """,
     """
     CREATE TABLE IF NOT EXISTS command_idempotency (
         principal_id TEXT NOT NULL,
