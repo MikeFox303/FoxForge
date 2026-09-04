@@ -66,23 +66,23 @@ class FilamentAccountingService:
         bindings: tuple[MaterialBinding, ...],
         estimates: tuple[MaterialEstimate, ...],
     ) -> tuple[tuple[MaterialEstimate, UUID, str], ...]:
-        if not estimates:
-            return ()
         by_index = {binding.material_index: binding for binding in bindings}
         if len(by_index) != len(bindings):
             raise FilamentPlanConflictError("queue material bindings contain duplicate material indices")
         estimate_indices = [estimate.material_index for estimate in estimates]
         if len(estimate_indices) != len(set(estimate_indices)):
             raise FilamentPlanConflictError("material estimates contain duplicate material indices")
+        if set(estimate_indices) != set(by_index):
+            raise FilamentPlanConflictError(
+                "material estimates must cover every queue material binding exactly once"
+            )
+        if not estimates:
+            return ()
 
         resolved: list[tuple[MaterialEstimate, UUID, str]] = []
         pending_by_spool: dict[UUID, Decimal] = {}
         for estimate in estimates:
-            binding = by_index.get(estimate.material_index)
-            if binding is None:
-                raise FilamentPlanConflictError(
-                    f"material estimate {estimate.material_index} has no matching queue material binding"
-                )
+            binding = by_index[estimate.material_index]
             assignment = self._inventory.assignment_for_slot(printer_id, binding.slot_id)
             if assignment is None:
                 raise FilamentAssignmentRequiredError(
@@ -164,7 +164,15 @@ class FilamentAccountingService:
         return self._inventory.balance(spool_id).remaining_filament_mass_g - self.reserved_mass(spool_id)
 
     def verify_dispatch(self, entry: QueueEntry) -> None:
-        for reservation in self._store.list_for_queue(entry.queue_id):
+        reservations = self._store.list_for_queue(entry.queue_id)
+        binding_indices = {binding.material_index for binding in entry.request.material_bindings}
+        reservation_indices = {reservation.material_index for reservation in reservations}
+        if binding_indices != reservation_indices:
+            raise FilamentPlanConflictError(
+                "queue material bindings require a complete filament plan before dispatch"
+            )
+
+        for reservation in reservations:
             if reservation.state == FilamentReservationState.RECONCILIATION_REQUIRED:
                 raise FilamentReconciliationRequiredError(
                     "filament accounting must be reconciled before another dispatch attempt"
