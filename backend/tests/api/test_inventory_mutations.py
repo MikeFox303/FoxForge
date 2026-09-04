@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
+from aiohttp import web
 from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
@@ -36,7 +37,7 @@ def _headers(key: str) -> dict[str, str]:
     }
 
 
-def _app() -> tuple[object, InventoryService]:
+def _app() -> tuple[web.Application, InventoryService]:
     identity = PrinterIdentity(
         printer_id="x2d-main",
         display_name="Bambu X2D",
@@ -118,13 +119,23 @@ def test_inventory_mutation_lifecycle_is_authenticated_idempotent_and_live_reada
             assert (await replay.json())["replayed"] is True
             assert len(inventory.list_spools(include_archived=True)) == 1
 
+            correction_payload = {"remainingFilamentMassG": "735.5", "note": "scale correction"}
             corrected = await client.post(
                 f"/api/v1/inventory/spools/{_SPOOL_ID}/correct-remaining",
-                json={"remainingFilamentMassG": "735.5", "note": "scale correction"},
+                json=correction_payload,
                 headers=_headers("correct-1"),
             )
             assert corrected.status == 200
             assert (await corrected.json())["remainingFilamentMassG"] == "735.5"
+
+            correction_replay = await client.post(
+                f"/api/v1/inventory/spools/{_SPOOL_ID}/correct-remaining",
+                json=correction_payload,
+                headers=_headers("correct-1"),
+            )
+            assert correction_replay.status == 200
+            assert (await correction_replay.json())["replayed"] is True
+            assert len(inventory.adjustments(UUID(_SPOOL_ID))) == 1
 
             moved = await client.put(
                 f"/api/v1/inventory/spools/{_SPOOL_ID}/assignment",
@@ -178,7 +189,11 @@ def test_inventory_mutations_fail_closed_without_credentials_and_reject_changed_
                 "materialFamily": "PLA",
                 "initialFilamentMassG": "1000",
             }
-            unauthorized = await client.post("/api/v1/inventory/spools", json=payload, headers={"Idempotency-Key": "same"})
+            unauthorized = await client.post(
+                "/api/v1/inventory/spools",
+                json=payload,
+                headers={"Idempotency-Key": "same"},
+            )
             assert unauthorized.status == 401
 
             first = await client.post("/api/v1/inventory/spools", json=payload, headers=_headers("same"))
