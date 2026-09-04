@@ -25,7 +25,7 @@ This file tracks active remediation. The independent audit remains the immutable
 | AUD-006 | P1 | RESOLVED | PR #62 merged as `cfa1e7c74367940eb55d41b770b3e4498c31d51a`: committed frontend lock and backend constraints, frozen installs, lock verification, dependency audits and exact-head security/container/browser gates. |
 | AUD-007 | P1 | RESOLVED | PR #61 merged as `da71d4d3a08557c6b5b6988fd6ee2eea8b20056e`; ADR 0005 supersedes the stale browser-auth deferral in ADR 0004 and records the implemented standalone/Umbrel trust boundary and required validation. |
 | AUD-008 | P1 | RESOLVED | PR #74 merged as `52026bc62c58a1830142cb65f69b85d4afb1623a`: config v1→v2 migration with backup, centralized SQLite `user_version` ownership, SQLite Backup API, transactional schema validation, historical fixtures, restart/rollback/corruption tests and persistence diagnostics. |
-| AUD-009 | P1 | IN PROGRESS | P3 remains frozen and stabilization is the active workstream. The independent-audit ordering is being followed in implementation; remaining roadmap/status wording must stay aligned before this item is closed. |
+| AUD-009 | P1 | RESOLVED | PR #87 aligns README and `docs/project-status.md` with the audit stabilization order and the existing P3 freeze record. Active documentation now requires representative physical/deployment validation and a complete normal inventory operator workflow before draft PR #58 may resume; historical release notes remain unchanged. |
 | AUD-010 | P2 | RESOLVED | PR #75 merged as `c53c8c776b333a744008d75a7e8ad885d3a26355`. Inventory adjustment idempotency, archive/balance validation and INSERT now share one atomic persistence boundary; concurrency/restart/duplicate/insufficient-balance tests pass. |
 | AUD-011 | P2 | RESOLVED | PR #76 merged as `df0818be2c3a98635b22c9d59d49894ed1c8fb57`. Artifact storage now has committed quota, minimum free-space reserve, normalized capacity failure, safe orphan retention/GC, stale-temp cleanup and non-secret storage diagnostics. Queue-referenced artifacts are never GC candidates. |
 | AUD-012 | P2 | RESOLVED | PR #77 merged as `273bcf2c7a43b40255063c53a1ac36ddca91d2fa`. Reconnect supervision uses per-printer workers, global bounded concurrency, independent exponential backoff/jitter and dynamic worker discovery; fairness/recovery/concurrency tests and exact-head packaged/browser/security gates passed. |
@@ -49,15 +49,15 @@ P3 is not discarded. The draft already contains reservation/reconciliation seman
 2. **Browser/deployment security foundation:** AUD-003, AUD-004, AUD-007 — software design is complete; representative deployment/Umbrel validation remains for AUD-003/004.
 3. **UI/build/browser reproducibility:** AUD-005, AUD-006, AUD-016, AUD-017, AUD-018 — resolved through PR #61/#62/#83.
 4. **Persistent data foundation:** AUD-008 — resolved in PR #74.
-5. **Atomic inventory concurrency:** AUD-010 — resolved in PR #75.
-6. **Artifact lifecycle:** AUD-011 — resolved in PR #76.
-7. **Reconnect scalability:** AUD-012 — resolved in PR #77.
-8. **Moonraker endpoint security:** AUD-014 — resolved in PR #79.
-9. **Credential storage boundary:** AUD-015 — resolved in PR #80.
-10. **Bambu certificate-trust foundation:** AUD-013 software work is complete in PR #82; physical X2D validation remains before any trust-default change.
-11. **Public-project governance:** AUD-019 — resolved through PR #62/#84 with security policy, dependency/update scanning and measured coverage governance.
-12. **Representative physical/deployment validation:** X2D, Moonraker/OpenKE, Raspberry Pi 5/Umbrel, including the remaining AUD-003/004 and certificate-trust evidence for AUD-013.
-13. **Roadmap synchronization:** close AUD-009 only after current status/roadmap and the frozen P3 resume gate are fully aligned with the completed stabilization sequence.
+5. **Roadmap stabilization:** AUD-009 — active README/project-status sequencing aligned in PR #87; P3 remains frozen behind its resume gate.
+6. **Atomic inventory concurrency:** AUD-010 — resolved in PR #75.
+7. **Artifact lifecycle:** AUD-011 — resolved in PR #76.
+8. **Reconnect scalability:** AUD-012 — resolved in PR #77.
+9. **Moonraker endpoint security:** AUD-014 — resolved in PR #79.
+10. **Credential storage boundary:** AUD-015 — resolved in PR #80.
+11. **Bambu certificate-trust foundation:** AUD-013 software work is complete in PR #82; physical X2D validation remains before any trust-default change.
+12. **Public-project governance:** AUD-019 — resolved through PR #62/#84 with security policy, dependency/update scanning and measured coverage governance.
+13. **Representative physical/deployment validation:** X2D, Moonraker/OpenKE, Raspberry Pi 5/Umbrel, including the remaining AUD-003/004 and certificate-trust evidence for AUD-013.
 14. **Inventory operator workflow:** complete normal create/correct/move/assign/unassign/archive/history UX before automatic accounting is resumed.
 15. **Resume P3:** synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
 
