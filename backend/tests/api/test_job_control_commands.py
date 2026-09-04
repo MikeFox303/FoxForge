@@ -136,11 +136,19 @@ def test_job_control_success_and_completed_replay_execute_once() -> None:
         await client.start_server()
         try:
             payload = _payload()
-            first = await client.post("/api/v1/printers/printer-1/job-control", json=payload, headers=_headers("key-1"))
+            first = await client.post(
+                "/api/v1/printers/printer-1/job-control",
+                json=payload,
+                headers=_headers("key-1"),
+            )
             assert first.status == 200
             assert (await first.json())["replayed"] is False
 
-            replay = await client.post("/api/v1/printers/printer-1/job-control", json=payload, headers=_headers("key-1"))
+            replay = await client.post(
+                "/api/v1/printers/printer-1/job-control",
+                json=payload,
+                headers=_headers("key-1"),
+            )
             assert replay.status == 200
             assert (await replay.json())["replayed"] is True
             assert capability.execute_count == 1
@@ -184,11 +192,19 @@ def test_indeterminate_command_stays_unresolved_and_is_not_reexecuted() -> None:
         await client.start_server()
         try:
             payload = _payload()
-            first = await client.post("/api/v1/printers/printer-1/job-control", json=payload, headers=_headers("key-3"))
+            first = await client.post(
+                "/api/v1/printers/printer-1/job-control",
+                json=payload,
+                headers=_headers("key-3"),
+            )
             assert first.status == 409
             assert (await first.json())["error"]["code"] == "job_control_indeterminate"
 
-            replay = await client.post("/api/v1/printers/printer-1/job-control", json=payload, headers=_headers("key-3"))
+            replay = await client.post(
+                "/api/v1/printers/printer-1/job-control",
+                json=payload,
+                headers=_headers("key-3"),
+            )
             assert replay.status == 409
             assert (await replay.json())["error"]["code"] == "job_control_reconciliation_required"
             assert capability.execute_count == 1
