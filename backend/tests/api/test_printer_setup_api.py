@@ -143,23 +143,27 @@ def test_moonraker_test_connection_does_not_save_configuration() -> None:
     asyncio.run(scenario())
 
 
-def test_trusted_proxy_session_bootstrap_returns_in_memory_bearer() -> None:
+def test_tokenless_operator_session_bootstrap_is_rejected() -> None:
     async def scenario() -> None:
         manager = _Manager()
         client = TestClient(TestServer(_app(manager, browser_sessions=True)))
         await client.start_server()
         try:
             session_response = await client.post("/api/v1/operator-session")
-            assert session_response.status == 200
-            token = (await session_response.json())["accessToken"]
-
-            configuration_response = await client.get(
-                "/api/v1/printers/configuration",
-                headers={"Authorization": f"Bearer {token}"},
-            )
-            assert configuration_response.status == 200
-            assert (await configuration_response.json())["printers"] == []
+            assert session_response.status == 503
+            body = await session_response.json()
+            assert body["error"]["code"] == "browser_session_disabled"
         finally:
             await client.close()
 
     asyncio.run(scenario())
+
+
+def test_browser_session_can_only_be_issued_after_explicit_operator_bootstrap() -> None:
+    sessions = TrustedBrowserCommandSessions(enabled=True)
+    security = BearerCommandSecurity(_TOKEN, browser_sessions=sessions)
+
+    session = security.issue_browser_session(_TOKEN)
+    principal = security.authenticate(f"Bearer {session.access_token}")
+
+    assert principal.principal_id == "operator"
