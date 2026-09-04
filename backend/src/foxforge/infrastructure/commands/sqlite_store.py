@@ -12,6 +12,7 @@ from foxforge.application.commands import (
     CommandIdempotencyConflictError,
     CommandIdempotencyMissingError,
     CommandIdempotencyRecord,
+    CommandIdempotencyReservation,
     CommandIdempotencyState,
 )
 
@@ -28,7 +29,7 @@ class SQLiteCommandIdempotencyStore:
     def path(self) -> Path:
         return self._path
 
-    def reserve(self, record: CommandIdempotencyRecord) -> CommandIdempotencyRecord:
+    def reserve(self, record: CommandIdempotencyRecord) -> CommandIdempotencyReservation:
         if record.state != CommandIdempotencyState.STARTED:
             raise ValueError("new command idempotency reservations must start in STARTED state")
 
@@ -42,7 +43,7 @@ class SQLiteCommandIdempotencyStore:
             )
             if existing is not None:
                 _require_same_fingerprint(existing, record.request_fingerprint)
-                return existing
+                return CommandIdempotencyReservation(record=existing, created=False)
 
             connection.execute(
                 """
@@ -68,7 +69,7 @@ class SQLiteCommandIdempotencyStore:
                     record.updated_at.isoformat(),
                 ),
             )
-            return record
+            return CommandIdempotencyReservation(record=record, created=True)
 
     def complete(
         self,
