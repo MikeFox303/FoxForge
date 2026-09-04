@@ -22,8 +22,6 @@ type Props = {
   onChanged: () => void;
 };
 
-type Copy = typeof copy.en;
-
 const copy = {
   en: {
     title: 'Printer connections',
@@ -131,6 +129,8 @@ const copy = {
     deploymentError: 'Керування принтерами не ввімкнене в цій інсталяції. Для Umbrel оновіть FoxForge до пакета з trusted App Proxy sessions.',
   },
 } as const;
+
+type Copy = { [K in keyof typeof copy.en]: string };
 
 export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const { i18n } = useTranslation();
