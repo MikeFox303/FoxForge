@@ -15,6 +15,11 @@ FoxForge has not published a stable release yet. Alpha releases are versioned be
 - Fleet capability metadata for supported job-control actions so clients do not infer controls from vendor/model names.
 - Capability/state-gated React printer controls with explicit cancel confirmation and EN/RU/UK localization parity.
 - P1 job-control design specification and automated domain/adapter/API/frontend coverage.
+- P2 FoxForge-owned application event journal with process epoch, monotonic sequence cursors, bounded replay and explicit `resync_required` semantics.
+- `GET /api/v1/events` Server-Sent Events endpoint with `Last-Event-ID` replay, heartbeat delivery and proxy-buffering safeguards.
+- Application-level realtime topics for normalized fleet changes, durable queue changes, durable inventory changes and printer configuration changes without vendor transport payload leakage.
+- React `EventSource` bridge that maps application topics to TanStack Query invalidation families and batches high-frequency changes while retaining HTTP polling as an alpha fallback.
+- P2 realtime design specification plus backend replay/SSE/durable-write tests and frontend invalidation-routing coverage.
 
 ### Safety
 
@@ -23,10 +28,15 @@ FoxForge has not published a stable release yet. Alpha releases are versioned be
 - A conclusive same-key HTTP replay does not execute the adapter command again.
 - An `INDETERMINATE` job-control outcome deliberately leaves the durable HTTP reservation unresolved; replaying the same key returns reconciliation-required without resending the device command.
 - Browser job-control uncertainty triggers live-state refresh and blocks automatic blind retry.
+- Realtime continuity is fail-closed: fresh, restarted, malformed, expired or overflowed cursors require canonical HTTP snapshot resynchronization rather than inferred missing state.
+- Queue and inventory realtime notifications are emitted only after the underlying durable write succeeds; a failed write does not advance the application event journal.
+- P2 transports only FoxForge application invalidations; Bambu MQTT payloads, Moonraker WebSocket/JSON-RPC payloads, secrets and command credentials are not exposed through SSE.
 
 ### Validation
 
 - P1 adds tests for common eligibility/state rules, vendor-job mismatch rejection, Bambu cancel→stop translation, Moonraker resume translation, non-retryable ambiguous transport outcomes, authenticated API execution, completed replay, idempotency conflicts, unresolved same-key replay, frontend control/HTTP identity separation and EN/RU/UK key parity.
+- P2 adds tests for fresh-stream resync, retained replay ordering, foreign/expired cursor rejection, slow-subscriber fail-closed behavior, successful durable-write publication, failed-write non-publication, SSE response/replay behavior and frontend cache-family routing.
+- The unified-container smoke now verifies that `/api/v1/events` returns the initial P2 `resync_required` contract in addition to health/SPA/persistence checks.
 - Physical Bambu X2D and Moonraker/OpenKE Pause/Resume/Cancel validation remains required before production-ready claims.
 
 ## [0.1.0-alpha.3] - 2026-09-04
