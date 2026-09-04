@@ -6,6 +6,7 @@ from __future__ import annotations
 import importlib.util
 import pathlib
 import subprocess
+import sys
 from collections.abc import Sequence
 
 import pytest
@@ -15,6 +16,7 @@ _SCRIPT = _ROOT / "release" / "validate_identity.py"
 _SPEC = importlib.util.spec_from_file_location("foxforge_release_identity", _SCRIPT)
 assert _SPEC is not None and _SPEC.loader is not None
 release_identity = importlib.util.module_from_spec(_SPEC)
+sys.modules[_SPEC.name] = release_identity
 _SPEC.loader.exec_module(release_identity)
 
 
