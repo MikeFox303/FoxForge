@@ -5,11 +5,15 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import stat
+from pathlib import Path
 
 import pytest
 
 from foxforge.runtime import load_runtime_config
+
+_FIXTURES = Path(__file__).parents[1] / "fixtures" / "persistence"
 
 
 def test_missing_runtime_config_creates_safe_empty_template(tmp_path) -> None:
@@ -17,19 +21,40 @@ def test_missing_runtime_config_creates_safe_empty_template(tmp_path) -> None:
 
     config = load_runtime_config(path)
 
-    assert config.schema_version == 1
+    assert config.schema_version == 2
     assert config.printers == ()
-    assert json.loads(path.read_text(encoding="utf-8")) == {"schemaVersion": 1, "printers": []}
+    assert json.loads(path.read_text(encoding="utf-8")) == {"schemaVersion": 2, "printers": []}
     if os.name != "nt":
         assert stat.S_IMODE(path.stat().st_mode) == 0o600
 
 
-def test_runtime_config_parses_bambu_and_moonraker_without_exposing_vendor_types(tmp_path) -> None:
+def test_runtime_config_v1_fixture_migrates_to_v2_with_exact_backup(tmp_path) -> None:
+    path = tmp_path / "config.json"
+    fixture = _FIXTURES / "config-v1.json"
+    shutil.copyfile(fixture, path)
+    original = path.read_bytes()
+
+    config = load_runtime_config(path)
+
+    assert config.schema_version == 2
+    assert config.printers[0].identity.printer_id == "x2d-main"
+    assert config.printers[0].settings["access_code"] == "fixture-secret"
+    assert json.loads(path.read_text(encoding="utf-8"))["schemaVersion"] == 2
+    backup = tmp_path / "config.json.backup-v1"
+    assert backup.read_bytes() == original
+
+    backup_before_restart = backup.read_bytes()
+    restarted = load_runtime_config(path)
+    assert restarted == config
+    assert backup.read_bytes() == backup_before_restart
+
+
+def test_runtime_config_parses_current_bambu_and_moonraker_without_exposing_vendor_types(tmp_path) -> None:
     path = tmp_path / "config.json"
     path.write_text(
         json.dumps(
             {
-                "schemaVersion": 1,
+                "schemaVersion": 2,
                 "printers": [
                     {
                         "printerId": "x2d-main",
@@ -73,7 +98,7 @@ def test_runtime_config_rejects_duplicate_printer_ids(tmp_path) -> None:
         "settings": {"base_url": "http://127.0.0.1:7125"},
     }
     path.write_text(
-        json.dumps({"schemaVersion": 1, "printers": [printer, printer]}),
+        json.dumps({"schemaVersion": 2, "printers": [printer, printer]}),
         encoding="utf-8",
     )
 
@@ -81,9 +106,25 @@ def test_runtime_config_rejects_duplicate_printer_ids(tmp_path) -> None:
         load_runtime_config(path)
 
 
-def test_runtime_config_rejects_unknown_schema(tmp_path) -> None:
+def test_runtime_config_rejects_future_schema_without_mutation(tmp_path) -> None:
     path = tmp_path / "config.json"
-    path.write_text(json.dumps({"schemaVersion": 2, "printers": []}), encoding="utf-8")
+    original = json.dumps({"schemaVersion": 99, "printers": []})
+    path.write_text(original, encoding="utf-8")
 
-    with pytest.raises(ValueError, match="schemaVersion"):
+    with pytest.raises(ValueError, match="newer than supported"):
         load_runtime_config(path)
+
+    assert path.read_text(encoding="utf-8") == original
+    assert not (tmp_path / "config.json.backup-v99").exists()
+
+
+def test_corrupt_runtime_config_is_not_replaced_or_backed_up(tmp_path) -> None:
+    path = tmp_path / "config.json"
+    original = "{not-json"
+    path.write_text(original, encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unable to read"):
+        load_runtime_config(path)
+
+    assert path.read_text(encoding="utf-8") == original
+    assert list(tmp_path.glob("config.json.backup-*")) == []
