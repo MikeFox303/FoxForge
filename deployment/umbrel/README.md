@@ -6,87 +6,87 @@ FoxForge `v0.1.0-alpha.3` is available as `my3d-foxforge` in the companion Commu
 - Store app ID: `my3d-foxforge`
 - Umbrel app port: `8283`
 - FoxForge server port inside the app network: `8000`
-- Release image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.3`
-- Immutable multi-architecture digest: `sha256:efab08cdbfa515d83b665a71c2b48642d530c4880ec0d7b85b5488a34e2acc94`
+- release image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.3`
+- immutable multi-architecture digest: `sha256:efab08cdbfa515d83b665a71c2b48642d530c4880ec0d7b85b5488a34e2acc94`
 
-The current Community App package was updated through Store PR #24 and reuses the exact FoxForge release image rather than maintaining an Umbrel-specific application fork.
+The package reuses the exact FoxForge release image rather than maintaining an Umbrel-specific application fork.
+
+## Important authentication status
+
+The published `v0.1.0-alpha.3` Store Compose does **not** configure `FOXFORGE_COMMAND_TOKEN` and does not provide an ADR-0005-compatible authenticated browser bootstrap. Therefore FoxForge does **not** claim this historical Umbrel package as a validated write-capable deployment.
+
+Umbrel App Proxy remains useful authenticated defense in depth, but it is not by itself a FoxForge application principal. Current-source FoxForge deliberately rejects `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true`; forwarding headers or a private Docker network are not sufficient proof to mint an operator credential.
+
+The `alpha.3` package may still be used for controlled installation/read-path testing, but documentation must not promise that **Add Printer**, Queue mutation, inventory mutation or printer-control workflows work end to end through that package. A future Umbrel package must either:
+
+1. configure and test an application authentication bootstrap compatible with [ADR 0005](../../docs/adr/0005-browser-command-authentication.md); or
+2. deliberately present protected writes as unavailable/read-only with a truthful explanation.
+
+See the [deployment authentication acceptance contract](../../docs/testing/deployment-auth-contract.md).
 
 ## Packaging model
 
-The Umbrel package deliberately keeps the deployment small and conservative:
+The Umbrel package keeps the deployment small and conservative:
 
-- Umbrel App Proxy fronts the FoxForge server and remains an authenticated defense-in-depth boundary;
-- FoxForge `alpha.3` also enforces its own application-level command authentication/authorization for remote mutations, so App Proxy is not the sole write-security boundary;
+- Umbrel App Proxy fronts the FoxForge server and is defense in depth rather than the sole write-security boundary;
 - normal Docker bridge networking is used;
 - no `network_mode: host` is required for the current explicit-IP Bambu LAN and Moonraker transports;
 - no privileged mode, extra Linux capabilities or Docker socket access is granted;
-- `${APP_DATA_DIR}/data` is mounted as `/data` using short/string bind syntax compatible with the current Store package contract;
+- `${APP_DATA_DIR}/data` is mounted as `/data`;
 - `/healthz` is used for the container health check;
-- first start creates `/data/config.json` and `/data/foxforge.sqlite3`;
-- staged `.gcode`/`.3mf` artifacts are stored under persistent `/data/artifacts` by the released queue workflow.
+- first start creates persistent application state under `/data`.
 
-Printer discovery, Bambu Virtual Printer and other features that may require different LAN/network behavior are intentionally deferred until their contracts and physical validation are complete.
+Printer discovery, Bambu Virtual Printer and features that may require different LAN/network behavior remain deferred until their contracts and physical validation are complete.
 
-## Validation evidence
+## Existing package validation evidence
 
-The Store package has dedicated validation that covers:
+The companion Store package has validation for:
 
 - the Umbrel manifest and Compose contract;
-- rendering through `docker compose config` with an App Proxy overlay;
-- anonymous pull of the exact immutable GHCR release image without registry credentials;
+- Compose rendering with an App Proxy overlay;
+- anonymous pull of the immutable GHCR image;
 - startup, `/healthz` and SPA response on Linux `amd64`;
 - startup, `/healthz` and SPA response on Linux `arm64` under CI/QEMU;
-- creation and persistence of the FoxForge application data directory;
-- anonymous runtime smoke of the published alpha.3 image on both supported architectures.
+- creation and persistence of the application data directory.
 
-The `v0.1.0-alpha.3` guarded release independently passed backend installation, Ruff lint/format, **171 backend tests**, frontend typecheck, **28 frontend tests**, Vite production build and unified release-image smoke before multi-architecture publication. The companion Store package was then pinned to the resulting immutable digest and validated again on Store `main`.
+This proves that the historical package is pullable and executable on the published architectures. It does **not** prove browser write authentication, Raspberry Pi 5 behavior or printer-network reachability.
 
-This proves the released image is publicly pullable and executable for both published architectures. It does **not** replace representative Raspberry Pi 5 testing or real printer-network validation.
+## Installing for controlled alpha testing
 
-## Installing from UmbrelOS
+1. Add `https://github.com/MikeFox303/umbrel-3d-printing-store` as a Community App Store in UmbrelOS if needed.
+2. Install **FoxForge**.
+3. Open FoxForge and verify that the UI and read endpoints load.
+4. Treat protected write workflows in the published `alpha.3` package as **not validated/supported** until a later package provides the required FoxForge application authentication contract.
 
-1. Add `https://github.com/MikeFox303/umbrel-3d-printing-store` as a Community App Store in UmbrelOS if it is not already registered.
-2. Refresh/wait for the Community Store catalog update.
-3. Install **FoxForge** from the Umbrel App Store UI.
-4. Open FoxForge once so the persistent `/data` state is initialized.
-5. Use **Add Printer** in the FoxForge web UI to configure a Bambu LAN or Moonraker/Klipper printer. Alpha.3 supports authenticated add/update/remove/test/reconnect flows; direct `config.json` editing is no longer the normal setup path.
-6. Use the Queue UI to select a local `.gcode` or `.3mf`, hash and stage its bytes, enqueue the job and explicitly start it. `INDETERMINATE` starts require explicit reconciliation and are never blindly retried.
-
-The Store package also contains Bambu LAN and Moonraker/Klipper configuration guidance in `my3d-foxforge/README.md`.
+Do not use the historical package as evidence that Add Printer, queue submission, inventory mutations or printer controls are production-ready on Umbrel.
 
 ## Current alpha networking
 
-Bambu LAN configuration uses an explicit printer host plus LAN access code and serial number. Moonraker uses an explicit `base_url` and optional API key. These transports use the same adapter factories and runtime configuration as normal Docker deployments.
+Bambu LAN configuration uses an explicit printer host plus LAN access code and serial number. Moonraker uses an explicit `base_url` and optional API key. Current source has security and persistence improvements beyond `alpha.3`; those changes are not delivered to the historical package until a new guarded release and Store update occur.
 
-A printer being powered off or unreachable does not prevent FoxForge itself from starting. The runtime leaves the printer offline and retries in the background.
-
-Bridge networking remains the supported deployment model for the current explicit-IP transports. Discovery, Virtual Printer and any future transport that requires different LAN behavior must receive separate design and physical validation before changing this contract.
+Bridge networking remains the supported deployment direction for explicit-IP transports. Discovery, Virtual Printer and future transports that need broader LAN access require separate design and physical validation.
 
 ## Persistence and upgrades
 
-Persistent `/data` currently includes:
+Persistent `/data` contains runtime configuration, SQLite state and staged artifacts. Current source now includes explicit migration/version ownership, but the published `alpha.3` remains an older immutable build.
 
-- `config.json`;
-- `foxforge.sqlite3`;
-- staged print artifacts under `/data/artifacts`.
+Back up FoxForge application data before upgrading between early alpha releases. `/data` backups must be treated as sensitive because credential-related recovery material may exist in later source versions.
 
-Persistence compatibility is still pre-stable. Back up the FoxForge application data directory before upgrading between early alpha releases.
+## Required evidence before the next write-capable Umbrel package
 
-The Umbrel package is pinned to an immutable release digest. A change merged to FoxForge `main` is not delivered to existing installations through a floating tag; it requires a guarded FoxForge release and a corresponding Store package update.
+Before FoxForge can claim a write-capable Umbrel deployment, record all of the following against the exact future package:
 
-## Remaining deployment validation
+1. the package supplies an ADR-0005-compatible FoxForge application credential/bootstrap or intentionally remains read-only;
+2. Raspberry Pi 5 install, restart and persistence are validated on physical ARM64 hardware;
+3. Add Printer succeeds through the actual Umbrel browser/proxy path when writes are enabled;
+4. at least one additional protected command succeeds through the same path and invalid/missing credentials fail closed;
+5. tokenless `/api/v1/operator-session` does not issue credentials;
+6. Bambu Lab X2D and Moonraker/OpenKE are reachable from the actual Umbrel network environment;
+7. real upload/start/lifecycle/control/completion behavior is validated on both printer families;
+8. upgrade/migration behavior is tested between the relevant published package versions.
 
-Before FoxForge should be described as production-ready on Umbrel, the following evidence is still required:
-
-1. representative Raspberry Pi 5 / physical ARM64 installation, restart and persistence validation;
-2. configured Bambu Lab X2D LAN connectivity from the actual Umbrel network environment;
-3. configured Moonraker/OpenKE connectivity from the actual Umbrel network environment;
-4. real upload/start/lifecycle/completion and ambiguous-start reconciliation tests on both printer families;
-5. persisted-state upgrade/migration testing across later FoxForge releases;
-6. future network design validation before enabling discovery or Virtual Printer.
-
-The Community App package therefore makes FoxForge alpha.3 **installable for controlled testing**, but it does not imply production-validated printer support.
+Until that evidence exists, AUD-003/AUD-004 remain deployment-validation findings rather than resolved production claims.
 
 ## Versioning note
 
-The current Umbrel package is pinned to the released `v0.1.0-alpha.3` multi-architecture digest. Future FoxForge source changes require a new tested release and a corresponding immutable Store package update.
+The current Umbrel package is pinned to the immutable `v0.1.0-alpha.3` multi-architecture digest. Changes merged to FoxForge `main` are not delivered through a floating release tag; they require a new guarded FoxForge release and a corresponding Store package update.
