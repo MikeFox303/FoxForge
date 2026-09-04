@@ -29,6 +29,10 @@ def main() -> None:
         field_name="FOXFORGE_RECONNECT_SECONDS",
     )
     command_token = os.environ.get("FOXFORGE_COMMAND_TOKEN")
+    trusted_browser_sessions = _boolean_env(
+        os.environ.get("FOXFORGE_TRUSTED_BROWSER_SESSIONS", "false"),
+        field_name="FOXFORGE_TRUSTED_BROWSER_SESSIONS",
+    )
 
     app = create_runtime_app(
         RuntimeSettings(
@@ -37,6 +41,7 @@ def main() -> None:
             static_dir=static_dir,
             reconnect_seconds=reconnect_seconds,
             command_token=command_token,
+            trusted_browser_sessions=trusted_browser_sessions,
         )
     )
     web.run_app(app, host=host, port=port, print=lambda line: logging.getLogger("foxforge.runtime").info("%s", line))
@@ -60,6 +65,15 @@ def _positive_float(raw: str, *, field_name: str) -> float:
     if value <= 0:
         raise ValueError(f"{field_name} must be a positive number")
     return value
+
+
+def _boolean_env(raw: str, *, field_name: str) -> bool:
+    normalized = raw.strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError(f"{field_name} must be true or false")
 
 
 if __name__ == "__main__":
