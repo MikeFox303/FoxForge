@@ -26,6 +26,10 @@ def create_moonraker_http_adapter(
     request_timeout_seconds = _positive_float(settings.get("request_timeout_seconds", 10.0), "request_timeout_seconds")
     allow_public_endpoint = _boolean(settings.get("allow_public_endpoint", False), "allow_public_endpoint")
     allow_loopback_endpoint = _boolean(settings.get("allow_loopback_endpoint", False), "allow_loopback_endpoint")
+    allow_link_local_endpoint = _boolean(
+        settings.get("allow_link_local_endpoint", False),
+        "allow_link_local_endpoint",
+    )
 
     transport = MoonrakerSecuredHttpTransport(
         MoonrakerHttpSettings(
@@ -36,6 +40,7 @@ def create_moonraker_http_adapter(
         endpoint_policy=MoonrakerEndpointPolicy(
             allow_public_endpoint=allow_public_endpoint,
             allow_loopback_endpoint=allow_loopback_endpoint,
+            allow_link_local_endpoint=allow_link_local_endpoint,
         ),
     )
     return MoonrakerAdapter(identity, transport)
