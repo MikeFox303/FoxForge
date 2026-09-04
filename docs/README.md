@@ -10,6 +10,10 @@ FoxForge treats the Git repository as the canonical source for durable architect
 
 The current published pre-release is **`v0.1.0-alpha.3`**. Current development source adds P1 common Pause/Resume/Cancel and P2 FoxForge-owned realtime application events over SSE with replay/resync semantics and TanStack Query invalidation. These post-alpha.3 changes are not part of the immutable alpha.3 image and require a later guarded release before versioned Docker/Umbrel users receive them. Physical printer/Raspberry Pi validation, automatic accounting and persistent farm scheduling remain incomplete.
 
+## Independent audits
+
+- [Independent project audit — 2026-09-04](audits/2026-09-04-independent-project-audit.md) — durable `AUD-*` remediation backlog covering release integrity, browser/deployment security, UI regressions, reproducible dependencies, persistence migrations, physical validation and roadmap sequencing. Future stabilization work should reference and update these finding IDs with implementation/test evidence rather than relying on chat history.
+
 ## Architecture Decision Records
 
 - [ADR 0001: PrinterAdapter architecture](adr/0001-printer-adapter-architecture.md) — accepted. Defines the vendor-independent printer boundary, typed capability model and migration strategy for deep Bambu plus multi-vendor support.
