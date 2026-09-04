@@ -6,7 +6,28 @@ FoxForge has not published a stable release yet. Alpha releases are versioned be
 
 ## Unreleased
 
-No post-`v0.1.0-alpha.3` changes are recorded yet.
+### Added
+
+- Common typed `foxforge.job_control` v1 capability for Pause, Resume and Cancel with exact vendor-job identity validation and normalized state guards.
+- Bambu LAN job-control mapping for native pause/resume/stop commands with native job-identity revalidation before publish.
+- Moonraker/Klipper job-control transport using `/printer/print/pause`, `/printer/print/resume` and `/printer/print/cancel`, with native filename/job-identity revalidation.
+- ADR 0004 guarded `POST /api/v1/printers/{printer_id}/job-control` command requiring `printer.control`, `Idempotency-Key`, durable replay protection and command audit.
+- Fleet capability metadata for supported job-control actions so clients do not infer controls from vendor/model names.
+- Capability/state-gated React printer controls with explicit cancel confirmation and EN/RU/UK localization parity.
+- P1 job-control design specification and automated domain/adapter/API/frontend coverage.
+
+### Safety
+
+- Every pause/resume/cancel request targets the exact vendor job identity observed by FoxForge; stale, unidentified or mismatched jobs are rejected before a device-side command.
+- `controlId` remains distinct from HTTP `Idempotency-Key` so logical device intent and HTTP replay identity are not conflated.
+- A conclusive same-key HTTP replay does not execute the adapter command again.
+- An `INDETERMINATE` job-control outcome deliberately leaves the durable HTTP reservation unresolved; replaying the same key returns reconciliation-required without resending the device command.
+- Browser job-control uncertainty triggers live-state refresh and blocks automatic blind retry.
+
+### Validation
+
+- P1 adds tests for common eligibility/state rules, vendor-job mismatch rejection, Bambu cancel→stop translation, Moonraker resume translation, non-retryable ambiguous transport outcomes, authenticated API execution, completed replay, idempotency conflicts, unresolved same-key replay, frontend control/HTTP identity separation and EN/RU/UK key parity.
+- Physical Bambu X2D and Moonraker/OpenKE Pause/Resume/Cancel validation remains required before production-ready claims.
 
 ## [0.1.0-alpha.3] - 2026-09-04
 
