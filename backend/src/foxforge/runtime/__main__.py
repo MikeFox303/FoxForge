@@ -28,6 +28,7 @@ def main() -> None:
         os.environ.get("FOXFORGE_RECONNECT_SECONDS", "15"),
         field_name="FOXFORGE_RECONNECT_SECONDS",
     )
+    command_token = os.environ.get("FOXFORGE_COMMAND_TOKEN")
 
     app = create_runtime_app(
         RuntimeSettings(
@@ -35,6 +36,7 @@ def main() -> None:
             config_path=config_path,
             static_dir=static_dir,
             reconnect_seconds=reconnect_seconds,
+            command_token=command_token,
         )
     )
     web.run_app(app, host=host, port=port, print=lambda line: logging.getLogger("foxforge.runtime").info("%s", line))
