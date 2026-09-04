@@ -8,7 +8,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Protocol
 
-from .models import CommandIdempotencyRecord, CommandIdempotencyState
+from .models import CommandIdempotencyRecord, CommandIdempotencyReservation, CommandIdempotencyState
 
 
 class CommandIdempotencyConflictError(RuntimeError):
@@ -20,7 +20,7 @@ class CommandIdempotencyMissingError(KeyError):
 
 
 class CommandIdempotencyStore(Protocol):
-    def reserve(self, record: CommandIdempotencyRecord) -> CommandIdempotencyRecord: ...
+    def reserve(self, record: CommandIdempotencyRecord) -> CommandIdempotencyReservation: ...
 
     def complete(
         self,
@@ -48,14 +48,14 @@ class InMemoryCommandIdempotencyStore:
     def __init__(self) -> None:
         self._records: dict[tuple[Hashable, ...], CommandIdempotencyRecord] = {}
 
-    def reserve(self, record: CommandIdempotencyRecord) -> CommandIdempotencyRecord:
+    def reserve(self, record: CommandIdempotencyRecord) -> CommandIdempotencyReservation:
         key = _record_key(record.principal_id, record.operation, record.idempotency_key)
         existing = self._records.get(key)
         if existing is None:
             self._records[key] = record
-            return record
+            return CommandIdempotencyReservation(record=record, created=True)
         _require_same_fingerprint(existing, record.request_fingerprint)
-        return existing
+        return CommandIdempotencyReservation(record=existing, created=False)
 
     def complete(
         self,
