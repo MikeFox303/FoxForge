@@ -7,6 +7,7 @@ on:
       - 'backend/tests/**'
       - 'backend/pyproject.toml'
       - 'backend/constraints.txt'
+      - 'docs/testing/coverage-policy.md'
       - '.github/workflows/printer-domain.yml'
   pull_request:
     paths:
@@ -14,6 +15,7 @@ on:
       - 'backend/tests/**'
       - 'backend/pyproject.toml'
       - 'backend/constraints.txt'
+      - 'docs/testing/coverage-policy.md'
       - '.github/workflows/printer-domain.yml'
   workflow_dispatch:
 
@@ -52,7 +54,7 @@ jobs:
         run: |
           if [ "${{ matrix.python-version }}" = "3.12" ]; then
             coverage run --branch --source=foxforge -m pytest -q
-            coverage report --show-missing
+            coverage report --show-missing --fail-under=75
           else
             pytest -q
           fi
