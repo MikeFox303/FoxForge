@@ -55,4 +55,8 @@ class BambuTransport(Protocol):
 
     async def submit_print(self, request: BambuNativePrintRequest) -> BambuNativeDispatchResult: ...
 
-    async def control_print(self, action: BambuNativeJobControlAction) -> BambuNativeJobControlResult: ...
+    async def control_print(
+        self,
+        action: BambuNativeJobControlAction,
+        expected_vendor_job_id: str,
+    ) -> BambuNativeJobControlResult: ...
