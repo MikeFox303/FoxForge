@@ -23,6 +23,7 @@ export type JobState =
   | 'failed'
   | 'cancelled'
   | 'unknown';
+export type JobControlAction = 'pause' | 'resume' | 'cancel';
 export type QueueEntryState =
   | 'pending'
   | 'blocked'
@@ -80,6 +81,8 @@ export interface CapabilityDescriptor {
   capabilityId: string;
   majorVersion: number;
   label: string;
+  supportedActions?: JobControlAction[];
+  requiresVendorJobIdentity?: boolean;
 }
 
 export interface DetectedMaterial {
