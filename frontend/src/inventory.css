@@ -2,6 +2,15 @@
 /* Copyright (C) 2026 MikeFox303 */
 
 .inventory-page { min-width: 0; }
+.inventory-refreshing {
+  min-height: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.inventory-refreshing .runtime-spinner { width: 12px; height: 12px; }
 .inventory-intro { align-items: flex-end; }
 .inventory-metrics { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 

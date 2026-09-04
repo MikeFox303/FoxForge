@@ -4,7 +4,7 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
-const resources = {
+export const interfaceTranslations = {
   en: {
     translation: {
       nav: {
@@ -48,6 +48,13 @@ const resources = {
         showArchived: 'Show archived',
         addSpool: 'Add spool',
         requiresApi: 'This action will be enabled when the public inventory API is available',
+        loadingTitle: 'Loading spool inventory',
+        loadingText: 'FoxForge is reading the current inventory snapshot.',
+        errorTitle: 'Spool inventory is unavailable',
+        errorText: 'The fleet may still be online. Retry the inventory request without reloading the workspace.',
+        retry: 'Retry',
+        refreshing: 'Refreshing spool inventory…',
+        noSpools: 'No spools have been added to FoxForge inventory yet.',
         noMatches: 'No spools match the current filters.',
         archived: 'Archived',
         lowBadge: 'Low',
@@ -151,6 +158,13 @@ const resources = {
         showArchived: 'Показывать архив',
         addSpool: 'Добавить катушку',
         requiresApi: 'Действие станет доступно после появления публичного Inventory API',
+        loadingTitle: 'Загрузка учёта катушек',
+        loadingText: 'FoxForge получает актуальный снимок склада.',
+        errorTitle: 'Учёт катушек недоступен',
+        errorText: 'Ферма может оставаться онлайн. Повторите запрос склада без перезагрузки интерфейса.',
+        retry: 'Повторить',
+        refreshing: 'Обновление учёта катушек…',
+        noSpools: 'В учёт FoxForge ещё не добавлено ни одной катушки.',
         noMatches: 'Нет катушек, соответствующих фильтрам.',
         archived: 'Архив',
         lowBadge: 'Мало',
@@ -254,6 +268,13 @@ const resources = {
         showArchived: 'Показувати архів',
         addSpool: 'Додати котушку',
         requiresApi: 'Дія стане доступною після появи публічного Inventory API',
+        loadingTitle: 'Завантаження обліку котушок',
+        loadingText: 'FoxForge отримує актуальний знімок складу.',
+        errorTitle: 'Облік котушок недоступний',
+        errorText: 'Ферма може залишатися онлайн. Повторіть запит складу без перезавантаження інтерфейсу.',
+        retry: 'Повторити',
+        refreshing: 'Оновлення обліку котушок…',
+        noSpools: 'До обліку FoxForge ще не додано жодної котушки.',
         noMatches: 'Немає котушок, що відповідають фільтрам.',
         archived: 'Архів',
         lowBadge: 'Мало',
@@ -320,7 +341,7 @@ const storedLanguage = typeof window !== 'undefined' ? window.localStorage.getIt
 const initialLanguage = storedLanguage && ['en', 'ru', 'uk'].includes(storedLanguage) ? storedLanguage : 'en';
 
 void i18n.use(initReactI18next).init({
-  resources,
+  resources: interfaceTranslations,
   lng: initialLanguage,
   fallbackLng: 'en',
   supportedLngs: ['en', 'ru', 'uk'],
