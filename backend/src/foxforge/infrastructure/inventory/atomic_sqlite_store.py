@@ -17,10 +17,10 @@ from foxforge.application.inventory import (
 from foxforge.domain.inventory import SpoolAdjustment
 
 from .sqlite_store import (
-    SQLiteInventoryStore as _BaseSQLiteInventoryStore,
     _decode_adjustment,
     _decode_spool,
     _encode_adjustment,
+    SQLiteInventoryStore as _BaseSQLiteInventoryStore,
 )
 
 
