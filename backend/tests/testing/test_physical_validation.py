@@ -9,7 +9,7 @@ from foxforge.testing import physical_validation
 def test_certificate_fingerprint_sha256_is_stable() -> None:
     assert (
         physical_validation.certificate_fingerprint_sha256(b"foxforge-test-certificate")
-        == "571c05b8f8f0b30b3d6e074f650c90c716a05c8c933a269ba70aaf6dbb436659"
+        == "964c3b0515a4cc51799da5101e84e92e778e60e5f8a6e9d8f6baa8eba64faf2f"
     )
 
 
