@@ -6,7 +6,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 
-import { type FleetRuntimeState, useFleetData } from './data/fleetGateway';
+import { fleetRuntimeTone, type FleetRuntimeState, useFleetData } from './data/fleetGateway';
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from './domain';
 import { InventoryView } from './features/inventory/InventoryView';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
@@ -38,7 +38,7 @@ export function FoxForgeApp() {
   const { t } = useTranslation();
   const current = navigation.find((item) => item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)) ?? navigation[0];
   const openPrinter = (printerId: string) => navigate(printerRoute(printerId));
-  const runtimeTone = fleetRuntime.phase === 'error' ? 'danger' : fleetRuntime.phase === 'loading' ? 'warning' : 'good';
+  const runtimeTone = fleetRuntimeTone(fleetRuntime.phase);
   const runtimeLabel = fleetRuntime.isRefreshing ? t('alpha.runtime.refreshing') : t(`alpha.runtime.${fleetRuntime.phase}`);
 
   return (
@@ -99,7 +99,7 @@ export function FoxForgeApp() {
             <Route path="/materials" element={<MaterialsView fleet={fleet} />} />
             <Route path="/inventory" element={<InventoryView fleet={fleet} />} />
             <Route path="/farm" element={<FarmView fleet={fleet} onOpenPrinter={openPrinter} />} />
-            <Route path="/system" element={<SystemView />} />
+            <Route path="/system" element={<SystemView runtime={fleetRuntime} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -259,14 +259,16 @@ function FarmView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinter: (
   );
 }
 
-function SystemView() {
+function SystemView({ runtime }: { runtime: FleetRuntimeState }) {
   const { i18n, t } = useTranslation();
   const active = (i18n.resolvedLanguage ?? i18n.language).slice(0, 2);
+  const tone = fleetRuntimeTone(runtime.phase);
+  const runtimeLabel = runtime.isRefreshing ? t('alpha.runtime.refreshing') : t(`alpha.runtime.${runtime.phase}`);
   return (
     <div className="stack-lg">
       <PageIntro eyebrow={t('alpha.system.eyebrow')} title={t('alpha.system.title')} text={t('alpha.system.text')} />
       <div className="system-card-grid">
-        <section className="panel system-card"><span className="system-card-label">{t('alpha.system.runtime')}</span><strong>{t('alpha.system.runtimeTitle')}</strong><p>{t('alpha.system.runtimeText')}</p><div className="system-status-line"><span className="status-dot good" /> {t('alpha.system.uiRunning')}</div></section>
+        <section className="panel system-card"><span className="system-card-label">{t('alpha.system.runtime')}</span><strong>{t('alpha.system.runtimeTitle')}</strong><p>{t('alpha.system.runtimeText')}</p><div className="system-status-line" role="status" aria-live="polite"><span className={`status-dot ${tone}`} /> {t('alpha.system.interfaceRunning')} · {runtimeLabel}</div></section>
         <section className="panel system-card"><span className="system-card-label">{t('alpha.system.architecture')}</span><strong>{t('alpha.system.architectureTitle')}</strong><p>{t('alpha.system.architectureText')}</p><div className="system-status-line">backend / frontend / deployment</div></section>
         <section className="panel system-card language-card"><span className="system-card-label">{t('language.title')}</span><strong>{active.toUpperCase()}</strong><p>{t('alpha.system.languageText')}</p><div className="language-switcher">{(['en', 'ru', 'uk'] as const).map((language) => <button key={language} className={active === language ? 'active' : ''} onClick={() => void changeInterfaceLanguage(language)}>{language.toUpperCase()}</button>)}</div></section>
       </div>
