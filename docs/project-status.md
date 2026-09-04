@@ -2,14 +2,14 @@
 
 **Snapshot date:** 2026-09-04  
 **Canonical branch:** `main`  
-**Implementation head reviewed before this documentation branch:** `d0b10bf4d6a54062afa0396e6e6ae8d59c85eeb8`  
+**Implementation head reviewed before this documentation branch:** `9806b5416a35946ac56911eae8e992e4b5e68e69`  
 **Published pre-release:** `v0.1.0-alpha.1` (`0.1.0a1` backend package)  
 **Umbrel Community App:** `my3d-foxforge` in `MikeFox303/umbrel-3d-printing-store`  
 **Maturity:** first public runnable/installable alpha; not production-ready
 
 This document is the concise current-state snapshot for merged FoxForge work. ADRs and design specifications remain normative for architecture; `CHANGELOG.md` remains implementation history; `release/` contains durable release metadata/notes.
 
-At this snapshot, PR #32 (`feat(ui): surface inventory runtime state`) is open against `main`. It is a parallel frontend-only stream; merged `main` remains the authoritative project and contract state.
+At this snapshot there are no open implementation pull requests. PR #32 (`feat(ui): surface inventory runtime state`) has merged; this status synchronization is documentation-only, and merged `main` remains the authoritative project and contract state.
 
 ## Release status
 
@@ -65,7 +65,7 @@ Backend, frontend and deployment are independently testable ownership areas but 
 | Filament/spool inventory | Durable foundation implemented | Independent bounded context, exact `Decimal` mass ledger, idempotent adjustments, slot assignments and SQLite restart durability. |
 | Public HTTP API v1 | Implemented read-only | `/healthz`, `/api/v1/fleet`, `/api/v1/queue`, `/api/v1/inventory/spools`; normalized DTOs, no raw vendor payloads or secret leakage. |
 | Alpha runtime | Implemented | `foxforge` composition root, versioned local printer config, offline-safe startup/reconnect, SPA + API from one `aiohttp` process. |
-| Web UI | Live read integration implemented | React/TypeScript/Vite, TanStack Query, live `/api/v1` reads, explicit `?demo=1`, route-based printer cockpit and inventory workspace. Post-release UX improvements exist in `main`. |
+| Web UI | Live read integration implemented | React/TypeScript/Vite, TanStack Query, live `/api/v1` reads, explicit `?demo=1`, route-based printer cockpit and inventory workspace. Fleet and inventory loading/error/refresh/healthy-empty states are explicit in current `main`. |
 | Localization | Alpha localization complete | English, Russian and Ukrainian (`en`, `ru`, `uk`) across shared workspaces and dynamic runtime states with parity tests. |
 | Bambu LAN transport | Implemented, hardware validation pending | MQTT 3.1.1 over TLS, implicit FTPS, verified upload, double busy guards and fail-safe ambiguous-start behavior. |
 | Bambu project storage | Implemented seam | FTPS default; future validated X2D/N6 internal-eMMC delivery remains behind `BambuProjectStorage`. |
@@ -80,7 +80,7 @@ Backend, frontend and deployment are independently testable ownership areas but 
 
 ## First runnable alpha runtime
 
-PR #25 changed the project from separate backend/frontend foundations into a unified runnable application candidate. PR #28 prepared and published the first guarded public alpha pre-release. Subsequent UI PRs improved live runtime and empty-state behavior in `main` without changing the release image retroactively.
+PR #25 changed the project from separate backend/frontend foundations into a unified runnable application candidate. PR #28 prepared and published the first guarded public alpha pre-release. Subsequent UI PRs #29–#32 improved live runtime, empty-state and inventory error/refresh behavior in `main` without changing the released image retroactively.
 
 Implemented behavior includes:
 
@@ -199,7 +199,8 @@ Implemented:
 - opaque physical slot IDs without `spool_id` pollution in printer snapshots;
 - SQLite WAL, foreign keys and busy timeout for the current single-container runtime;
 - restart tests for metadata, ledger balance, archive replay and assignments;
-- live read DTOs consumed by the web UI.
+- live read DTOs consumed by the web UI;
+- explicit inventory loading, error/retry, background-refresh and true-empty states so API failures are not presented as empty inventory.
 
 Still required for automated accounting:
 
@@ -223,11 +224,12 @@ The merged UI provides:
 - restrained optional Ko-fi link in the sidebar footer;
 - persistent language selection;
 - English, Russian and Ukrainian interface coverage;
-- localization of dynamic printer, queue, material-source and relative-time states;
+- localization of dynamic printer, queue, material-source, runtime-state and relative-time states;
 - translation parity tests;
+- explicit fleet and inventory loading/error/retry/refresh/healthy-empty behavior;
 - frontend CI for typechecking, Vitest and production Vite build.
 
-PRs #29–#31 improved live API/runtime presentation and healthy-empty alpha states after the `alpha.1` release. PR #32 continues inventory runtime-feedback work. These post-release improvements are not part of the immutable `alpha.1` image until a later versioned release is cut.
+PRs #29–#32 are merged in `main` and represent post-`alpha.1` UI improvements. They are not part of the immutable `alpha.1` image until a later versioned release is cut.
 
 Deep vendor controls must continue to appear only after corresponding typed backend capabilities are merged. The UI must not invent unsupported Bambu or Moonraker controls.
 
@@ -293,7 +295,7 @@ Documentation must not call these transports or the full deployment production-v
 
 1. **Physical alpha validation:** run Bambu LAN/X2D and Moonraker/OpenKE through connect → state → upload → print start → lifecycle → completion matrices and document results.
 2. **Representative Umbrel validation:** install `my3d-foxforge` on Raspberry Pi 5/UmbrelOS, confirm restart/persistence and verify explicit-IP reachability to both real printer families.
-3. **Next guarded alpha release:** package post-`alpha.1` UI/UX improvements from `main` only after current frontend work is merged and all release gates pass; update the Store to the new immutable digest rather than using a floating tag.
+3. **Next guarded alpha release:** package the merged post-`alpha.1` UI/UX improvements only after all release gates pass; update the Store to the new immutable digest rather than using a floating tag.
 4. **Command API security contract:** define authentication/authorization, request validation, idempotency keys, normalized errors and audit expectations before adding remote writes.
 5. **Queue/printer/inventory mutations:** add narrowly scoped tested command endpoints and enable matching UI actions only after contracts exist.
 6. **Realtime updates:** add WebSocket/SSE application events and update TanStack Query caches without leaking vendor transports.
