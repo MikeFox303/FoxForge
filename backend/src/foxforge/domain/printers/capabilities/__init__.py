@@ -1,6 +1,19 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 MikeFox303
 
+from .job_control import (
+    JOB_CONTROL_CAPABILITY_ID,
+    JOB_CONTROL_MAJOR_VERSION,
+    JobControlAction,
+    JobControlAssessment,
+    JobControlBlocker,
+    JobControlBlockerCode,
+    JobControlCapability,
+    JobControlDescriptor,
+    JobControlReceipt,
+    JobControlRequest,
+    assess_job_control,
+)
 from .material_system import (
     MATERIAL_SYSTEM_CAPABILITY_ID,
     MATERIAL_SYSTEM_MAJOR_VERSION,
@@ -33,11 +46,21 @@ from .print_execution import (
 )
 
 __all__ = [
+    "JOB_CONTROL_CAPABILITY_ID",
+    "JOB_CONTROL_MAJOR_VERSION",
     "MATERIAL_SYSTEM_CAPABILITY_ID",
     "MATERIAL_SYSTEM_MAJOR_VERSION",
     "PRINT_EXECUTION_CAPABILITY_ID",
     "PRINT_EXECUTION_MAJOR_VERSION",
     "DetectedMaterial",
+    "JobControlAction",
+    "JobControlAssessment",
+    "JobControlBlocker",
+    "JobControlBlockerCode",
+    "JobControlCapability",
+    "JobControlDescriptor",
+    "JobControlReceipt",
+    "JobControlRequest",
     "LocalPrintArtifact",
     "MaterialActivity",
     "MaterialBinding",
@@ -59,4 +82,5 @@ __all__ = [
     "PrintExecutionCapability",
     "PrintExecutionDescriptor",
     "PrintExecutionRequest",
+    "assess_job_control",
 ]

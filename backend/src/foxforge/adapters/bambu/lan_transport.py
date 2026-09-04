@@ -25,13 +25,19 @@ from .lan_wire import (
     ImplicitFtpsBambuWire,
     PahoBambuMqttWire,
 )
-from .native import BambuNativeDispatchResult, BambuNativePrintRequest, BambuNativeState
+from .native import (
+    BambuNativeDispatchResult,
+    BambuNativeJobControlAction,
+    BambuNativeJobControlResult,
+    BambuNativePrintRequest,
+    BambuNativeState,
+)
 from .storage import BambuProjectStorage, FtpsBambuProjectStorage
 from .transport import BambuTransportError, BambuTransportErrorKind
 
 
 class BambuLanTransport:
-    """Bambu local-LAN control with conservative print-start semantics."""
+    """Bambu local-LAN control with conservative print-start/control semantics."""
 
     def __init__(
         self,
@@ -136,10 +142,56 @@ class BambuLanTransport:
             stored_project.project_url,
         )
         key = ("print", "project_file", sequence_id)
+        response = await self._publish_confirmed_print_command(
+            command=command,
+            key=key,
+            action_label="project_file",
+        )
+
+        vendor_job_id = _response_job_id(response) or self._codec.state.vendor_job_id
+        return BambuNativeDispatchResult(accepted_at=utc_now(), vendor_job_id=vendor_job_id)
+
+    async def control_print(
+        self,
+        action: BambuNativeJobControlAction,
+        expected_vendor_job_id: str,
+    ) -> BambuNativeJobControlResult:
+        state = self._codec.state
+        if not state.connected:
+            raise BambuTransportError(BambuTransportErrorKind.UNAVAILABLE, "Bambu printer is not connected")
+        if not state.vendor_job_id or state.vendor_job_id != expected_vendor_job_id:
+            raise BambuTransportError(
+                BambuTransportErrorKind.REJECTED,
+                "Bambu active job identity changed before the control command was sent",
+                vendor_code="job_mismatch",
+            )
+
+        sequence_id = self._next_sequence()
+        command = {
+            "print": {
+                "sequence_id": sequence_id,
+                "command": action.value,
+                "param": "",
+            }
+        }
+        key = ("print", action.value, sequence_id)
+        await self._publish_confirmed_print_command(
+            command=command,
+            key=key,
+            action_label=action.value,
+        )
+        return BambuNativeJobControlResult(accepted_at=utc_now())
+
+    async def _publish_confirmed_print_command(
+        self,
+        *,
+        command: Mapping[str, object],
+        key: tuple[str, str, str],
+        action_label: str,
+    ) -> Mapping[str, object]:
         loop = asyncio.get_running_loop()
         response_future: asyncio.Future[Mapping[str, object]] = loop.create_future()
         self._responses[key] = response_future
-
         try:
             try:
                 await self._mqtt.publish(command)
@@ -150,7 +202,7 @@ class BambuLanTransport:
                 }:
                     raise BambuTransportError(
                         BambuTransportErrorKind.INDETERMINATE,
-                        f"Bambu project_file publish became ambiguous: {error.message}",
+                        f"Bambu {action_label} publish became ambiguous: {error.message}",
                         vendor_code=error.vendor_code,
                     ) from error
                 raise
@@ -163,17 +215,15 @@ class BambuLanTransport:
             except TimeoutError as error:
                 raise BambuTransportError(
                     BambuTransportErrorKind.INDETERMINATE,
-                    "Bambu accepted the MQTT QoS1 publish but did not confirm project_file before timeout",
+                    f"Bambu accepted the MQTT QoS1 publish but did not confirm {action_label} before timeout",
                 ) from error
 
             result = str(response.get("result", "")).strip().lower()
             if result not in {"success", "ok"}:
-                reason = str(response.get("reason") or response.get("message") or result or "project_file rejected")
+                reason = str(response.get("reason") or response.get("message") or result or f"{action_label} rejected")
                 kind = BambuTransportErrorKind.BUSY if "busy" in reason.lower() else BambuTransportErrorKind.REJECTED
                 raise BambuTransportError(kind, reason, vendor_code=_response_vendor_code(response))
-
-            vendor_job_id = _response_job_id(response) or self._codec.state.vendor_job_id
-            return BambuNativeDispatchResult(accepted_at=utc_now(), vendor_job_id=vendor_job_id)
+            return response
         finally:
             self._responses.pop(key, None)
 

@@ -5,9 +5,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 from pathlib import Path
 
 from foxforge.domain.printers.models import normalize_utc, validate_fraction
+
+
+class MoonrakerNativeJobControlAction(StrEnum):
+    PAUSE = "pause"
+    RESUME = "resume"
+    CANCEL = "cancel"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,6 +61,14 @@ class MoonrakerNativePrintRequest:
 class MoonrakerNativeDispatchResult:
     accepted_at: datetime
     vendor_job_id: str | None = None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "accepted_at", normalize_utc(self.accepted_at, field_name="accepted_at"))
+
+
+@dataclass(frozen=True, slots=True)
+class MoonrakerNativeJobControlResult:
+    accepted_at: datetime
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "accepted_at", normalize_utc(self.accepted_at, field_name="accepted_at"))

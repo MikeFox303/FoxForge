@@ -26,6 +26,12 @@ class BambuMaterialUnitKind(StrEnum):
     UNKNOWN = "unknown"
 
 
+class BambuNativeJobControlAction(StrEnum):
+    PAUSE = "pause"
+    RESUME = "resume"
+    STOP = "stop"
+
+
 @dataclass(frozen=True, slots=True)
 class BambuNativeFault:
     code: str
@@ -97,6 +103,14 @@ class BambuNativePrintRequest:
 class BambuNativeDispatchResult:
     accepted_at: datetime
     vendor_job_id: str | None
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "accepted_at", normalize_utc(self.accepted_at, field_name="accepted_at"))
+
+
+@dataclass(frozen=True, slots=True)
+class BambuNativeJobControlResult:
+    accepted_at: datetime
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "accepted_at", normalize_utc(self.accepted_at, field_name="accepted_at"))
