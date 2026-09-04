@@ -103,7 +103,12 @@ def assess_job_control(
     blockers: list[JobControlBlocker] = []
 
     if request.action not in descriptor.supported_actions:
-        blockers.append(JobControlBlocker(JobControlBlockerCode.UNSUPPORTED_ACTION, "job control action is unsupported"))
+        blockers.append(
+            JobControlBlocker(
+                JobControlBlockerCode.UNSUPPORTED_ACTION,
+                "job control action is unsupported",
+            )
+        )
     if snapshot.connection != ConnectionState.CONNECTED:
         blockers.append(JobControlBlocker(JobControlBlockerCode.OFFLINE, "printer is not connected"))
     if snapshot.stale:
