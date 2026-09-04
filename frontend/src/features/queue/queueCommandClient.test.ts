@@ -41,10 +41,11 @@ afterEach(() => {
 });
 
 describe('queue command client', () => {
-  it('creates stable logical identities before a queue command is attempted', () => {
+  it('creates stable queue identities without coupling them to one HTTP dispatch attempt', () => {
     const identity = createQueueJobIdentity();
     expect(identity.queueId).not.toBe(identity.dispatchId);
-    expect(identity.enqueueIdempotencyKey).not.toBe(identity.dispatchIdempotencyKey);
+    expect(identity.enqueueIdempotencyKey).not.toBe(identity.queueId);
+    expect(identity).not.toHaveProperty('dispatchIdempotencyKey');
   });
 
   it('computes the browser SHA-256 digest used by artifact staging', async () => {
@@ -76,12 +77,15 @@ describe('queue command client', () => {
     expect(JSON.stringify(request?.[1])).not.toContain('C:\\');
   });
 
-  it('reuses caller-provided queue and idempotency identities across commands', async () => {
+  it('keeps queue dispatchId stable while the caller controls each HTTP dispatch idempotency key', async () => {
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'browser-token' }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         queueId: 'queue-1', printerId: 'x2d', state: 'pending',
       }), { status: 201 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        queueId: 'queue-1', printerId: 'x2d', state: 'blocked',
+      }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({
         queueId: 'queue-1', printerId: 'x2d', state: 'accepted',
       }), { status: 200 }));
@@ -90,18 +94,19 @@ describe('queue command client', () => {
       queueId: '153b6d90-5bb1-49fd-b90a-4316ba57db88',
       dispatchId: 'b9132e98-22d5-43ae-8d4f-f52c72bc921e',
       enqueueIdempotencyKey: 'enqueue-fixed',
-      dispatchIdempotencyKey: 'dispatch-fixed',
     };
     await enqueuePrintJob({ identity, printerId: 'x2d', artifactId: 'a'.repeat(64), requestedName: 'Part' });
-    await dispatchPrintJob(identity.queueId, identity.dispatchIdempotencyKey);
+    await dispatchPrintJob(identity.queueId, 'dispatch-attempt-1');
+    await dispatchPrintJob(identity.queueId, 'dispatch-attempt-2');
 
     const enqueueRequest = fetchMock.mock.calls[1];
     const enqueueHeaders = enqueueRequest?.[1]?.headers as Headers;
     expect(enqueueHeaders.get('Idempotency-Key')).toBe('enqueue-fixed');
     expect(enqueueRequest?.[1]?.body).toContain(identity.dispatchId);
 
-    const dispatchRequest = fetchMock.mock.calls[2];
-    const dispatchHeaders = dispatchRequest?.[1]?.headers as Headers;
-    expect(dispatchHeaders.get('Idempotency-Key')).toBe('dispatch-fixed');
+    const firstDispatchHeaders = fetchMock.mock.calls[2]?.[1]?.headers as Headers;
+    const secondDispatchHeaders = fetchMock.mock.calls[3]?.[1]?.headers as Headers;
+    expect(firstDispatchHeaders.get('Idempotency-Key')).toBe('dispatch-attempt-1');
+    expect(secondDispatchHeaders.get('Idempotency-Key')).toBe('dispatch-attempt-2');
   });
 });
