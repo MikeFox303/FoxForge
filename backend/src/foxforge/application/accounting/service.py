@@ -11,6 +11,7 @@ from uuid import UUID
 
 from foxforge.application.inventory import InventoryBalanceError, InventoryService
 from foxforge.application.queue import QueueEntry, QueueEntryState
+from foxforge.domain.printers.capabilities import MaterialBinding
 
 from .models import FilamentReservation, FilamentReservationState, MaterialEstimate
 from .store import FilamentAccountingStore, FilamentAccountingStoreConflictError
@@ -61,13 +62,14 @@ class FilamentAccountingService:
 
     def preview_plan(
         self,
-        entry: QueueEntry,
+        printer_id: str,
+        bindings: tuple[MaterialBinding, ...],
         estimates: tuple[MaterialEstimate, ...],
     ) -> tuple[tuple[MaterialEstimate, UUID, str], ...]:
         if not estimates:
             return ()
-        by_index = {binding.material_index: binding for binding in entry.request.material_bindings}
-        if len(by_index) != len(entry.request.material_bindings):
+        by_index = {binding.material_index: binding for binding in bindings}
+        if len(by_index) != len(bindings):
             raise FilamentPlanConflictError("queue material bindings contain duplicate material indices")
         estimate_indices = [estimate.material_index for estimate in estimates]
         if len(estimate_indices) != len(set(estimate_indices)):
@@ -81,10 +83,10 @@ class FilamentAccountingService:
                 raise FilamentPlanConflictError(
                     f"material estimate {estimate.material_index} has no matching queue material binding"
                 )
-            assignment = self._inventory.assignment_for_slot(entry.printer_id, binding.slot_id)
+            assignment = self._inventory.assignment_for_slot(printer_id, binding.slot_id)
             if assignment is None:
                 raise FilamentAssignmentRequiredError(
-                    f"no FoxForge spool is assigned to {entry.printer_id}/{binding.slot_id}"
+                    f"no FoxForge spool is assigned to {printer_id}/{binding.slot_id}"
                 )
             spool = self._inventory.get_spool(assignment.spool_id)
             if spool.archived:
@@ -110,7 +112,7 @@ class FilamentAccountingService:
         entry: QueueEntry,
         estimates: tuple[MaterialEstimate, ...],
     ) -> tuple[FilamentReservation, ...]:
-        resolved = self.preview_plan(entry, estimates)
+        resolved = self.preview_plan(entry.printer_id, entry.request.material_bindings, estimates)
         created: list[FilamentReservation] = []
         now = datetime.now(UTC)
         for estimate, spool_id, slot_id in resolved:
@@ -146,6 +148,9 @@ class FilamentAccountingService:
         if created:
             self._changed(entry.queue_id)
         return tuple(created)
+
+    def reservations(self) -> tuple[FilamentReservation, ...]:
+        return self._store.list()
 
     def reservations_for_queue(self, queue_id: UUID) -> tuple[FilamentReservation, ...]:
         return self._store.list_for_queue(queue_id)
