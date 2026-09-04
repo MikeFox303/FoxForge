@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { clearOperatorSessionForTests } from '../../data/commandClient';
+import { clearOperatorSessionForTests, setOperatorCommandToken } from '../../data/commandClient';
 import { controlPrinterJob, createJobControlIdentity } from './jobControlClient';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -27,16 +27,15 @@ describe('job-control client', () => {
   });
 
   it('sends the verified vendor job identity and caller-owned idempotency key', async () => {
-    fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'browser-token' }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify({
-        controlId: 'control-1',
-        printerId: 'x2d',
-        action: 'pause',
-        vendorJobId: 'vendor-job-1',
-        accepted: true,
-        replayed: false,
-      }), { status: 200 }));
+    setOperatorCommandToken('operator-token-0123456789abcdef0123456789');
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      controlId: 'control-1',
+      printerId: 'x2d',
+      action: 'pause',
+      vendorJobId: 'vendor-job-1',
+      accepted: true,
+      replayed: false,
+    }), { status: 200 }));
 
     await controlPrinterJob({
       identity: { controlId: 'control-1', idempotencyKey: 'http-command-1' },
@@ -45,10 +44,10 @@ describe('job-control client', () => {
       action: 'pause',
     });
 
-    const request = fetchMock.mock.calls[1];
+    const request = fetchMock.mock.calls[0];
     expect(request?.[0]).toBe('/api/v1/printers/x2d/job-control');
     const headers = request?.[1]?.headers as Headers;
-    expect(headers.get('Authorization')).toBe('Bearer browser-token');
+    expect(headers.get('Authorization')).toBe('Bearer operator-token-0123456789abcdef0123456789');
     expect(headers.get('Idempotency-Key')).toBe('http-command-1');
     expect(JSON.parse(request?.[1]?.body as string)).toEqual({
       controlId: 'control-1',
