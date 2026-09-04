@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.runtime import RuntimeSettings, create_runtime_app
@@ -88,3 +89,12 @@ def test_runtime_without_frontend_remains_api_usable(tmp_path) -> None:
             await client.close()
 
     asyncio.run(scenario())
+
+
+def test_runtime_rejects_tokenless_trusted_browser_session_mode(tmp_path) -> None:
+    with pytest.raises(ValueError, match="cryptographically authenticated reverse-proxy bootstrap"):
+        RuntimeSettings(
+            data_dir=tmp_path / "data",
+            config_path=tmp_path / "data" / "config.json",
+            trusted_browser_sessions=True,
+        )

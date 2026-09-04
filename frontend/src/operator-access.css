@@ -1,0 +1,69 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+
+.operator-access-shell {
+  position: fixed;
+  right: 1rem;
+  bottom: 1rem;
+  z-index: 50;
+  max-width: min(34rem, calc(100vw - 2rem));
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.8rem;
+  background: var(--surface-raised, var(--surface));
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 18%);
+}
+
+.operator-access {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.operator-access label {
+  min-width: 0;
+}
+
+.operator-access input {
+  width: 10.5rem;
+  max-width: 30vw;
+}
+
+.operator-access small {
+  max-width: 16rem;
+}
+
+.operator-access-unlocked {
+  padding: 0.15rem 0.25rem;
+}
+
+@media (max-width: 900px) {
+  .operator-access input {
+    width: 8rem;
+    max-width: 24vw;
+  }
+}
+
+@media (max-width: 620px) {
+  .operator-access-shell {
+    right: 0.65rem;
+    bottom: 0.65rem;
+    max-width: calc(100vw - 1.3rem);
+  }
+
+  .operator-access {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .operator-access label,
+  .operator-access input {
+    width: 100%;
+    max-width: none;
+  }
+
+  .operator-access small {
+    max-width: none;
+    width: 100%;
+  }
+}

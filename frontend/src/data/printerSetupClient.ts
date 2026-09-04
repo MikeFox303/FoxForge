@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 MikeFox303
 
-import { authenticatedCommandJson, ensureOperatorSession } from './commandClient';
+import { authenticatedCommandJson } from './commandClient';
 
 export type PrinterSetupKind = 'bambu' | 'moonraker';
 
@@ -48,8 +48,6 @@ export interface PrinterSetupOutcome {
     vendorCode?: string | null;
   } | null;
 }
-
-export { ensureOperatorSession };
 
 export async function loadPrinterConfigurations(): Promise<PrinterConfigurationView[]> {
   const payload = await authenticatedCommandJson<unknown>('/api/v1/printers/configuration');

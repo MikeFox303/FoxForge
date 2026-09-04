@@ -20,6 +20,24 @@ FoxForge deployment is a runnable/installable alpha implementation:
 
 Representative Raspberry Pi 5 hardware validation, physical printer-network validation and stable upgrade/migration guarantees are still pending.
 
+## Browser/API write authentication
+
+FoxForge write commands are fail-closed and require `FOXFORGE_COMMAND_TOKEN`. Read-only operation remains supported when the token is unset.
+
+For standalone Docker:
+
+1. copy `deployment/docker/.env.example` to `deployment/docker/.env`;
+2. generate a high-entropy token of at least 32 visible ASCII characters;
+3. set `FOXFORGE_COMMAND_TOKEN` in that `.env` file;
+4. start Compose;
+5. enter the same token in the **Operator access** control in the FoxForge browser UI when write access is needed.
+
+The browser keeps the token only in memory for the current tab. FoxForge does not place it in URLs, `localStorage`, `sessionStorage`, public API DTOs or logs. A 401 response or explicit **Lock** clears the in-memory credential.
+
+`FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` is deliberately rejected by the production runtime. A reverse proxy, private Docker network or forwarded header is not by itself proof of application authentication. Tokenless proxy bootstrap will require a future cryptographically authenticated contract and representative deployment tests; see [ADR 0005](../docs/adr/0005-browser-command-authentication.md).
+
+The immutable `v0.1.0-alpha.3` Umbrel package is historical and is not rewritten. Its App Proxy remains defense in depth, but the next FoxForge Umbrel package must not claim working browser writes unless it supplies and tests an authentication bootstrap compatible with ADR 0005. Until then, a package without a command credential is truthfully read-only for protected write operations.
+
 ## Deployment families
 
 - [`docker/`](docker/) — implemented alpha container image and local/self-hosted Compose runtime.

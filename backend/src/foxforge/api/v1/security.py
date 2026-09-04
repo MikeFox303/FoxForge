@@ -44,7 +44,11 @@ class CommandAuthenticationError(RuntimeError):
 
 
 class TrustedBrowserCommandSessions:
-    """Short-lived operator tokens issued only in an explicitly trusted proxy deployment."""
+    """Short-lived in-memory browser credentials.
+
+    The session store does not authorize bootstrap by itself. Callers must
+    authenticate an operator credential before issuing a browser session.
+    """
 
     def __init__(self, *, enabled: bool = False, ttl_seconds: int = 8 * 60 * 60) -> None:
         if ttl_seconds <= 0:
@@ -59,7 +63,7 @@ class TrustedBrowserCommandSessions:
 
     def issue(self) -> BrowserCommandSession:
         if not self._enabled:
-            raise CommandSecurityDisabledError("trusted browser command sessions are disabled")
+            raise CommandSecurityDisabledError("browser command sessions are disabled")
         self._prune()
         token = secrets.token_urlsafe(32)
         self._sessions[_token_digest(token)] = time.monotonic() + self._ttl_seconds
@@ -83,7 +87,7 @@ class TrustedBrowserCommandSessions:
 
 
 class BearerCommandSecurity:
-    """Fail-closed command authentication for API and trusted browser clients."""
+    """Fail-closed command authentication for API and browser clients."""
 
     _OPERATOR_PERMISSIONS = frozenset(
         {
@@ -112,13 +116,21 @@ class BearerCommandSecurity:
         return self._token is not None or bool(self._browser_sessions and self._browser_sessions.enabled)
 
     @property
+    def operator_token_configured(self) -> bool:
+        return self._token is not None
+
+    @property
     def browser_sessions_enabled(self) -> bool:
         return bool(self._browser_sessions and self._browser_sessions.enabled)
 
-    def issue_browser_session(self) -> BrowserCommandSession:
+    def issue_browser_session(self, bootstrap_token: str | None = None) -> BrowserCommandSession:
         sessions = self._browser_sessions
-        if sessions is None:
-            raise CommandSecurityDisabledError("trusted browser command sessions are disabled")
+        if sessions is None or not sessions.enabled:
+            raise CommandSecurityDisabledError("browser command sessions are disabled")
+        if bootstrap_token is None:
+            raise CommandSecurityDisabledError("browser session bootstrap requires an explicit operator credential")
+        if self._token is None or not hmac.compare_digest(bootstrap_token, self._token):
+            raise CommandAuthenticationError("operator bootstrap credential is invalid")
         return sessions.issue()
 
     def authenticate(self, authorization_header: str | None) -> CommandPrincipal:
@@ -127,21 +139,25 @@ class BearerCommandSecurity:
         if authorization_header is None:
             raise CommandAuthenticationError("command credentials are required")
 
-        scheme, separator, candidate = authorization_header.partition(" ")
-        if (
-            separator != " "
-            or scheme.lower() != "bearer"
-            or not candidate
-            or any(character.isspace() for character in candidate)
-        ):
-            raise CommandAuthenticationError("command credentials are invalid")
-
+        candidate = _bearer_candidate(authorization_header)
         static_match = self._token is not None and hmac.compare_digest(candidate, self._token)
         browser_match = self._browser_sessions is not None and self._browser_sessions.accepts(candidate)
         if not static_match and not browser_match:
             raise CommandAuthenticationError("command credentials are invalid")
 
         return CommandPrincipal(principal_id="operator", permissions=self._OPERATOR_PERMISSIONS)
+
+
+def _bearer_candidate(authorization_header: str) -> str:
+    scheme, separator, candidate = authorization_header.partition(" ")
+    if (
+        separator != " "
+        or scheme.lower() != "bearer"
+        or not candidate
+        or any(character.isspace() for character in candidate)
+    ):
+        raise CommandAuthenticationError("command credentials are invalid")
+    return candidate
 
 
 def _token_digest(token: str) -> str:

@@ -13,7 +13,7 @@ from aiohttp import web
 
 from foxforge.adapters.bambu import create_bambu_lan_adapter
 from foxforge.adapters.moonraker import create_moonraker_http_adapter
-from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions, create_api_v1_app
+from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
 from foxforge.api.v1.command_audit import install_command_audit
 from foxforge.api.v1.inventory_commands import register_inventory_command_routes
 from foxforge.api.v1.job_control_commands import register_job_control_command_routes
@@ -52,6 +52,11 @@ class RuntimeSettings:
     def __post_init__(self) -> None:
         if self.reconnect_seconds <= 0:
             raise ValueError("reconnect_seconds must be positive")
+        if self.trusted_browser_sessions:
+            raise ValueError(
+                "FOXFORGE_TRUSTED_BROWSER_SESSIONS is not accepted by the production runtime until a "
+                "cryptographically authenticated reverse-proxy bootstrap contract is implemented"
+            )
 
 
 @dataclass(slots=True)
@@ -98,8 +103,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     artifacts = FilesystemArtifactStore(settings.data_dir / "artifacts")
     command_idempotency = SQLiteCommandIdempotencyStore(database_path)
     command_audit = SQLiteCommandAuditStore(database_path)
-    browser_sessions = TrustedBrowserCommandSessions(enabled=settings.trusted_browser_sessions)
-    command_security = BearerCommandSecurity(settings.command_token, browser_sessions=browser_sessions)
+    command_security = BearerCommandSecurity(settings.command_token)
     printer_manager = RuntimePrinterManager(
         fleet=fleet,
         registry=registry,

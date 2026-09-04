@@ -14,6 +14,8 @@ services:
       FOXFORGE_DATA_DIR: /data
       FOXFORGE_CONFIG: /data/config.json
       FOXFORGE_RECONNECT_SECONDS: "15"
+      # Required for browser/API writes. Leave unset for an intentionally read-only runtime.
+      FOXFORGE_COMMAND_TOKEN: ${FOXFORGE_COMMAND_TOKEN:-}
     volumes:
       - foxforge_data:/data
 
