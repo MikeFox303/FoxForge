@@ -22,6 +22,7 @@ from foxforge.api.v1.queue_guard import install_queue_command_guard
 from foxforge.api.v1.realtime import register_realtime_routes
 from foxforge.application.artifacts import ArtifactStore
 from foxforge.application.commands import CommandAuditStore, CommandIdempotencyStore
+from foxforge.application.event_stores import EventingInventoryStore, EventingQueueStore
 from foxforge.application.events import ApplicationEventJournal
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
@@ -87,10 +88,13 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
 
     adapters = tuple(registry.create(printer.identity, printer.settings) for printer in config.printers)
     fleet = FleetService(adapters)
+    events = ApplicationEventJournal()
 
     database_path = settings.data_dir / "foxforge.sqlite3"
-    queue = QueueService(fleet, SQLiteQueueStore(database_path))
-    inventory = InventoryService(SQLiteInventoryStore(database_path))
+    queue_store = EventingQueueStore(SQLiteQueueStore(database_path), events)
+    inventory_store = EventingInventoryStore(SQLiteInventoryStore(database_path), events)
+    queue = QueueService(fleet, queue_store)
+    inventory = InventoryService(inventory_store)
     artifacts = FilesystemArtifactStore(settings.data_dir / "artifacts")
     command_idempotency = SQLiteCommandIdempotencyStore(database_path)
     command_audit = SQLiteCommandAuditStore(database_path)
@@ -101,8 +105,8 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         registry=registry,
         config_path=settings.config_path,
         config=config,
+        events=events,
     )
-    events = ApplicationEventJournal()
 
     app = create_api_v1_app(
         fleet=fleet,
