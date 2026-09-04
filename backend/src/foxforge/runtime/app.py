@@ -13,7 +13,7 @@ from aiohttp import web
 
 from foxforge.adapters.bambu import create_bambu_lan_adapter
 from foxforge.adapters.moonraker import create_moonraker_http_adapter
-from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
+from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions, create_api_v1_app
 from foxforge.application.commands import CommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
@@ -25,6 +25,7 @@ from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
 
 from .config import RuntimeConfig, load_runtime_config
+from .printer_manager import RuntimePrinterManager
 
 _LOG = logging.getLogger(__name__)
 
@@ -36,6 +37,7 @@ class RuntimeSettings:
     static_dir: Path | None = None
     reconnect_seconds: float = 15.0
     command_token: str | None = None
+    trusted_browser_sessions: bool = False
 
     def __post_init__(self) -> None:
         if self.reconnect_seconds <= 0:
@@ -49,6 +51,7 @@ class RuntimeComposition:
     queue: QueueService
     inventory: InventoryService
     command_idempotency: CommandIdempotencyStore
+    printer_manager: RuntimePrinterManager
 
 
 _RUNTIME_KEY = web.AppKey("foxforge_runtime", RuntimeComposition)
@@ -56,11 +59,12 @@ _SUPERVISOR_KEY = web.AppKey("foxforge_connection_supervisor", asyncio.Task[None
 
 
 def create_runtime_app(settings: RuntimeSettings) -> web.Application:
-    """Create the single-process FoxForge alpha web runtime.
+    """Create the single-process FoxForge web runtime.
 
-    Vendor factories are registered only here, at the composition root. Network
-    availability is deliberately not a startup prerequisite: the connection
-    supervisor retries offline printers while the API and UI remain available.
+    Printer network reachability is deliberately not a startup prerequisite.
+    Persisted printers are composed at startup; new printers can then be added,
+    updated, tested, removed and reconnected through the live application API
+    without restarting the server.
     """
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     config = load_runtime_config(settings.config_path)
@@ -76,7 +80,14 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     queue = QueueService(fleet, SQLiteQueueStore(database_path))
     inventory = InventoryService(SQLiteInventoryStore(database_path))
     command_idempotency = SQLiteCommandIdempotencyStore(database_path)
-    command_security = BearerCommandSecurity(settings.command_token)
+    browser_sessions = TrustedBrowserCommandSessions(enabled=settings.trusted_browser_sessions)
+    command_security = BearerCommandSecurity(settings.command_token, browser_sessions=browser_sessions)
+    printer_manager = RuntimePrinterManager(
+        fleet=fleet,
+        registry=registry,
+        config_path=settings.config_path,
+        config=config,
+    )
 
     app = create_api_v1_app(
         fleet=fleet,
@@ -84,6 +95,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         inventory=inventory,
         command_security=command_security,
         command_idempotency=command_idempotency,
+        printer_management=printer_manager,
     )
     app[_RUNTIME_KEY] = RuntimeComposition(
         config=config,
@@ -91,6 +103,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         queue=queue,
         inventory=inventory,
         command_idempotency=command_idempotency,
+        printer_manager=printer_manager,
     )
     app.on_startup.append(lambda runtime_app: _start_runtime(runtime_app, settings.reconnect_seconds))
     app.on_cleanup.append(_stop_runtime)
@@ -137,9 +150,6 @@ async def _connection_supervisor(fleet: FleetService, reconnect_seconds: float) 
                     error.code.value,
                 )
             except Exception:
-                # A single malformed/unavailable external device must not take
-                # down the self-hosted server. Unexpected failures are logged
-                # with a traceback and retried on the next supervisor pass.
                 _LOG.exception("unexpected connection failure for printer %s", printer_id)
         await asyncio.sleep(reconnect_seconds)
 
