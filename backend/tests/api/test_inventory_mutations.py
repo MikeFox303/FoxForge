@@ -11,6 +11,7 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
 from foxforge.api.v1.inventory_commands import register_inventory_command_routes
+from foxforge.api.v1.inventory_reads import register_inventory_read_routes
 from foxforge.application.commands import InMemoryCommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InMemoryInventoryStore, InventoryService
@@ -90,6 +91,7 @@ def _app() -> tuple[web.Application, InventoryService]:
         command_security=BearerCommandSecurity(_TOKEN),
         command_idempotency=InMemoryCommandIdempotencyStore(),
     )
+    register_inventory_read_routes(app, inventory=inventory)
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     return app, inventory
 
@@ -137,6 +139,22 @@ def test_inventory_mutation_lifecycle_is_authenticated_idempotent_and_live_reada
             assert (await correction_replay.json())["replayed"] is True
             assert len(inventory.adjustments(UUID(_SPOOL_ID))) == 1
 
+            history = await client.get(f"/api/v1/inventory/spools/{_SPOOL_ID}/history")
+            assert history.status == 200
+            history_payload = await history.json()
+            assert history_payload["apiVersion"] == "1"
+            assert history_payload["spoolId"] == _SPOOL_ID
+            assert history_payload["adjustments"] == [
+                {
+                    "adjustmentId": str(inventory.adjustments(UUID(_SPOOL_ID))[0].adjustment_id),
+                    "kind": "correction",
+                    "deltaFilamentMassG": "-264.5",
+                    "createdAt": history_payload["adjustments"][0]["createdAt"],
+                    "note": "scale correction",
+                }
+            ]
+            assert "idempotencyKey" not in history_payload["adjustments"][0]
+
             moved = await client.put(
                 f"/api/v1/inventory/spools/{_SPOOL_ID}/assignment",
                 json={"printerId": "x2d-main", "slotId": "bambu:unit:0:tray:0"},
@@ -172,6 +190,31 @@ def test_inventory_mutation_lifecycle_is_authenticated_idempotent_and_live_reada
             payload = await read.json()
             assert payload["spools"][0]["remainingFilamentMassG"] == "735.5"
             assert payload["spools"][0]["archived"] is True
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_inventory_history_not_found_is_normalized_and_does_not_expose_internal_keys() -> None:
+    async def scenario() -> None:
+        app, _ = _app()
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            response = await client.get(
+                "/api/v1/inventory/spools/00000000-0000-4000-8000-000000000099/history",
+                headers={"X-Request-Id": "inventory.history.missing"},
+            )
+            assert response.status == 404
+            assert await response.json() == {
+                "error": {
+                    "code": "spool_not_found",
+                    "message": "Spool was not found.",
+                    "requestId": "inventory.history.missing",
+                    "retryable": False,
+                }
+            }
         finally:
             await client.close()
 
