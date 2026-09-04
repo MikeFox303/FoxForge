@@ -202,7 +202,9 @@ class InventoryService:
         if existing is not None:
             if existing.printer_id == printer_id.strip() and existing.slot_id == slot_id.strip():
                 return existing
-            raise SpoolAssignmentConflictError("spool is already assigned; use move_spool to change slots")
+            raise SpoolAssignmentConflictError(
+                "spool is already assigned; unassign it before moving or use move_spool"
+            )
 
         occupied = self._store.assignment_for_slot(printer_id.strip(), slot_id.strip())
         if occupied is not None and occupied.spool_id != spool_id:
