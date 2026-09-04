@@ -19,3 +19,21 @@ class SecretStore(Protocol):
     def set(self, key: str, value: str) -> None: ...
 
     def delete(self, key: str) -> None: ...
+
+
+class InMemorySecretStore:
+    """Deterministic SecretStore for tests and composition-contract checks."""
+
+    def __init__(self) -> None:
+        self._values: dict[str, str] = {}
+
+    def get(self, key: str) -> str | None:
+        return self._values.get(key)
+
+    def set(self, key: str, value: str) -> None:
+        if not key or not value:
+            raise ValueError("secret key and value must be non-empty")
+        self._values[key] = value
+
+    def delete(self, key: str) -> None:
+        self._values.pop(key, None)
