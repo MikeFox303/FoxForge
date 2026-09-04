@@ -1,0 +1,160 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.queue-command-panel {
+  display: grid;
+  gap: 18px;
+}
+
+.queue-command-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+}
+
+.queue-command-heading h3 {
+  margin: 5px 0 6px;
+  font-size: 20px;
+}
+
+.queue-command-heading p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 720px;
+}
+
+.queue-command-safety {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.queue-command-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(180px, .8fr) minmax(0, 1fr);
+  gap: 14px;
+}
+
+.queue-command-field {
+  display: grid;
+  gap: 7px;
+}
+
+.queue-command-field > span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.queue-command-field input,
+.queue-command-field select {
+  min-width: 0;
+  min-height: 40px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: #0f151e;
+  color: var(--text);
+  padding: 9px 11px;
+  font: inherit;
+}
+
+.queue-command-field input[type='file'] {
+  padding: 7px;
+}
+
+.queue-command-field small {
+  color: var(--muted);
+  min-height: 16px;
+}
+
+.queue-command-status {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: #101720;
+}
+
+.queue-command-status span {
+  color: var(--muted);
+}
+
+.queue-command-status code {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.queue-command-error,
+.queue-command-indeterminate {
+  display: grid;
+  gap: 4px;
+  border-radius: 10px;
+  padding: 12px 14px;
+}
+
+.queue-command-error {
+  border: 1px solid rgba(248, 113, 113, .25);
+  background: rgba(127, 29, 29, .12);
+}
+
+.queue-command-indeterminate {
+  border: 1px solid rgba(251, 191, 36, .28);
+  background: rgba(120, 53, 15, .13);
+}
+
+.queue-command-error span,
+.queue-command-indeterminate span,
+.queue-command-footnote {
+  color: var(--muted);
+}
+
+.queue-command-actions,
+.queue-entry-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.queue-entry-actions {
+  margin-top: 6px;
+}
+
+.queue-entry-actions .text-button {
+  font-size: 11px;
+  padding: 0;
+}
+
+.queue-entry-actions small {
+  display: block;
+  flex-basis: 100%;
+}
+
+.queue-command-footnote {
+  margin: -8px 0 0;
+  font-size: 11px;
+}
+
+@media (max-width: 900px) {
+  .queue-command-form {
+    grid-template-columns: 1fr;
+  }
+
+  .queue-command-heading {
+    flex-direction: column;
+  }
+
+  .queue-command-status {
+    grid-template-columns: 1fr;
+  }
+}
