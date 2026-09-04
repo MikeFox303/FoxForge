@@ -13,6 +13,7 @@ const emptyFleet: FleetData = { printers: [], queue: [] };
 const emptyQueue: QueueViewModel[] = [];
 
 export type FleetRuntimePhase = 'loading' | 'ready' | 'error';
+export type FleetRuntimeTone = 'good' | 'warning' | 'danger';
 
 export interface FleetRuntimeState {
   data: FleetData;
@@ -37,6 +38,12 @@ export function combinedFleetRuntimePhase(states: QueryRuntimeState[]): FleetRun
   if (states.some((state) => fleetRuntimePhase(state) === 'error')) return 'error';
   if (states.some((state) => fleetRuntimePhase(state) === 'loading')) return 'loading';
   return 'ready';
+}
+
+export function fleetRuntimeTone(phase: FleetRuntimePhase): FleetRuntimeTone {
+  if (phase === 'error') return 'danger';
+  if (phase === 'loading') return 'warning';
+  return 'good';
 }
 
 async function loadFleetSnapshot(): Promise<FleetData> {
