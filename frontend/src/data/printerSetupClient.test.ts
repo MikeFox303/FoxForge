@@ -3,6 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { clearOperatorSessionForTests } from './commandClient';
 import { addPrinter, loadPrinterConfigurations } from './printerSetupClient';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -12,6 +13,7 @@ vi.stubGlobal('crypto', { randomUUID: () => 'idem-123' });
 
 afterEach(() => {
   fetchMock.mockReset();
+  clearOperatorSessionForTests();
 });
 
 describe('printer setup command client', () => {
@@ -30,20 +32,22 @@ describe('printer setup command client', () => {
   });
 
   it('adds a Bambu printer with a fresh idempotency key and bearer token', async () => {
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
-      configuration: {
-        printerId: 'x2d-main',
-        displayName: 'X2D',
-        kind: 'bambu',
-        vendor: 'bambu_lab',
-        serialNumber: 'SERIAL',
-        connection: { host: '192.0.2.5', accessCodeConfigured: true },
-      },
-      connection: 'connected',
-      operationalState: 'idle',
-      observedAt: '2026-09-04T12:00:00Z',
-      reachable: true,
-    }), { status: 201 }));
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ accessToken: 'browser-token' }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        configuration: {
+          printerId: 'x2d-main',
+          displayName: 'X2D',
+          kind: 'bambu',
+          vendor: 'bambu_lab',
+          serialNumber: 'SERIAL',
+          connection: { host: '192.0.2.5', accessCodeConfigured: true },
+        },
+        connection: 'connected',
+        operationalState: 'idle',
+        observedAt: '2026-09-04T12:00:00Z',
+        reachable: true,
+      }), { status: 201 }));
 
     const result = await addPrinter({
       printerId: 'x2d-main',
