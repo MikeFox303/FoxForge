@@ -62,7 +62,12 @@ class BearerCommandSecurity:
             raise CommandAuthenticationError("command credentials are required")
 
         scheme, separator, candidate = authorization_header.partition(" ")
-        if separator != " " or scheme.lower() != "bearer" or not candidate or any(character.isspace() for character in candidate):
+        if (
+            separator != " "
+            or scheme.lower() != "bearer"
+            or not candidate
+            or any(character.isspace() for character in candidate)
+        ):
             raise CommandAuthenticationError("command credentials are invalid")
         if not hmac.compare_digest(candidate, token):
             raise CommandAuthenticationError("command credentials are invalid")
