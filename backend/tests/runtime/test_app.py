@@ -50,7 +50,11 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
             assert diagnostics.status == 200
             body = await diagnostics.json()
             assert body["apiVersion"] == "1"
-            assert body["persistence"] == {"configSchemaVersion": 2, "sqliteSchemaVersion": 1}
+            assert body["persistence"] == {
+                "configSchemaVersion": 2,
+                "sqliteSchemaVersion": 1,
+                "secretStore": "file",
+            }
             storage = body["artifactStorage"]
             assert storage["artifactCount"] == 0
             assert storage["usedBytes"] == 0
