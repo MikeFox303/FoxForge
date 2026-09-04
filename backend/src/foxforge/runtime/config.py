@@ -28,15 +28,13 @@ class RuntimeConfig:
 
 
 def load_runtime_config(path: Path | str) -> RuntimeConfig:
-    """Load the local composition configuration, creating a safe empty file when absent."""
+    """Load app-owned composition data, creating a safe empty file when absent."""
     config_path = Path(path)
     if not config_path.exists():
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        config_path.write_text(
-            json.dumps({"schemaVersion": _CONFIG_SCHEMA_VERSION, "printers": []}, indent=2) + "\n",
-            encoding="utf-8",
+        save_runtime_config(
+            config_path,
+            RuntimeConfig(schema_version=_CONFIG_SCHEMA_VERSION, printers=()),
         )
-        _restrict_permissions(config_path)
 
     try:
         raw = json.loads(config_path.read_text(encoding="utf-8"))
@@ -63,6 +61,59 @@ def load_runtime_config(path: Path | str) -> RuntimeConfig:
         printers.append(printer)
 
     return RuntimeConfig(schema_version=_CONFIG_SCHEMA_VERSION, printers=tuple(printers))
+
+
+def save_runtime_config(path: Path | str, config: RuntimeConfig) -> None:
+    """Atomically persist the app-owned runtime configuration.
+
+    Printer credentials remain in the private application data volume, but the
+    file is an implementation detail managed by FoxForge rather than a user
+    configuration surface.
+    """
+
+    if config.schema_version != _CONFIG_SCHEMA_VERSION:
+        raise ValueError(f"runtime config schema_version must be {_CONFIG_SCHEMA_VERSION}")
+
+    seen_ids: set[str] = set()
+    payload_printers: list[dict[str, object]] = []
+    for printer in config.printers:
+        printer_id = printer.identity.printer_id
+        if printer_id in seen_ids:
+            raise ValueError(f"duplicate printerId in runtime config: {printer_id}")
+        seen_ids.add(printer_id)
+        payload_printers.append(_encode_printer(printer))
+
+    config_path = Path(path)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = config_path.with_name(f".{config_path.name}.tmp")
+    try:
+        temporary.write_text(
+            json.dumps(
+                {"schemaVersion": _CONFIG_SCHEMA_VERSION, "printers": payload_printers},
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        _restrict_permissions(temporary)
+        os.replace(temporary, config_path)
+        _restrict_permissions(config_path)
+    finally:
+        with suppress(OSError):
+            temporary.unlink()
+
+
+def _encode_printer(printer: PrinterRuntimeConfig) -> dict[str, object]:
+    identity = printer.identity
+    return {
+        "printerId": identity.printer_id,
+        "displayName": identity.display_name,
+        "vendor": identity.vendor,
+        "model": identity.model,
+        "serialNumber": identity.serial_number,
+        "adapterKind": identity.adapter_kind,
+        "settings": _json_mapping(printer.settings, index=0),
+    }
 
 
 def _parse_printer(value: object, *, index: int) -> PrinterRuntimeConfig:
