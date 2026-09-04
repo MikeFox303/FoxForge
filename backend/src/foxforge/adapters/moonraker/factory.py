@@ -8,7 +8,8 @@ from collections.abc import Mapping
 from foxforge.domain.printers import PrinterIdentity
 
 from .adapter import MoonrakerAdapter
-from .http_transport import MoonrakerHttpSettings, MoonrakerHttpTransport
+from .control_transport import MoonrakerControlledHttpTransport
+from .http_transport import MoonrakerHttpSettings
 
 
 def create_moonraker_http_adapter(
@@ -23,7 +24,7 @@ def create_moonraker_http_adapter(
     api_key = _optional_string(settings.get("api_key"), field_name="api_key")
     request_timeout_seconds = _positive_float(settings.get("request_timeout_seconds", 10.0), "request_timeout_seconds")
 
-    transport = MoonrakerHttpTransport(
+    transport = MoonrakerControlledHttpTransport(
         MoonrakerHttpSettings(
             base_url=base_url,
             api_key=api_key,
