@@ -15,7 +15,13 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Protocol
 
-from .native import BambuNativeDispatchResult, BambuNativePrintRequest, BambuNativeState
+from .native import (
+    BambuNativeDispatchResult,
+    BambuNativeJobControlAction,
+    BambuNativeJobControlResult,
+    BambuNativePrintRequest,
+    BambuNativeState,
+)
 
 
 class BambuTransportErrorKind(StrEnum):
@@ -48,3 +54,5 @@ class BambuTransport(Protocol):
     def events(self) -> AsyncIterator[BambuNativeState]: ...
 
     async def submit_print(self, request: BambuNativePrintRequest) -> BambuNativeDispatchResult: ...
+
+    async def control_print(self, action: BambuNativeJobControlAction) -> BambuNativeJobControlResult: ...
