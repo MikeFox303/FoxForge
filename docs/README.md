@@ -8,7 +8,7 @@ FoxForge treats the Git repository as the canonical source for durable architect
 - [`CHANGELOG.md`](../CHANGELOG.md) — implementation, architecture, validation and migration history.
 - [`release/`](../release/) — durable metadata and release notes for published FoxForge versions.
 
-The current published pre-release is **`v0.1.0-alpha.2`**. Backend, live read API, web UI, SQLite queue/inventory persistence, authenticated printer/inventory/queue command foundations, Docker runtime, versioned Linux `amd64`/`arm64` image publication and the user-managed Umbrel Community App package are integrated. Physical printer/Raspberry Pi validation, common pause/resume/cancel controls, realtime delivery, automatic accounting and persistent farm scheduling remain incomplete.
+The current published pre-release is **`v0.1.0-alpha.2`**. The repository has continued beyond that immutable image with authenticated printer/inventory write flows and the audited queue command/artifact-staging layer. Physical printer/Raspberry Pi validation, queue upload/dispatch UI integration, realtime delivery, automatic accounting and persistent farm scheduling remain incomplete.
 
 ## Architecture Decision Records
 
@@ -39,7 +39,7 @@ The current published pre-release is **`v0.1.0-alpha.2`**. Backend, live read AP
 - [Queue dispatch and durable idempotency](design/queue-dispatch.md) — queue state machine, persisted dispatch crash boundary, reconciliation semantics and SQLite restart durability.
 - [Queue event-driven print lifecycle](design/queue-event-lifecycle.md) — remote-job tracking from accepted dispatch through preparing, printing, pause/resume and terminal states with strict vendor-job identity matching.
 - [Queue retry and single-pass runner policy](design/queue-retry-policy.md) — safe pre-start retry/backoff, one-entry-per-printer passes and protection of `DISPATCHING`, `INDETERMINATE` and receipt-bearing jobs.
-- [Queue command API and artifact staging](design/queue-command-api.md) — authenticated content-addressed upload, enqueue/dispatch/reconcile HTTP commands, command audit and the single-process concurrency guard.
+- [Queue command API and artifact staging](design/queue-command-api.md) — authenticated artifact upload, enqueue/dispatch/reconciliation, HTTP replay semantics, command audit and single-process concurrency boundary.
 
 ## Inventory design
 
@@ -48,13 +48,13 @@ The current published pre-release is **`v0.1.0-alpha.2`**. Backend, live read AP
 
 ## API and frontend design
 
-- [Public API v1 read foundation](design/public-api-v1.md) — versioned `/api/v1` read contract for health, fleet, queue and inventory without raw vendor payloads or secret leakage. Later command endpoints extend the same namespace under ADR 0004.
-- [ADR 0004: Command API security and idempotency](adr/0004-command-api-security.md) — security contract governing all remote state-changing routes.
-- [Queue command API and artifact staging](design/queue-command-api.md) — current queue write contract and artifact upload boundary.
+- [Public API v1](design/public-api-v1.md) — the original versioned read foundation for health, fleet, queue and inventory. Later write endpoints follow ADR 0004 and dedicated command designs rather than weakening the original read DTO boundary.
+- [ADR 0004: Command API security and idempotency](adr/0004-command-api-security.md) — fail-closed authentication, permissions, idempotency, errors and audit contract for remote mutations.
+- [Queue command API and artifact staging](design/queue-command-api.md) — implemented command contract for safe queue writes without client filesystem paths.
 - [Web UI foundation](design/web-ui-foundation.md) — React/TypeScript product structure, printer cockpit, Router/TanStack Query/i18next composition and vendor-neutral presentation rules.
 - [Frontend parallel development policy](design/frontend-parallel-development.md) — main-driven UI development, query isolation, capability discipline and merge/CI rules while backend work proceeds in parallel.
 
-The production alpha UI consumes live `/api/v1` read models and can manage printer connections through the trusted browser command-session boundary when the deployment enables it. Authenticated inventory and queue mutation APIs are implemented at the backend boundary, but full browser spool/print workflows remain incomplete. Realtime WebSocket/SSE delivery is still a separate future contract.
+The production alpha UI consumes live `/api/v1` read models. Demo data remains available only through explicit `?demo=1`. Browser-safe command sessions now support selected guarded write flows; queue file upload/enqueue/dispatch/reconciliation UI is the next integration milestone. Realtime WebSocket/SSE remains a separate future contract.
 
 ## Deployment
 
@@ -64,8 +64,7 @@ Current state:
 
 - the unified Docker image and standalone Compose runtime are implemented;
 - the same server process serves compiled SPA assets and `/api/v1`;
-- persistent `/data` contains runtime configuration, SQLite state and staged print artifacts;
-- command idempotency and append-only command audit are persisted in SQLite;
+- persistent `/data` contains runtime configuration, SQLite state and staged queue artifacts;
 - steady-state container execution is non-root;
 - container startup smoke testing exists in CI;
 - `v0.1.0-alpha.2` publishes an immutable versioned Linux `amd64` + `arm64` GHCR image through the guarded release workflow;
@@ -88,4 +87,4 @@ Implementation PRs should:
 5. document important architecture/runtime changes in the repository;
 6. preserve upstream copyright/license provenance where code or material is derived;
 7. avoid claiming physical or production validation until the corresponding tests have actually been run;
-8. keep remote mutations disabled unless they satisfy ADR 0004 authentication, authorization, validation, idempotency, normalized-error and audit requirements.
+8. keep remote mutations behind ADR 0004 authentication, authorization, validation, idempotency, normalized-error and audit requirements.
