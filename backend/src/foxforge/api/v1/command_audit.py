@@ -42,7 +42,12 @@ _COMMAND_ROUTES: Final = (
     _CommandRoute("POST", re.compile(r"^/api/v1/printers/test-connection$"), "printer.test_connection"),
     _CommandRoute("POST", re.compile(r"^/api/v1/printers$"), "printer.add"),
     _CommandRoute("PUT", re.compile(r"^/api/v1/printers/(?P<printer_id>[^/]+)$"), "printer.update", "printer_id"),
-    _CommandRoute("DELETE", re.compile(r"^/api/v1/printers/(?P<printer_id>[^/]+)$"), "printer.remove", "printer_id"),
+    _CommandRoute(
+        "DELETE",
+        re.compile(r"^/api/v1/printers/(?P<printer_id>[^/]+)$"),
+        "printer.remove",
+        "printer_id",
+    ),
     _CommandRoute(
         "POST",
         re.compile(r"^/api/v1/printers/(?P<printer_id>[^/]+)/reconnect$"),
