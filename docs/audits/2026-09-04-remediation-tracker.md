@@ -19,7 +19,7 @@ This file tracks active remediation. The independent audit remains the immutable
 | --- | --- | --- | --- |
 | AUD-001 | P0 | RESOLVED | PR #60 merged as `3a242a6250af923080ccc4399e2a2b1317b72a56`. Release identity preflight blocks existing/mismatched Git tags, GitHub releases and semantic GHCR tags before publication; regression tests and exact-head backend/container CI passed. |
 | AUD-002 | P0 | RESOLVED | PR #60 removed `v*`/semver publication from `container.yml`; only `main` + `sha-*` development identities remain. Policy regression test and exact-head CI passed. |
-| AUD-003 | P0 | VALIDATION REQUIRED | PR #61 aligned standalone Compose with explicit `FOXFORGE_COMMAND_TOKEN`, memory-only browser operator access and truthful read-only behavior when no token is configured. PR #88 adds a production-container deployment-auth contract proving read-only 503 fail-closed behavior, explicit-token write success, wrong-token 401 rejection, tokenless `/operator-session` rejection and startup failure for unsafe trusted-browser mode. The historical Umbrel `alpha.3` Store Compose is documented truthfully as lacking an ADR-0005-compatible bootstrap. PR #93 adds a strict evidence manifest/verifier so the future exact package must prove install/restart persistence, proxy write auth, direct-backend fail-closed behavior, deployment-network printer reachability and SSE reconnect/resync before `--require aud003` can pass. The real future package validation is still required before this finding can be resolved. |
+| AUD-003 | P0 | VALIDATION REQUIRED | PR #61 aligned standalone Compose with explicit `FOXFORGE_COMMAND_TOKEN`, memory-only browser operator access and truthful read-only behavior when no token is configured. PR #88 added production-container deployment-auth acceptance; PR #90 proved representative reverse-proxy headers do not become an application principal; PR #93 added the strict physical/deployment evidence verifier. The companion Umbrel Store PR #26 is now merged as `de430fe63d79843b0a646851e8f03b05e37f624d`: `my3d-foxforge` `0.1.0-alpha.4` pins the guarded multi-arch digest `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`, maps Umbrel `APP_PASSWORD` to `FOXFORGE_COMMAND_TOKEN`, keeps App Proxy as defense in depth, and passes package/Compose plus anonymous `amd64`/`arm64` runtime smoke. This closes the previous missing-package-bootstrap software gap. AUD-003 nevertheless remains `VALIDATION REQUIRED` until real Raspberry Pi 5/Umbrel install/restart/persistence, actual proxy write path, direct-backend fail-closed behavior, deployment-network printer reachability, upgrade and SSE reconnect/resync evidence is recorded and `--require aud003` passes. |
 | AUD-004 | P0 | RESOLVED | PR #61/ADR 0005 defines the explicit-token browser/deployment trust model and production rejects tokenless trusted-browser mode. PR #88 proves the production runtime fails closed without an application credential. PR #90 adds a representative separate reverse-proxy process: spoofed forwarding/authenticated-user headers still produce 401, tokenless `/operator-session` remains disabled and only the explicit FoxForge bearer enables the protected write. The current proxy boundary therefore cannot silently become an application principal; any future tokenless proxy bootstrap requires a new/amended ADR and new representative tests. |
 | AUD-005 | P1 | RESOLVED | PR #61 removed the duplicate root `PrinterSetupLauncher` and added a one-launcher regression. PR #62 added production-container browser acceptance across supported desktop/tablet/mobile layouts, preserving a reachable canonical Add Printer entry point. |
 | AUD-006 | P1 | RESOLVED | PR #62 merged as `cfa1e7c74367940eb55d41b770b3e4498c31d51a`: committed frontend lock and backend constraints, frozen installs, lock verification, dependency audits and exact-head security/container/browser gates. |
@@ -37,18 +37,30 @@ This file tracks active remediation. The independent audit remains the immutable
 | AUD-018 | P2 | RESOLVED | PR #83 merged as `d105cb0fc9dcc8fa667fbe6010ab3e712d49d8cd`. Production-container Playwright covers desktop/tablet/phone layouts, routing, the single Add Printer entry, Escape-close keyboard behavior, explicit memory-only write bootstrap, truthful unavailable queue state, browser file hashing/staging/enqueue, and deterministic realtime `resync_required` HTTP refetch. The expanded gate found and fixed a real Add Printer Escape defect; final 15/15 browser tests passed without retries. PR #91 extends the same production-browser layer to the normal inventory operator workflow. |
 | AUD-019 | P3 | RESOLVED | PR #84 merged as `0b4ab02e00657f30710952bfcd2b897932f2edd5`. Together with existing `SECURITY.md`, Dependabot, frozen npm/pip audits and final-image vulnerability scanning, FoxForge measures backend branch coverage with pinned coverage.py. The measured baseline is 76% across 253 tests, 7,003 statements and 1,840 branches; CI enforces a 75% non-regression floor and documents governance in `docs/testing/coverage-policy.md`. Python static type checking is not currently adopted, so the audit's conditional type-checker recommendation does not apply yet. |
 
+## Published alpha.4 stabilization baseline
+
+`v0.1.0-alpha.4` was published from frozen release commit `457f8f3f044147772b1ecf13df90b38a35268cda` after the guarded release workflow passed. The release includes P1 common job control, P2 realtime application events, the completed normal inventory operator workflow and the software stabilization/security work represented by this tracker.
+
+Published multi-architecture image:
+
+```text
+ghcr.io/mikefox303/foxforge:0.1.0-alpha.4@sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4
+```
+
+The companion Umbrel Store PR #26 merged the matching package to Store `main` as `de430fe63d79843b0a646851e8f03b05e37f624d`. Package CI passed on its final head before merge. This is package/software evidence only; it does not replace physical AUD-003 evidence.
+
 ## P3 freeze record
 
 The detailed frozen P3 implementation state is recorded in `docs/status/p3-frozen-state-2026-09-04.md`.
 
-P3 is not discarded. The draft already contains reservation/reconciliation semantics, exact Decimal accounting, full material-plan enforcement, restart/idempotency protections and UI work. The normal inventory operator prerequisite was completed by PR #91 and merged as `58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`: create/correct/empty-spool-mass/assign-move/unassign/archive/history workflows are live in current source, opaque slot identity is preserved, unchanged-payload retries remain idempotent, and the final PR head `bc9cc83d4569b0c63d0d2060cb758beca7a1cf08` passed backend, Web UI, production-browser, container, deployment-auth and security gates. P3 nevertheless remains intentionally unmerged until the remaining physical/deployment validation gate is satisfied.
+P3 is not discarded. The draft already contains reservation/reconciliation semantics, exact Decimal accounting, full material-plan enforcement, restart/idempotency protections and UI work. The normal inventory operator prerequisite was completed by PR #91 and merged as `58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`: create/correct/empty-spool-mass/assign-move/unassign/archive/history workflows are live in current source and are included in `v0.1.0-alpha.4`; opaque slot identity is preserved, unchanged-payload retries remain idempotent, and the final PR head passed backend, Web UI, production-browser, container, deployment-auth and security gates. P3 nevertheless remains intentionally unmerged until the remaining physical/deployment validation gate is satisfied.
 
 PR #93 makes that remaining gate machine-checkable without weakening it: a manifest can only report `p3PhysicalGateReady=true` when the AUD-003 and AUD-013 evidence subsets pass, all Bambu lifecycle observations pass, all Moonraker/OpenKE lifecycle observations pass, and successful redacted probes include FoxForge, Bambu TLS and Moonraker.
 
 ## Execution order
 
 1. **Release integrity:** AUD-001, AUD-002 — resolved in PR #60.
-2. **Browser/deployment security foundation:** AUD-004 and AUD-007 are resolved through ADR 0005 plus PR #61/#88/#90. AUD-003 remains `VALIDATION REQUIRED` for an exact future Umbrel package write/read-only contract.
+2. **Browser/deployment security foundation:** AUD-004 and AUD-007 are resolved through ADR 0005 plus PR #61/#88/#90. The `alpha.4` Umbrel package now has an explicit ADR-0005-compatible `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN` path through Store PR #26, but AUD-003 remains `VALIDATION REQUIRED` for real Raspberry Pi/Umbrel/proxy/printer-network evidence.
 3. **UI/build/browser reproducibility:** AUD-005, AUD-006, AUD-016, AUD-017, AUD-018 — resolved through PR #61/#62/#83 and extended by PR #91 inventory acceptance.
 4. **Persistent data foundation:** AUD-008 — resolved in PR #74.
 5. **Roadmap stabilization:** AUD-009 — sequencing aligned in PR #87; inventory prerequisite completed in PR #91; P3 remains frozen behind the physical/deployment resume gate.
@@ -59,18 +71,18 @@ PR #93 makes that remaining gate machine-checkable without weakening it: a manif
 10. **Credential storage boundary:** AUD-015 — resolved in PR #80.
 11. **Bambu certificate-trust foundation:** AUD-013 software work is complete in PR #82, validation probe in PR #89, and strict evidence gating in PR #93; physical X2D observations remain required before any trust-default change.
 12. **Public-project governance:** AUD-019 — resolved through PR #62/#84 with security policy, dependency/update scanning and measured coverage governance.
-13. **Inventory operator workflow:** completed and merged in PR #91 (`58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`).
-14. **Representative physical/deployment validation:** run the secret-safe probes, record the real X2D/OpenKE/Raspberry Pi 5/Umbrel observation matrix and verify it with `python -m foxforge.testing.physical_evidence <manifest> --require p3`. AUD-003 and AUD-013 remain `VALIDATION REQUIRED` until their corresponding real evidence is reviewed and recorded.
+13. **Inventory operator workflow:** completed in PR #91 and released in `v0.1.0-alpha.4`.
+14. **Representative physical/deployment validation:** install/test the published `alpha.4` Umbrel package on representative Raspberry Pi/Umbrel, run the secret-safe probes, record the real X2D/OpenKE observation matrix and verify it with `python -m foxforge.testing.physical_evidence <manifest> --require p3`. AUD-003 and AUD-013 remain `VALIDATION REQUIRED` until their corresponding real evidence is reviewed and recorded.
 15. **Resume P3:** only after step 14 is recorded, synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
 
 ## Resolution rule
 
-Do not mark any finding `RESOLVED` solely because code was written. A resolution requires, where applicable:
+Do not mark any finding `RESOLVED` solely because code or package definitions were written. A resolution requires, where applicable:
 
 - implementation fix;
 - automated regression test;
 - deployment/integration test for cross-process/proxy behavior;
 - ADR/documentation update when a contract changes;
-- physical validation evidence for printer-specific claims;
+- physical validation evidence for printer/deployment-specific claims;
 - passing the repository evidence verifier for AUD-003/AUD-013/P3 when physical evidence is required;
 - exact final-head CI evidence before merge.
