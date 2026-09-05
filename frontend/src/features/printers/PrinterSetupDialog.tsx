@@ -7,10 +7,12 @@ import { useTranslation } from 'react-i18next';
 import { CommandAuthenticationRequiredError } from '../../data/commandClient';
 import {
   addPrinter,
+  discoverBambuPrinters,
   loadPrinterConfigurations,
   reconnectPrinter,
   removePrinter,
   testPrinterConnection,
+  type BambuDiscoveryCandidate,
   type PrinterConfigurationView,
   type PrinterSetupKind,
   type PrinterSetupOutcome,
@@ -37,6 +39,13 @@ const copy = {
     printerId: 'Printer ID',
     printerIdHint: 'Stable local ID, for example ender-ke.',
     bambuIdentityHint: 'FoxForge creates the stable local ID automatically from the Bambu serial number.',
+    discovery: 'Find Bambu printers on the LAN',
+    subnet: 'Subnet to scan',
+    scan: 'Scan subnet',
+    scanning: 'Scanning…',
+    noCandidates: 'No Bambu candidates found. You can still enter the printer details manually.',
+    candidateHint: 'Discovery is only a hint. FoxForge still verifies MQTT credentials before saving.',
+    useCandidate: 'Use this printer',
     displayName: 'Display name',
     model: 'Model',
     vendor: 'Vendor',
@@ -76,6 +85,13 @@ const copy = {
     printerId: 'ID принтера',
     printerIdHint: 'Постоянный локальный ID, например ender-ke.',
     bambuIdentityHint: 'FoxForge автоматически создаёт постоянный локальный ID из серийного номера Bambu.',
+    discovery: 'Найти принтеры Bambu в локальной сети',
+    subnet: 'Подсеть для сканирования',
+    scan: 'Сканировать подсеть',
+    scanning: 'Сканирование…',
+    noCandidates: 'Принтеры Bambu не найдены. Данные принтера можно ввести вручную.',
+    candidateHint: 'Обнаружение только помогает заполнить форму. Перед сохранением FoxForge всё равно проверит MQTT и учётные данные.',
+    useCandidate: 'Выбрать принтер',
     displayName: 'Название',
     model: 'Модель',
     vendor: 'Производитель',
@@ -115,6 +131,13 @@ const copy = {
     printerId: 'ID принтера',
     printerIdHint: 'Стабільний локальний ID, наприклад ender-ke.',
     bambuIdentityHint: 'FoxForge автоматично створює стабільний локальний ID із серійного номера Bambu.',
+    discovery: 'Знайти принтери Bambu у локальній мережі',
+    subnet: 'Підмережа для сканування',
+    scan: 'Сканувати підмережу',
+    scanning: 'Сканування…',
+    noCandidates: 'Принтери Bambu не знайдено. Дані принтера можна ввести вручну.',
+    candidateHint: 'Виявлення лише допомагає заповнити форму. Перед збереженням FoxForge все одно перевірить MQTT та облікові дані.',
+    useCandidate: 'Вибрати принтер',
     displayName: 'Назва',
     model: 'Модель',
     vendor: 'Виробник',
@@ -165,6 +188,10 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const [accessCode, setAccessCode] = useState('');
   const [baseUrl, setBaseUrl] = useState('http://');
   const [apiKey, setApiKey] = useState('');
+  const [subnet, setSubnet] = useState('192.168.1.0/24');
+  const [candidates, setCandidates] = useState<BambuDiscoveryCandidate[]>([]);
+  const [scanAttempted, setScanAttempted] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -216,6 +243,30 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
 
   if (!open) return null;
 
+  const scanBambu = async () => {
+    if (!subnet.trim() || scanning) return;
+    setScanning(true);
+    setScanAttempted(true);
+    setCandidates([]);
+    setError(null);
+    try {
+      setCandidates(await discoverBambuPrinters(subnet.trim()));
+    } catch (cause) {
+      setError(errorMessage(cause, c.noCandidates));
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const useCandidate = (candidate: BambuDiscoveryCandidate) => {
+    setHost(candidate.host);
+    if (candidate.serialNumber) setSerialNumber(candidate.serialNumber.toUpperCase());
+    if (candidate.displayName) setDisplayName(candidate.displayName);
+    if (candidate.model) setModel(candidate.model);
+    setOutcome(null);
+    setError(null);
+  };
+
   const testConnection = async () => {
     setTesting(true);
     setError(null);
@@ -247,6 +298,8 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       setHost('');
       setAccessCode('');
       setApiKey('');
+      setCandidates([]);
+      setScanAttempted(false);
     } catch (cause) {
       setError(errorMessage(cause, c.saveError));
     } finally {
@@ -323,6 +376,27 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
             <h3>{c.add}</h3>
             <label><span>{c.kind}</span><select value={kind} onChange={(event) => setKind(event.target.value as PrinterSetupKind)}><option value="bambu">{c.bambu}</option><option value="moonraker">{c.moonraker}</option></select></label>
             {kind === 'bambu' ? <>
+              <div className="setup-message warning">
+                <strong>{c.discovery}</strong>
+                <div className="setup-form-row">
+                  <label><span>{c.subnet}</span><input value={subnet} onChange={(event) => setSubnet(event.target.value)} placeholder="192.168.1.0/24" /></label>
+                  <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={scanning || testing || saving || !subnet.trim()} onClick={() => void scanBambu()}>{scanning ? c.scanning : c.scan}</button></div>
+                </div>
+                <small>{c.candidateHint}</small>
+                {scanAttempted && !scanning && candidates.length === 0 && <span>{c.noCandidates}</span>}
+                {candidates.length > 0 && <div className="configured-printers">
+                  {candidates.map((candidate) => (
+                    <article className="configured-printer" key={`${candidate.host}-${candidate.serialNumber ?? ''}`}>
+                      <div>
+                        <strong>{candidate.displayName || candidate.model || candidate.host}</strong>
+                        <span>{candidate.model || c.bambu}</span>
+                        <small>{candidate.host}{candidate.serialNumber ? ` · ${candidate.serialNumber}` : ''}</small>
+                      </div>
+                      <div className="configured-actions"><button className="secondary-button" type="button" onClick={() => useCandidate(candidate)}>{c.useCandidate}</button></div>
+                    </article>
+                  ))}
+                </div>}
+              </div>
               <div className="setup-form-row"><label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="X2D" /></label></div>
               <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value.toUpperCase())} required /><small>{c.bambuIdentityHint}</small></label>
               <div className="setup-form-row"><label><span>{c.host}</span><input value={host} onChange={(event) => setHost(event.target.value)} required placeholder="192.168.1.50" /></label><label><span>{c.accessCode}</span><input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} required type="password" autoComplete="off" /></label></div>
@@ -331,7 +405,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
               <div className="setup-form-row"><label><span>{c.vendor}</span><input value={vendor} onChange={(event) => setVendor(event.target.value)} placeholder="Klipper" /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Ender-3 V3 KE" /></label></div>
               <div className="setup-form-row"><label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.100:7125" /></label><label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label></div>
             </>}
-            <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={testing || saving} onClick={() => void testConnection()}>{testing ? c.testing : c.test}</button><button className="primary-button" type="submit" disabled={testing || saving}>{saving ? c.saving : c.save}</button></div>
+            <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={testing || saving || scanning} onClick={() => void testConnection()}>{testing ? c.testing : c.test}</button><button className="primary-button" type="submit" disabled={testing || saving || scanning}>{saving ? c.saving : c.save}</button></div>
           </form>
         </div>
       </section>

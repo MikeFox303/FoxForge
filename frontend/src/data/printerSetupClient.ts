@@ -49,12 +49,34 @@ export interface PrinterSetupOutcome {
   } | null;
 }
 
+export interface BambuDiscoveryCandidate {
+  host: string;
+  serialNumber?: string | null;
+  displayName?: string | null;
+  model?: string | null;
+  services: {
+    mqttPort: number;
+    ftpsPort: number;
+  };
+}
+
 export async function loadPrinterConfigurations(): Promise<PrinterConfigurationView[]> {
   const payload = await authenticatedCommandJson<unknown>('/api/v1/printers/configuration');
   if (!isRecord(payload) || !Array.isArray(payload.printers)) {
     throw new Error('Invalid printer configuration response.');
   }
   return payload.printers as PrinterConfigurationView[];
+}
+
+export async function discoverBambuPrinters(subnet: string): Promise<BambuDiscoveryCandidate[]> {
+  const payload = await authenticatedCommandJson<unknown>('/api/v1/printers/discovery/bambu', {
+    method: 'POST',
+    json: { subnet },
+  });
+  if (!isRecord(payload) || !Array.isArray(payload.candidates)) {
+    throw new Error('Invalid Bambu discovery response.');
+  }
+  return payload.candidates as BambuDiscoveryCandidate[];
 }
 
 export async function testPrinterConnection(payload: PrinterSetupPayload): Promise<PrinterSetupOutcome> {
