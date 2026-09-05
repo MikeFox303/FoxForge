@@ -37,6 +37,7 @@ from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
 from foxforge.infrastructure.secrets import FileSecretStore
 
+from .bambu_discovery_routes import register_bambu_discovery_routes
 from .config import CONFIG_SCHEMA_VERSION, load_runtime_config
 from .printer_manager import RuntimePrinterManager
 from .reconnect import default_reconnect_policy, run_connection_supervisor
@@ -157,6 +158,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         command_idempotency=command_idempotency,
         printer_management=printer_manager,
     )
+    register_bambu_discovery_routes(app)
     register_inventory_read_routes(app, inventory=inventory)
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts)
