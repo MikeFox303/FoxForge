@@ -40,6 +40,8 @@ For all supported viewport projects:
 8. Phone modal geometry uses the dynamic viewport and remains usable with iOS safe areas; only modal content scrolls while it is open.
 9. Closing restores normal page scrolling.
 10. RU/UK text must not create overflow or clipping in the tested phone and desktop layouts.
+11. Locked-write and fallback errors in Printer Setup are localized instead of leaking English-only command-client messages into RU/UK dialogs.
+12. Operator-access controls use only defined FoxForge theme tokens; no invalid border token may silently drop a border.
 
 ## Code-quality acceptance criteria
 
