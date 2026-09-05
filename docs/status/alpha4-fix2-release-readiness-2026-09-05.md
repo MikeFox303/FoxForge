@@ -47,6 +47,7 @@ For all supported viewport projects:
 - No release-path bypass that can publish the semantic image before browser acceptance.
 - No known unresolved UI defect reproducible in the automated viewport matrix.
 - Security/dependency scans remain green.
+- Request-local aiohttp state uses typed `RequestKey` storage rather than application keys, keeping the backend test suite free of the `NotAppKeyWarning` that was found during this release-readiness pass.
 - P3 draft PR #58 stays frozen and is not mixed into this hotfix.
 - No claim of physical-printer validation is made from mocks, fake adapters, browser emulation or container tests.
 
