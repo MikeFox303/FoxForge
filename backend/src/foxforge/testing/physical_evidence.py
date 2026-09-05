@@ -129,7 +129,13 @@ def _validate_probe(path: Path, *, allow_targets: bool) -> tuple[dict[str, Any],
     return raw, kinds
 
 
-def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, object]:
+def validate_manifest(
+    path: Path,
+    *,
+    allow_targets: bool = False,
+    expected_source_commit: str | None = None,
+    expected_package_identity: str | None = None,
+) -> dict[str, object]:
     raw = _load_json(path)
     if not isinstance(raw, dict):
         raise ValueError("manifest must be an object")
@@ -149,10 +155,23 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
     source_commit = raw.get("sourceCommit")
     if not isinstance(source_commit, str) or not _SOURCE_ID_RE.fullmatch(source_commit):
         raise ValueError("sourceCommit must be a 40-64 character lowercase hex identity")
-    for field in ("packageIdentity", "validationDate"):
-        value = raw.get(field)
-        if not isinstance(value, str) or not value.strip():
-            raise ValueError(f"{field} must be a non-empty string")
+    package_identity = raw.get("packageIdentity")
+    if not isinstance(package_identity, str) or not package_identity.strip():
+        raise ValueError("packageIdentity must be a non-empty string")
+    validation_date = raw.get("validationDate")
+    if not isinstance(validation_date, str) or not validation_date.strip():
+        raise ValueError("validationDate must be a non-empty string")
+
+    if expected_source_commit is not None:
+        if not _SOURCE_ID_RE.fullmatch(expected_source_commit):
+            raise ValueError("expected source commit must be a 40-64 character lowercase hex identity")
+        if source_commit != expected_source_commit:
+            raise ValueError(f"sourceCommit {source_commit} does not match expected {expected_source_commit}")
+    if expected_package_identity is not None:
+        if not expected_package_identity.strip():
+            raise ValueError("expected package identity must be a non-empty string")
+        if package_identity != expected_package_identity:
+            raise ValueError(f"packageIdentity {package_identity} does not match expected {expected_package_identity}")
 
     probe_files = raw.get("probeFiles")
     if not isinstance(probe_files, list) or not probe_files or not all(isinstance(item, str) for item in probe_files):
@@ -197,8 +216,8 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
     return {
         "schemaVersion": 1,
         "sourceCommit": source_commit,
-        "packageIdentity": raw["packageIdentity"],
-        "validationDate": raw["validationDate"],
+        "packageIdentity": package_identity,
+        "validationDate": validation_date,
         "probeKinds": sorted(probe_kinds),
         "aud003Ready": aud003_ready,
         "aud013Ready": aud013_ready,
@@ -215,6 +234,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Allow probe evidence that intentionally includes host/URL targets.",
     )
     parser.add_argument(
+        "--expected-source-commit",
+        help="Require manifest sourceCommit to equal this exact release commit.",
+    )
+    parser.add_argument(
+        "--expected-package-identity",
+        help="Require manifest packageIdentity to equal this exact package/image identity.",
+    )
+    parser.add_argument(
         "--require",
         choices=("aud003", "aud013", "p3"),
         help="Exit non-zero unless the selected evidence gate is complete.",
@@ -225,7 +252,12 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        result = validate_manifest(args.manifest, allow_targets=args.allow_targets)
+        result = validate_manifest(
+            args.manifest,
+            allow_targets=args.allow_targets,
+            expected_source_commit=args.expected_source_commit,
+            expected_package_identity=args.expected_package_identity,
+        )
     except (OSError, json.JSONDecodeError, ValueError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, sort_keys=True))
         return 2
