@@ -1,0 +1,44 @@
+name: Typed request-key cleanup
+
+on:
+  push:
+    branches:
+      - fix/printer-setup-modal-layering
+    paths:
+      - '.github/workflows/request-key-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/printer-setup-modal-layering
+          fetch-depth: 0
+      - name: Replace request-local AppKey usage
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('backend/src/foxforge/api/v1/http.py')
+          text = path.read_text(encoding='utf-8')
+          replacements = {
+              '_REQUEST_ID_KEY = web.AppKey("foxforge_request_id", str)': '_REQUEST_ID_KEY = web.RequestKey("foxforge_request_id", str)',
+              '_COMMAND_PRINCIPAL_KEY = web.AppKey("foxforge_command_principal", CommandPrincipal)': '_COMMAND_PRINCIPAL_KEY = web.RequestKey("foxforge_command_principal", CommandPrincipal)',
+          }
+          for old, new in replacements.items():
+              if text.count(old) != 1:
+                  raise SystemExit(f'expected exactly one occurrence of {old!r}')
+              text = text.replace(old, new)
+          path.write_text(text, encoding='utf-8')
+          PY
+          rm .github/workflows/request-key-cleanup.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add backend/src/foxforge/api/v1/http.py .github/workflows/request-key-cleanup.yml
+          git commit -m 'fix(api): use typed request storage keys'
+          git push origin HEAD:fix/printer-setup-modal-layering
