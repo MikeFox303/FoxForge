@@ -9,7 +9,8 @@ import re
 from pathlib import Path
 from typing import Any
 
-_SHA256_RE = re.compile(r"^[0-9a-f]{40,64}$")
+_SOURCE_ID_RE = re.compile(r"^[0-9a-f]{40,64}$")
+_FINGERPRINT_RE = re.compile(r"^[0-9a-f]{64}$")
 
 _REQUIRED_OBSERVATIONS = {
     "umbrel": (
@@ -83,7 +84,33 @@ def _resolve_probe_path(manifest_path: Path, value: str) -> Path:
     return candidate
 
 
-def _validate_probe(path: Path, *, allow_targets: bool) -> dict[str, Any]:
+def _validate_probe_entry(probe: dict[str, object], *, path: Path) -> str:
+    kind = probe.get("kind")
+    if not isinstance(kind, str):
+        raise ValueError(f"{path}: probe kind must be a string")
+    if probe.get("ok") is not True:
+        raise ValueError(f"{path}: probe {kind} did not pass")
+    if kind == "bambu_tls":
+        for field in ("mqttCertificateSha256", "ftpsCertificateSha256"):
+            value = probe.get(field)
+            if not isinstance(value, str) or not _FINGERPRINT_RE.fullmatch(value):
+                raise ValueError(f"{path}: bambu_tls.{field} must be a SHA-256 fingerprint")
+        if not isinstance(probe.get("sameCertificate"), bool):
+            raise ValueError(f"{path}: bambu_tls.sameCertificate must be boolean")
+    elif kind == "foxforge":
+        if probe.get("healthOk") is not True or probe.get("authBoundaryOk") is not True:
+            raise ValueError(f"{path}: foxforge probe must prove health and auth boundary")
+        if not isinstance(probe.get("healthStatus"), int) or not isinstance(probe.get("authBoundaryStatus"), int):
+            raise ValueError(f"{path}: foxforge probe statuses must be integers")
+    elif kind == "moonraker":
+        if probe.get("status") != 200 or probe.get("jsonResponse") is not True:
+            raise ValueError(f"{path}: moonraker probe must prove HTTP 200 JSON response")
+    else:
+        raise ValueError(f"{path}: unknown probe kind {kind}")
+    return kind
+
+
+def _validate_probe(path: Path, *, allow_targets: bool) -> tuple[dict[str, Any], set[str]]:
     raw = _load_json(path)
     if not isinstance(raw, dict) or raw.get("schemaVersion") != 1:
         raise ValueError(f"{path}: unsupported physical-validation report")
@@ -92,14 +119,14 @@ def _validate_probe(path: Path, *, allow_targets: bool) -> dict[str, Any]:
     probes = raw.get("probes")
     if not isinstance(probes, list) or not probes:
         raise ValueError(f"{path}: report has no probes")
+    kinds: set[str] = set()
     for probe in probes:
         if not isinstance(probe, dict):
             raise ValueError(f"{path}: invalid probe entry")
         if not allow_targets and probe.get("target") != "redacted":
             raise ValueError(f"{path}: target must remain redacted")
-        if probe.get("ok") is not True:
-            raise ValueError(f"{path}: probe {probe.get('kind', 'unknown')} did not pass")
-    return raw
+        kinds.add(_validate_probe_entry(probe, path=path))
+    return raw, kinds
 
 
 def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, object]:
@@ -120,7 +147,7 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
     if raw.get("schemaVersion") != 1:
         raise ValueError("manifest schemaVersion must be 1")
     source_commit = raw.get("sourceCommit")
-    if not isinstance(source_commit, str) or not _SHA256_RE.fullmatch(source_commit):
+    if not isinstance(source_commit, str) or not _SOURCE_ID_RE.fullmatch(source_commit):
         raise ValueError("sourceCommit must be a 40-64 character lowercase hex identity")
     for field in ("packageIdentity", "validationDate"):
         value = raw.get(field)
@@ -130,12 +157,10 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
     probe_files = raw.get("probeFiles")
     if not isinstance(probe_files, list) or not probe_files or not all(isinstance(item, str) for item in probe_files):
         raise ValueError("probeFiles must be a non-empty string array")
-    probe_reports = [
-        _validate_probe(_resolve_probe_path(path, item), allow_targets=allow_targets) for item in probe_files
-    ]
-    probe_kinds = {
-        probe.get("kind") for report in probe_reports for probe in report.get("probes", []) if isinstance(probe, dict)
-    }
+    probe_kinds: set[str] = set()
+    for item in probe_files:
+        _, kinds = _validate_probe(_resolve_probe_path(path, item), allow_targets=allow_targets)
+        probe_kinds.update(kinds)
 
     observations_raw = raw.get("observations")
     if not isinstance(observations_raw, dict):
@@ -174,7 +199,7 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
         "sourceCommit": source_commit,
         "packageIdentity": raw["packageIdentity"],
         "validationDate": raw["validationDate"],
-        "probeKinds": sorted(str(kind) for kind in probe_kinds if isinstance(kind, str)),
+        "probeKinds": sorted(probe_kinds),
         "aud003Ready": aud003_ready,
         "aud013Ready": aud013_ready,
         "p3PhysicalGateReady": p3_ready,
