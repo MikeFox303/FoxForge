@@ -11,6 +11,7 @@ import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel 
 import { InventoryView } from './features/inventory/InventoryView';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
 import { PrinterSetupLauncher } from './features/printers/PrinterSetupLauncher';
+import { OperatorAccess } from './features/security/OperatorAccess';
 import { printerRoute } from './features/printers/printerDetailViewModel';
 import { QueueCommandPanel, QueueEntryActions } from './features/queue/QueueCommandPanel';
 import { changeInterfaceLanguage } from './i18n';
@@ -88,6 +89,9 @@ export function FoxForgeApp() {
           <div className="topbar-actions">
             <div className={`live-pill tone-${runtimeTone}`} aria-live="polite"><span className={`status-dot ${runtimeTone}`} /> {runtimeLabel}</div>
             <PrinterSetupLauncher />
+            <div className="operator-access-shell">
+              <OperatorAccess />
+            </div>
           </div>
         </header>
 
