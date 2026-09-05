@@ -19,6 +19,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      FOXFORGE_RELEASE_COMMAND_TOKEN: foxforge-release-browser-token-0123456789abcdef
     steps:
       - uses: actions/checkout@v6
         with:
@@ -95,6 +97,10 @@ jobs:
         working-directory: frontend
         run: npm run build
 
+      - name: Install Chromium for exact-commit browser gate
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+
       - name: Build release smoke image
         run: |
           docker build \
@@ -109,6 +115,7 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/foxforge-release-data"
           docker run -d --name foxforge-release-smoke \
             -p 18080:8000 \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_RELEASE_COMMAND_TOKEN" \
             -v "${RUNNER_TEMP}/foxforge-release-data:/data" \
             foxforge:release-smoke
           for attempt in $(seq 1 30); do
@@ -122,6 +129,32 @@ jobs:
           curl --fail --silent http://127.0.0.1:18080/ | grep -q 'FoxForge'
           test -f "${RUNNER_TEMP}/foxforge-release-data/config.json"
           test -f "${RUNNER_TEMP}/foxforge-release-data/foxforge.sqlite3"
+
+      - name: Exact-commit browser acceptance
+        working-directory: frontend
+        env:
+          FOXFORGE_E2E_BASE_URL: http://127.0.0.1:18080
+          FOXFORGE_E2E_COMMAND_TOKEN: ${{ env.FOXFORGE_RELEASE_COMMAND_TOKEN }}
+        run: npm run test:e2e
+
+      - name: Upload release browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foxforge-release-browser-evidence-${{ github.sha }}
+          path: |
+            frontend/test-results/**/*.png
+            frontend/test-results/**/*.zip
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Verify production assets contain no public source maps
+        run: |
+          if docker exec foxforge-release-smoke sh -c "find /app/static -type f -name '*.map' | grep -q ."; then
+            echo 'Public source maps found in release image' >&2
+            docker exec foxforge-release-smoke find /app/static -type f -name '*.map'
+            exit 1
+          fi
 
       - name: Release smoke container logs
         if: always()
