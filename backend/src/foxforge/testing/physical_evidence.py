@@ -134,10 +134,7 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
         _validate_probe(_resolve_probe_path(path, item), allow_targets=allow_targets) for item in probe_files
     ]
     probe_kinds = {
-        probe.get("kind")
-        for report in probe_reports
-        for probe in report.get("probes", [])
-        if isinstance(probe, dict)
+        probe.get("kind") for report in probe_reports for probe in report.get("probes", []) if isinstance(probe, dict)
     }
 
     observations_raw = raw.get("observations")
