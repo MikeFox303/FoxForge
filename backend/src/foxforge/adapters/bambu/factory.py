@@ -24,6 +24,9 @@ def create_bambu_lan_adapter(
     serial_number = _optional_string(settings.get("serial_number"), "serial_number") or identity.serial_number
     if not serial_number:
         raise ValueError("serial_number is required for Bambu LAN MQTT topics")
+    # Bambu MQTT report/request topics are case-sensitive. Accept operator input
+    # leniently, but always subscribe/publish with the canonical serial form.
+    serial_number = serial_number.strip().upper()
 
     transport = BambuLanTransport(
         BambuLanSettings(

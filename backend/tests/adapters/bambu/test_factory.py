@@ -55,6 +55,20 @@ def test_factory_accepts_serial_from_settings_when_identity_has_none() -> None:
     assert isinstance(adapter, BambuAdapter)
 
 
+def test_factory_normalizes_serial_for_case_sensitive_mqtt_topics() -> None:
+    adapter = create_bambu_lan_adapter(
+        _identity(serial_number=None),
+        {
+            "host": "printer.local",
+            "serial_number": " 01p00x2dtest ",
+            "access_code": "12345678",
+        },
+    )
+
+    assert adapter._transport._settings.serial_number == "01P00X2DTEST"  # noqa: SLF001
+    assert adapter._transport._settings.report_topic == "device/01P00X2DTEST/report"  # noqa: SLF001
+
+
 def test_factory_requires_host_access_code_and_serial() -> None:
     with pytest.raises(ValueError, match="host"):
         create_bambu_lan_adapter(_identity(), {"access_code": "12345678"})

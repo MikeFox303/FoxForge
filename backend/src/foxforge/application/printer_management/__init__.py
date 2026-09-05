@@ -5,6 +5,7 @@ from .models import (
     PrinterConfiguration,
     PrinterConfigurationConflictError,
     PrinterConfigurationNotFoundError,
+    PrinterConnectionValidationError,
     PrinterManagementService,
     PrinterSetupOutcome,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "PrinterConfiguration",
     "PrinterConfigurationConflictError",
     "PrinterConfigurationNotFoundError",
+    "PrinterConnectionValidationError",
     "PrinterManagementService",
     "PrinterSetupOutcome",
 ]

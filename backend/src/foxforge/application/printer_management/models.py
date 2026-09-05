@@ -39,6 +39,14 @@ class PrinterConfigurationConflictError(RuntimeError):
     pass
 
 
+class PrinterConnectionValidationError(ValueError):
+    """A setup connection check failed before printer configuration was persisted."""
+
+    def __init__(self, error: PrinterAdapterError) -> None:
+        self.error = error
+        super().__init__(error.message)
+
+
 class PrinterManagementService(Protocol):
     def configurations(self) -> tuple[PrinterConfiguration, ...]: ...
 
