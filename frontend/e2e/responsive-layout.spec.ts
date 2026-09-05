@@ -95,3 +95,71 @@ for (const route of routes) {
     }
   });
 }
+
+test('printer setup modal owns the viewport and stays above global controls', async ({ page }, testInfo) => {
+  await page.goto('/');
+
+  const launcher = page.locator('.printer-setup-launcher');
+  const backdrop = page.locator('.setup-backdrop');
+  const dialog = page.locator('.setup-dialog');
+  const operatorShell = page.locator('.operator-access-shell');
+
+  await launcher.click();
+  await expect(backdrop).toBeVisible();
+  await expect(dialog).toBeVisible();
+
+  expect(await backdrop.evaluate((element) => element.parentElement?.tagName)).toBe('BODY');
+  expect(await page.evaluate(() => document.body.style.overflow)).toBe('hidden');
+
+  const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  const backdropBox = await backdrop.boundingBox();
+  const dialogBox = await dialog.boundingBox();
+  expect(backdropBox).not.toBeNull();
+  expect(dialogBox).not.toBeNull();
+  expect(Math.abs(backdropBox!.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(backdropBox!.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(backdropBox!.width - viewport.width)).toBeLessThanOrEqual(1);
+  expect(Math.abs(backdropBox!.height - viewport.height)).toBeLessThanOrEqual(1);
+  expect(dialogBox!.x).toBeGreaterThanOrEqual(-1);
+  expect(dialogBox!.y).toBeGreaterThanOrEqual(-1);
+  expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport.width + 1);
+  expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport.height + 1);
+
+  const dialogAppearance = await dialog.evaluate((element) => {
+    const style = getComputedStyle(element);
+    return {
+      backgroundColor: style.backgroundColor,
+      borderTopWidth: style.borderTopWidth,
+    };
+  });
+  expect(dialogAppearance.backgroundColor).not.toBe('rgba(0, 0, 0, 0)');
+  expect(dialogAppearance.backgroundColor).not.toBe('transparent');
+  expect(dialogAppearance.borderTopWidth).not.toBe('0px');
+
+  const operatorBox = await operatorShell.boundingBox();
+  expect(operatorBox).not.toBeNull();
+  const operatorOwnsItsCenter = await page.evaluate(({ x, y }) => {
+    const topElement = document.elementFromPoint(x, y);
+    return Boolean(topElement?.closest('.operator-access-shell'));
+  }, {
+    x: operatorBox!.x + operatorBox!.width / 2,
+    y: operatorBox!.y + operatorBox!.height / 2,
+  });
+  expect(operatorOwnsItsCenter).toBe(false);
+
+  if (testInfo.project.name === 'phone') {
+    expect(Math.abs(dialogBox!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(dialogBox!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(dialogBox!.width - viewport.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(dialogBox!.height - viewport.height)).toBeLessThanOrEqual(1);
+  }
+
+  await page.screenshot({
+    path: testInfo.outputPath(`${testInfo.project.name}-printer-setup-modal.png`),
+    fullPage: false,
+  });
+
+  await page.keyboard.press('Escape');
+  await expect(backdrop).toBeHidden();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
+});
