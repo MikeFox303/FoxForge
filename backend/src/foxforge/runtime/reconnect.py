@@ -7,11 +7,18 @@ import asyncio
 import logging
 import random
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta
 from typing import Protocol
 
 from foxforge.application.fleet import FleetPrinterNotFoundError
-from foxforge.domain.printers import ConnectionState, PrinterAdapterError, PrinterSnapshot
+from foxforge.domain.printers import (
+    ConnectionState,
+    PrinterAdapterError,
+    PrinterErrorCode,
+    PrinterSnapshot,
+    utc_now,
+)
 
 _LOG = logging.getLogger(__name__)
 
@@ -46,6 +53,88 @@ class ReconnectPolicy:
             raise ValueError("discovery_interval_seconds must be positive")
 
 
+@dataclass(frozen=True, slots=True)
+class ReconnectPrinterStatus:
+    """Sanitized reconnect context for operator diagnostics.
+
+    Raw adapter exception messages and vendor codes deliberately do not cross
+    this runtime boundary. The registry keeps only normalized FoxForge error
+    categories, retryability and timing information.
+    """
+
+    printer_id: str
+    consecutive_failures: int = 0
+    last_attempt_at: datetime | None = None
+    last_failure_at: datetime | None = None
+    last_error_code: PrinterErrorCode | None = None
+    last_error_retryable: bool | None = None
+    next_retry_at: datetime | None = None
+    recovered_at: datetime | None = None
+
+
+class ReconnectDiagnostics:
+    """In-memory, secret-safe reconnect state owned by one runtime process."""
+
+    def __init__(self) -> None:
+        self._statuses: dict[str, ReconnectPrinterStatus] = {}
+
+    def statuses(self) -> tuple[ReconnectPrinterStatus, ...]:
+        return tuple(self._statuses[key] for key in sorted(self._statuses))
+
+    def retain(self, printer_ids: set[str]) -> None:
+        for printer_id in tuple(self._statuses):
+            if printer_id not in printer_ids:
+                self._statuses.pop(printer_id, None)
+
+    def record_attempt(self, printer_id: str) -> None:
+        current = self._statuses.get(printer_id, ReconnectPrinterStatus(printer_id=printer_id))
+        self._statuses[printer_id] = replace(current, last_attempt_at=utc_now())
+
+    def record_disconnect_error(self, printer_id: str, error: PrinterAdapterError) -> None:
+        """Retain a normalized transport-disconnect reason without raw error text."""
+
+        current = self._statuses.get(printer_id, ReconnectPrinterStatus(printer_id=printer_id))
+        self._statuses[printer_id] = replace(
+            current,
+            last_failure_at=utc_now(),
+            last_error_code=error.code,
+            last_error_retryable=error.retryable,
+            next_retry_at=None,
+            recovered_at=None,
+        )
+
+    def record_failure(
+        self,
+        printer_id: str,
+        *,
+        consecutive_failures: int,
+        error_code: PrinterErrorCode,
+        retryable: bool,
+        retry_delay_seconds: float,
+    ) -> None:
+        now = utc_now()
+        current = self._statuses.get(printer_id, ReconnectPrinterStatus(printer_id=printer_id))
+        self._statuses[printer_id] = replace(
+            current,
+            consecutive_failures=consecutive_failures,
+            last_failure_at=now,
+            last_error_code=error_code,
+            last_error_retryable=retryable,
+            next_retry_at=now + timedelta(seconds=retry_delay_seconds),
+        )
+
+    def record_recovered(self, printer_id: str) -> None:
+        current = self._statuses.get(printer_id)
+        if current is None:
+            return
+        self._statuses[printer_id] = replace(
+            current,
+            consecutive_failures=0,
+            next_retry_at=None,
+            recovered_at=utc_now(),
+        )
+
+
 def default_reconnect_policy(base_delay_seconds: float) -> ReconnectPolicy:
     return ReconnectPolicy(
         base_delay_seconds=base_delay_seconds,
@@ -76,6 +165,7 @@ async def run_connection_supervisor(
     policy: ReconnectPolicy,
     *,
     random_value: Callable[[], float] = random.random,
+    diagnostics: ReconnectDiagnostics | None = None,
 ) -> None:
     """Maintain independent reconnect workers for the current dynamic fleet."""
 
@@ -84,6 +174,8 @@ async def run_connection_supervisor(
     try:
         while True:
             current = set(fleet.printer_ids)
+            if diagnostics is not None:
+                diagnostics.retain(current)
 
             for printer_id in tuple(workers):
                 if printer_id in current and not workers[printer_id].done():
@@ -101,6 +193,7 @@ async def run_connection_supervisor(
                         policy,
                         semaphore,
                         random_value=random_value,
+                        diagnostics=diagnostics,
                     ),
                     name=f"foxforge-reconnect-{printer_id}",
                 )
@@ -120,6 +213,7 @@ async def _reconnect_worker(
     semaphore: asyncio.Semaphore,
     *,
     random_value: Callable[[], float],
+    diagnostics: ReconnectDiagnostics | None,
 ) -> None:
     consecutive_failures = 0
     while True:
@@ -132,11 +226,17 @@ async def _reconnect_worker(
             return
 
         if snapshot.connection != ConnectionState.DISCONNECTED:
+            if consecutive_failures > 0 and diagnostics is not None:
+                diagnostics.record_recovered(printer_id)
             consecutive_failures = 0
             await asyncio.sleep(policy.base_delay_seconds)
             continue
 
         already_recovered = False
+        connection_error: PrinterAdapterError | None = None
+        unexpected_failure = False
+        if diagnostics is not None:
+            diagnostics.record_attempt(printer_id)
         try:
             async with semaphore:
                 if printer_id not in fleet.printer_ids:
@@ -152,6 +252,7 @@ async def _reconnect_worker(
             return
         except PrinterAdapterError as error:
             consecutive_failures += 1
+            connection_error = error
             _LOG.warning(
                 "printer %s remains offline: %s (%s); reconnect attempt %d",
                 printer_id,
@@ -161,6 +262,7 @@ async def _reconnect_worker(
             )
         except Exception:
             consecutive_failures += 1
+            unexpected_failure = True
             _LOG.exception(
                 "unexpected connection failure for printer %s; reconnect attempt %d",
                 printer_id,
@@ -168,8 +270,12 @@ async def _reconnect_worker(
             )
         else:
             consecutive_failures = 0
+            if diagnostics is not None:
+                diagnostics.record_recovered(printer_id)
 
         if already_recovered:
+            if diagnostics is not None:
+                diagnostics.record_recovered(printer_id)
             await asyncio.sleep(policy.base_delay_seconds)
             continue
 
@@ -178,4 +284,21 @@ async def _reconnect_worker(
             consecutive_failures,
             random_value=random_value(),
         )
+        if diagnostics is not None and consecutive_failures > 0:
+            if connection_error is not None:
+                diagnostics.record_failure(
+                    printer_id,
+                    consecutive_failures=consecutive_failures,
+                    error_code=connection_error.code,
+                    retryable=connection_error.retryable,
+                    retry_delay_seconds=delay,
+                )
+            elif unexpected_failure:
+                diagnostics.record_failure(
+                    printer_id,
+                    consecutive_failures=consecutive_failures,
+                    error_code=PrinterErrorCode.INTERNAL_ADAPTER_ERROR,
+                    retryable=True,
+                    retry_delay_seconds=delay,
+                )
         await asyncio.sleep(delay)

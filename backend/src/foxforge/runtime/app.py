@@ -28,7 +28,7 @@ from foxforge.application.events import ApplicationEventJournal
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
-from foxforge.domain.printers import PrinterAdapterError
+from foxforge.domain.printers import PrinterAdapterError, PrinterEventKind
 from foxforge.infrastructure.artifacts import FilesystemArtifactStore
 from foxforge.infrastructure.commands import SQLiteCommandAuditStore, SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
@@ -40,7 +40,8 @@ from foxforge.infrastructure.secrets import FileSecretStore
 from .bambu_discovery_routes import register_bambu_discovery_routes
 from .config import CONFIG_SCHEMA_VERSION, load_runtime_config
 from .printer_manager import RuntimePrinterManager
-from .reconnect import default_reconnect_policy, run_connection_supervisor
+from .reconnect import ReconnectDiagnostics, default_reconnect_policy, run_connection_supervisor
+from .reconnect_routes import register_reconnect_diagnostic_routes
 from .secret_settings import hydrate_settings, migrate_legacy_runtime_secrets
 
 _LOG = logging.getLogger(__name__)
@@ -85,6 +86,7 @@ class RuntimeComposition:
     command_audit: CommandAuditStore
     printer_manager: RuntimePrinterManager
     events: ApplicationEventJournal
+    reconnect_diagnostics: ReconnectDiagnostics
 
 
 _RUNTIME_KEY = web.AppKey("foxforge_runtime", RuntimeComposition)
@@ -114,6 +116,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     )
     fleet = FleetService(adapters)
     events = ApplicationEventJournal()
+    reconnect_diagnostics = ReconnectDiagnostics()
 
     queue_store = EventingQueueStore(SQLiteQueueStore(database_path), events)
     inventory_store = EventingInventoryStore(SQLiteInventoryStore(database_path), events)
@@ -159,6 +162,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         printer_management=printer_manager,
     )
     register_bambu_discovery_routes(app)
+    register_reconnect_diagnostic_routes(app, reconnect_diagnostics)
     register_inventory_read_routes(app, inventory=inventory)
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts)
@@ -202,6 +206,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         command_audit=command_audit,
         printer_manager=printer_manager,
         events=events,
+        reconnect_diagnostics=reconnect_diagnostics,
     )
     app.on_startup.append(lambda runtime_app: _start_runtime(runtime_app, settings.reconnect_seconds))
     app.on_cleanup.append(_stop_runtime)
@@ -214,12 +219,17 @@ async def _start_runtime(app: web.Application, reconnect_seconds: float) -> None
     await runtime.queue.start()
     event_relay_ready = asyncio.Event()
     app[_EVENT_RELAY_KEY] = asyncio.create_task(
-        _relay_application_events(runtime.fleet, runtime.events, event_relay_ready),
+        _relay_application_events(
+            runtime.fleet,
+            runtime.events,
+            event_relay_ready,
+            runtime.reconnect_diagnostics,
+        ),
         name="foxforge-application-event-relay",
     )
     await event_relay_ready.wait()
     app[_SUPERVISOR_KEY] = asyncio.create_task(
-        _connection_supervisor(runtime.fleet, reconnect_seconds),
+        _connection_supervisor(runtime.fleet, reconnect_seconds, runtime.reconnect_diagnostics),
         name="foxforge-printer-connection-supervisor",
     )
 
@@ -249,12 +259,15 @@ async def _relay_application_events(
     fleet: FleetService,
     journal: ApplicationEventJournal,
     ready: asyncio.Event,
+    reconnect_diagnostics: ReconnectDiagnostics,
 ) -> None:
     stream = fleet.events()
     ready.set()
     try:
         async for event in stream:
             journal.publish_printer_event(event)
+            if event.kind == PrinterEventKind.SNAPSHOT_RECONCILED and isinstance(event.payload, PrinterAdapterError):
+                reconnect_diagnostics.record_disconnect_error(event.printer_id, event.payload)
     except asyncio.CancelledError:
         raise
     finally:
@@ -263,8 +276,16 @@ async def _relay_application_events(
             await close()
 
 
-async def _connection_supervisor(fleet: FleetService, reconnect_seconds: float) -> None:
-    await run_connection_supervisor(fleet, default_reconnect_policy(reconnect_seconds))
+async def _connection_supervisor(
+    fleet: FleetService,
+    reconnect_seconds: float,
+    diagnostics: ReconnectDiagnostics,
+) -> None:
+    await run_connection_supervisor(
+        fleet,
+        default_reconnect_policy(reconnect_seconds),
+        diagnostics=diagnostics,
+    )
 
 
 def _mount_frontend(app: web.Application, static_dir: Path | None) -> None:
