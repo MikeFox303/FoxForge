@@ -25,7 +25,7 @@ This file tracks active remediation. The independent audit remains the immutable
 | AUD-006 | P1 | RESOLVED | PR #62 merged as `cfa1e7c74367940eb55d41b770b3e4498c31d51a`: committed frontend lock and backend constraints, frozen installs, lock verification, dependency audits and exact-head security/container/browser gates. |
 | AUD-007 | P1 | RESOLVED | PR #61 merged as `da71d4d3a08557c6b5b6988fd6ee2eea8b20056e`; ADR 0005 supersedes the stale browser-auth deferral in ADR 0004 and records the implemented standalone/Umbrel trust boundary and required validation. |
 | AUD-008 | P1 | RESOLVED | PR #74 merged as `52026bc62c58a1830142cb65f69b85d4afb1623a`: config v1→v2 migration with backup, centralized SQLite `user_version` ownership, SQLite Backup API, transactional schema validation, historical fixtures, restart/rollback/corruption tests and persistence diagnostics. |
-| AUD-009 | P1 | RESOLVED | PR #87 aligns README and `docs/project-status.md` with the audit stabilization order and the existing P3 freeze record. Active documentation now requires representative physical/deployment validation and a complete normal inventory operator workflow before draft PR #58 may resume; historical release notes remain unchanged. |
+| AUD-009 | P1 | RESOLVED | PR #87 aligns README and `docs/project-status.md` with the audit stabilization order and the existing P3 freeze record. PR #91 later completed the required normal inventory operator workflow while preserving the physical/deployment validation gate; historical release notes remain unchanged. |
 | AUD-010 | P2 | RESOLVED | PR #75 merged as `c53c8c776b333a744008d75a7e8ad885d3a26355`. Inventory adjustment idempotency, archive/balance validation and INSERT now share one atomic persistence boundary; concurrency/restart/duplicate/insufficient-balance tests pass. |
 | AUD-011 | P2 | RESOLVED | PR #76 merged as `df0818be2c3a98635b22c9d59d49894ed1c8fb57`. Artifact storage now has committed quota, minimum free-space reserve, normalized capacity failure, safe orphan retention/GC, stale-temp cleanup and non-secret storage diagnostics. Queue-referenced artifacts are never GC candidates. |
 | AUD-012 | P2 | RESOLVED | PR #77 merged as `273bcf2c7a43b40255063c53a1ac36ddca91d2fa`. Reconnect supervision uses per-printer workers, global bounded concurrency, independent exponential backoff/jitter and dynamic worker discovery; fairness/recovery/concurrency tests and exact-head packaged/browser/security gates passed. |
@@ -34,22 +34,22 @@ This file tracks active remediation. The independent audit remains the immutable
 | AUD-015 | P2 | RESOLVED | PR #80 merged as `be04cf3e69abfe1beb99acc41ddcf761e91e439d`. `SecretStore` now separates Bambu access codes and Moonraker API keys from normal runtime config, migrates legacy inline credentials with a sensitive recovery backup, hydrates only at runtime adapter boundaries, and documents all `/data` backups as credential-bearing. Exact-head backend/container/browser/security gates passed. |
 | AUD-016 | P2 | RESOLVED | PR #62 disables public production Vite source maps. Production-container browser acceptance also asserts that public source-map assets are absent. |
 | AUD-017 | P2 | RESOLVED | PR #62 replaced unconditional recursive `/data` ownership changes with targeted/versioned ownership initialization, avoiding repeated whole-volume `chown -R`. |
-| AUD-018 | P2 | RESOLVED | PR #83 merged as `d105cb0fc9dcc8fa667fbe6010ab3e712d49d8cd`. Production-container Playwright now covers desktop/tablet/phone layouts, routing, the single Add Printer entry, Escape-close keyboard behavior, explicit memory-only write bootstrap, truthful unavailable queue state, browser file hashing/staging/enqueue, and deterministic realtime `resync_required` HTTP refetch. The expanded gate found and fixed a real Add Printer Escape defect; final 15/15 browser tests passed without retries. |
+| AUD-018 | P2 | RESOLVED | PR #83 merged as `d105cb0fc9dcc8fa667fbe6010ab3e712d49d8cd`. Production-container Playwright now covers desktop/tablet/phone layouts, routing, the single Add Printer entry, Escape-close keyboard behavior, explicit memory-only write bootstrap, truthful unavailable queue state, browser file hashing/staging/enqueue, and deterministic realtime `resync_required` HTTP refetch. The expanded gate found and fixed a real Add Printer Escape defect; final 15/15 browser tests passed without retries. PR #91 extends the same production-browser layer to the normal inventory operator workflow. |
 | AUD-019 | P3 | RESOLVED | PR #84 merged as `0b4ab02e00657f30710952bfcd2b897932f2edd5`. Together with existing `SECURITY.md`, Dependabot, frozen npm/pip audits and final-image vulnerability scanning, FoxForge now measures backend branch coverage with pinned coverage.py. The measured baseline is 76% across 253 tests, 7,003 statements and 1,840 branches; CI enforces a 75% non-regression floor and documents governance in `docs/testing/coverage-policy.md`. Python static type checking is not currently adopted, so the audit's conditional type-checker recommendation does not apply yet. |
 
 ## P3 freeze record
 
 The detailed frozen P3 implementation state is recorded in `docs/status/p3-frozen-state-2026-09-04.md`.
 
-P3 is not discarded. The draft already contains reservation/reconciliation semantics, exact Decimal accounting, full material-plan enforcement, restart/idempotency protections and UI work. PR #91 completes the normal inventory operator prerequisite with create/correct/empty-spool-mass/assign-move/unassign/archive/history workflows and production-container browser acceptance. P3 nevertheless remains intentionally unmerged until the remaining physical/deployment validation gate is satisfied.
+P3 is not discarded. The draft already contains reservation/reconciliation semantics, exact Decimal accounting, full material-plan enforcement, restart/idempotency protections and UI work. The normal inventory operator prerequisite was completed by PR #91 and merged as `58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`: create/correct/empty-spool-mass/assign-move/unassign/archive/history workflows are live in current source, opaque slot identity is preserved, unchanged-payload retries remain idempotent, and the final PR head `bc9cc83d4569b0c63d0d2060cb758beca7a1cf08` passed backend, Web UI, production-browser, container, deployment-auth and security gates. P3 nevertheless remains intentionally unmerged until the remaining physical/deployment validation gate is satisfied.
 
 ## Execution order
 
 1. **Release integrity:** AUD-001, AUD-002 — resolved in PR #60.
 2. **Browser/deployment security foundation:** AUD-004 and AUD-007 are resolved through ADR 0005 plus PR #61/#88/#90. AUD-003 remains `VALIDATION REQUIRED` for an exact future Umbrel package write/read-only contract.
-3. **UI/build/browser reproducibility:** AUD-005, AUD-006, AUD-016, AUD-017, AUD-018 — resolved through PR #61/#62/#83.
+3. **UI/build/browser reproducibility:** AUD-005, AUD-006, AUD-016, AUD-017, AUD-018 — resolved through PR #61/#62/#83 and extended by PR #91 inventory acceptance.
 4. **Persistent data foundation:** AUD-008 — resolved in PR #74.
-5. **Roadmap stabilization:** AUD-009 — active README/project-status sequencing aligned in PR #87; P3 remains frozen behind its resume gate.
+5. **Roadmap stabilization:** AUD-009 — sequencing aligned in PR #87; inventory prerequisite completed in PR #91; P3 remains frozen behind the physical/deployment resume gate.
 6. **Atomic inventory concurrency:** AUD-010 — resolved in PR #75.
 7. **Artifact lifecycle:** AUD-011 — resolved in PR #76.
 8. **Reconnect scalability:** AUD-012 — resolved in PR #77.
@@ -57,9 +57,9 @@ P3 is not discarded. The draft already contains reservation/reconciliation seman
 10. **Credential storage boundary:** AUD-015 — resolved in PR #80.
 11. **Bambu certificate-trust foundation:** AUD-013 software work is complete in PR #82 and validation tooling in PR #89; physical X2D validation remains before any trust-default change.
 12. **Public-project governance:** AUD-019 — resolved through PR #62/#84 with security policy, dependency/update scanning and measured coverage governance.
-13. **Representative physical/deployment validation:** X2D and Raspberry Pi 5/Umbrel remain, covering AUD-013 certificate evidence and AUD-003 future package behavior. Moonraker/OpenKE reachability/lifecycle evidence remains part of the broader P3 resume gate even though no audit finding is still open for Moonraker endpoint security.
-14. **Inventory operator workflow:** completed in PR #91 with authenticated create/correct/empty-spool-mass/assign-move/unassign/archive/history UX, opaque slot identity preservation, stable idempotency on retry and production-container desktop/tablet/phone acceptance.
-15. **Resume P3:** only after step 13 is recorded, synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
+13. **Inventory operator workflow:** completed and merged in PR #91 (`58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`).
+14. **Representative physical/deployment validation:** X2D and Raspberry Pi 5/Umbrel remain, covering AUD-013 certificate evidence and AUD-003 future package behavior. Moonraker/OpenKE reachability/lifecycle evidence remains part of the broader P3 resume gate even though no audit finding is still open for Moonraker endpoint security.
+15. **Resume P3:** only after step 14 is recorded, synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
 
 ## Resolution rule
 
