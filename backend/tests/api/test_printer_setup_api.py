@@ -170,7 +170,7 @@ def test_bambu_add_is_real_authenticated_command_and_never_echoes_access_code() 
                 vendor_code="initial_state_timeout",
             ),
             "printer_initial_state_timeout",
-            "MQTT connected, but FoxForge did not receive the printer initial state. Verify the Bambu serial number and LAN mode.",
+            "MQTT connected, but FoxForge did not receive initial state. Verify the Bambu serial number and LAN mode.",
             True,
         ),
         (
@@ -244,7 +244,7 @@ def test_bambu_test_connection_sanitizes_adapter_error_but_preserves_stage_code(
             assert body["connectionError"] == {
                 "code": "timeout",
                 "message": (
-                    "MQTT connected, but FoxForge did not receive the printer initial state. "
+                    "MQTT connected, but FoxForge did not receive initial state. "
                     "Verify the Bambu serial number and LAN mode."
                 ),
                 "retryable": True,
