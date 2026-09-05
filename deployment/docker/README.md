@@ -1,6 +1,6 @@
 # Docker deployment
 
-FoxForge has a runnable alpha Docker implementation in this directory. The current published deployment line is `v0.1.0-alpha.4`.
+FoxForge has a runnable alpha Docker implementation in this directory. The current published deployment line is `v0.1.0-alpha.4.2`.
 
 ## Implemented
 
@@ -22,8 +22,9 @@ FoxForge has a runnable alpha Docker implementation in this directory. The curre
 - no Docker socket requirement;
 - no `network_mode: host` requirement for the current explicit-IP Bambu/Moonraker model;
 - application-level authenticated/idempotent command APIs;
-- common Pause/Resume/Cancel and SSE application events included in `alpha.4`;
-- complete normal inventory operator workflow included in `alpha.4`;
+- common Pause/Resume/Cancel and SSE application events included in the current release line;
+- complete normal inventory operator workflow included in the current release line;
+- production-container Browser Acceptance covering phone, tablet, 16:9 desktop and 32:9 ultra-wide layouts, including Add Printer and Operator Access regressions;
 - the same application image is reused by the Umbrel Community App package.
 
 The current image is suitable for development and controlled alpha testing. It is not yet production-ready because representative hardware and printer-network validation remain incomplete.
@@ -31,10 +32,10 @@ The current image is suitable for development and controlled alpha testing. It i
 ## Published image
 
 ```text
-ghcr.io/mikefox303/foxforge:0.1.0-alpha.4@sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4
+ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6
 ```
 
-The digest identifies the guarded Linux `amd64` + `arm64` index published by the release workflow.
+The digest identifies the guarded Linux `amd64` + `arm64` OCI index published from release commit `fe5b3437f1e342548df74ded78557c771ef40710`.
 
 ## Runtime expectations
 
@@ -70,9 +71,11 @@ Use `deployment/docker/.env.example` as the configuration template. The browser 
 
 ## Release and upgrade model
 
-`v0.1.0-alpha.4` is published as an immutable multi-architecture release image. Future source changes are not delivered to existing deployments through a floating semantic release tag; they require another guarded release.
+`v0.1.0-alpha.4.2` is published as an immutable multi-architecture release image. Source changes merged after release are not delivered to existing deployments through a floating semantic release tag; they require another guarded release.
 
-Persistence compatibility is still pre-stable even though migration ownership now exists. Back up the complete `/data` directory before upgrading between early alpha releases and treat backups as sensitive because credentials/recovery material may be included.
+Persistence compatibility is still pre-stable even though migration ownership exists. Back up the complete `/data` directory before upgrading between early alpha releases and treat backups as sensitive because credentials/recovery material may be included.
+
+The matching Umbrel package is pinned to the same semantic version plus immutable OCI digest in Store commit `e842c411e26689609e9bbba4681df903f3624bbd`.
 
 ## Remaining production-readiness work
 
@@ -83,3 +86,5 @@ Persistence compatibility is still pre-stable even though migration ownership no
 - representative reverse-proxy/SSE reconnect-resync behavior;
 - network/design validation before discovery, Virtual Printer or other features requiring broader LAN behavior are enabled;
 - P3 automatic filament accounting remains frozen until the physical/deployment gate passes.
+
+Use `docs/testing/physical-validation-runbook.md` for the exact Alpha 4.2 physical-test identity and evidence procedure.
