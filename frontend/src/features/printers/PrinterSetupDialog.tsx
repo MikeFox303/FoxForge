@@ -19,6 +19,11 @@ import {
   type PrinterSetupPayload,
 } from '../../data/printerSetupClient';
 import { bambuModelGroups, isKnownBambuModel } from './bambuModels';
+import {
+  setupCommandErrorMessage,
+  setupOutcomeErrorMessage,
+  type SetupLanguage,
+} from './printerSetupErrors';
 import { normalizeBambuSerial, stableBambuPrinterId } from './printerSetupIdentity';
 
 type Props = {
@@ -181,7 +186,7 @@ type Copy = { [K in keyof typeof copy.en]: string };
 
 export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const { i18n } = useTranslation();
-  const language = (i18n.resolvedLanguage ?? i18n.language).slice(0, 2) as keyof typeof copy;
+  const language = (i18n.resolvedLanguage ?? i18n.language).slice(0, 2) as SetupLanguage;
   const c: Copy = copy[language] ?? copy.en;
   const [configurations, setConfigurations] = useState<PrinterConfigurationView[]>([]);
   const [loading, setLoading] = useState(false);
@@ -208,6 +213,8 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
 
   const errorMessage = (cause: unknown, fallback: string): string => {
     if (cause instanceof CommandAuthenticationRequiredError) return c.writesLocked;
+    const connectionMessage = setupCommandErrorMessage(cause, language);
+    if (connectionMessage) return connectionMessage;
     return cause instanceof Error ? cause.message : fallback;
   };
 
@@ -361,7 +368,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
         {error && <div className="setup-message error" role="alert">{error}</div>}
         {outcome && <div className={`setup-message ${outcome.reachable ? 'success' : 'warning'}`} role="status">
           <strong>{outcome.reachable ? c.reachable : c.unreachable}</strong>
-          {!outcome.reachable && <span>{outcome.connectionError?.message ?? outcome.connection}</span>}
+          {!outcome.reachable && <span>{outcome.connectionError ? setupOutcomeErrorMessage(outcome.connectionError, language) : outcome.connection}</span>}
         </div>}
 
         <div className="setup-grid">
