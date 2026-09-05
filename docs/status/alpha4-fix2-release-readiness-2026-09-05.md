@@ -50,8 +50,29 @@ For all supported viewport projects:
 - No known unresolved UI defect reproducible in the automated viewport matrix.
 - Security/dependency scans remain green.
 - Request-local aiohttp state uses typed `RequestKey` storage rather than application keys, keeping the backend test suite free of the `NotAppKeyWarning` that was found during this release-readiness pass.
+- CSS custom-property use is covered by a frontend regression test that rejects undefined `var(--token)` references unless an explicit fallback is present.
+- Browser acceptance fails closed on `pageerror` or `console.error` across all seven primary routes and all four supported viewport projects.
 - P3 draft PR #58 stays frozen and is not mixed into this hotfix.
 - No claim of physical-printer validation is made from mocks, fake adapters, browser emulation or container tests.
+
+## Verified pre-documentation candidate
+
+The final functional/test candidate before this evidence-only documentation update was:
+
+- PR #99 HEAD: `245cfc8fc0e470d56321c0d546db6dbc9e628b38`;
+- base `main`: `bec3ffec7c5a3b9f73275ae639f372c4ed8596ea`;
+- Web UI run `33971974729`: success (TypeScript, unit tests including the CSS-token regression guard, production build);
+- Printer domain contracts run `33971974746`: success;
+- Deployment authentication contract run `33971974733`: success;
+- FoxForge container run `33971974730`: success;
+- Security gates run `33971974728`: success;
+- Browser acceptance run `33971974735`: success, including the source-map gate and browser runtime error guard.
+
+Browser evidence for that exact candidate is artifact `foxforge-browser-evidence-33971974735` (artifact id `9971218382`, digest `sha256:b959b2c4facf143c4959492142bd35e7e370344d37daafe09af82fd5eb7ce97d`). The artifact contains 66 screenshots and was manually reviewed for the seven primary routes, phone/tablet/16:9/32:9 geometry, RU/UK layouts, Add Printer modal states, and open Operator Access states. No visible horizontal clipping, modal/content blending, Operator Access stacking regression, or uncontrolled 32:9 stretching was found.
+
+The earlier failing phone trace was a real stacking defect rather than a bad test: route content intercepted the Operator Access action. The mobile topbar now keeps a positioned stacking context, and the dedicated Operator Access Playwright test verifies viewport containment, hit-testing, Add Printer separation, compact close state and screenshot evidence.
+
+Temporary stabilization workflows `.github/workflows/ui-localization-polish.yml` and `.github/workflows/operator-access-dock.yml` are absent. The final documentation HEAD must still pass the same complete CI and Browser Acceptance artifact review before PR #99 is merged; this section does not waive that final gate.
 
 ## Physical-printer handoff
 
