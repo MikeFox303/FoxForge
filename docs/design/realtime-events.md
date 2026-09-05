@@ -1,12 +1,12 @@
 # Realtime application events
 
-**Status:** implemented in P2 development source  
+**Status:** implemented as P2 and released in `v0.1.0-alpha.4`; automated validation green, representative deployment validation pending  
 **Transport:** Server-Sent Events (SSE)  
 **Endpoint:** `GET /api/v1/events`
 
 ## Context
 
-FoxForge already normalizes Bambu and Moonraker state behind `PrinterAdapter`, `FleetService`, queue and inventory application services. The browser currently polls HTTP snapshots. P2 adds realtime delivery without exposing Bambu MQTT messages, Moonraker WebSocket payloads or vendor transport lifecycle to frontend code.
+FoxForge normalizes Bambu and Moonraker state behind `PrinterAdapter`, `FleetService`, queue and inventory application services. P2 adds realtime delivery without exposing Bambu MQTT messages, Moonraker WebSocket payloads or vendor transport lifecycle to frontend code.
 
 The realtime stream is intentionally an **application invalidation stream**, not a second source of truth. Canonical state remains the versioned HTTP read models such as `/api/v1/fleet`, `/api/v1/queue` and `/api/v1/inventory/spools`.
 
@@ -134,7 +134,7 @@ For `resync_required`, batching is bypassed and fleet, queue and inventory snaps
 
 Malformed or unknown event payloads fail closed to the same full snapshot resync.
 
-The existing periodic polling remains a fallback during the P2 alpha stage. Realtime improves freshness but is not allowed to make the UI less recoverable if a reverse proxy or browser blocks/interrupts SSE.
+Periodic polling remains a fallback during the alpha stage. Realtime improves freshness but is not allowed to make the UI less recoverable if a reverse proxy or browser blocks/interrupts SSE.
 
 ## Heartbeats and proxies
 
@@ -154,9 +154,15 @@ All state-changing operations continue to use ADR 0004 authenticated command rou
 
 If future deployments require read-level authorization, it should be designed consistently for both snapshot reads and realtime delivery rather than adding a one-off event token.
 
+## Release status
+
+P2 shipped in `v0.1.0-alpha.4`. The guarded release workflow validated the exact frozen release commit before publishing the Linux `amd64` + `arm64` image and GitHub pre-release.
+
+The matching Umbrel package is now pinned to the same immutable release digest, but representative Raspberry Pi/Umbrel proxy reconnect/resync evidence is still required before deployment-level production claims.
+
 ## Acceptance criteria
 
-P2 is complete when:
+P2 is code-complete because:
 
 1. realtime delivery is FoxForge-owned and application-level; no vendor transport payload crosses the API/frontend boundary;
 2. SSE supports `Last-Event-ID` replay through epoch + monotonic sequence cursors;
@@ -168,7 +174,7 @@ P2 is complete when:
 8. high-frequency changes are coalesced to avoid request storms;
 9. periodic polling remains as an alpha fallback rather than being removed prematurely;
 10. backend Ruff/tests pass on Python 3.12/3.13, frontend typecheck/tests/build pass, and the unified-container smoke validates the SSE endpoint;
-11. README, project status, changelog and documentation index distinguish released `alpha.3` from post-alpha.3 P1/P2 source state.
+11. README, project status, changelog and documentation index identify P2 as released in `v0.1.0-alpha.4` while keeping representative deployment validation separate.
 
 ## Deferred work
 

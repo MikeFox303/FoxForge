@@ -21,7 +21,7 @@ The example manifest is `docs/testing/evidence/physical-validation-manifest.exam
 
 ## Workflow
 
-1. Build/install the exact candidate that is being validated.
+1. Build/install the exact candidate that is being validated. For current Umbrel validation this is `my3d-foxforge` `0.1.0-alpha.4`, pinned to multi-architecture digest `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`.
 2. From the real FoxForge deployment network namespace, collect the prerequisite probes described in `physical-validation-runbook.md`.
 3. Copy the example manifest next to the redacted probe JSON files.
 4. Replace `sourceCommit`, `packageIdentity`, `validationDate` and `probeFiles` with the exact evidence identities.
@@ -59,7 +59,7 @@ Exit status is:
 - X2D and Moonraker reachability from the deployment namespace;
 - representative SSE reconnect/resync through that deployment.
 
-This is still package-specific. A source-only Docker success does not automatically validate a future Umbrel package.
+This remains package-specific. Source-only Docker success, Store CI, QEMU `arm64` success and Compose validation do not automatically validate the published `alpha.4` Umbrel package on a real Raspberry Pi/Umbrel deployment. The current package software/bootstrap contract is already merged; AUD-003 now requires the real observations above rather than a hypothetical future package.
 
 ## AUD-013 evidence
 

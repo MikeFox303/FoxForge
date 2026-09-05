@@ -6,38 +6,65 @@ FoxForge has not published a stable release yet. Alpha releases are versioned be
 
 ## Unreleased
 
+- Documentation synchronized after the `v0.1.0-alpha.4` guarded release and companion Umbrel package update. No additional application behavior is implied by documentation-only commits.
+
+## [0.1.0-alpha.4] - 2026-09-05
+
+Fourth public FoxForge pre-release. `alpha.4` packages P1 common job control, P2 realtime application events, the complete normal inventory operator workflow and the independent-audit stabilization/security foundation. See [`release/v0.1.0-alpha.4.md`](release/v0.1.0-alpha.4.md) for the full immutable release notes.
+
 ### Added
 
-- Common typed `foxforge.job_control` v1 capability for Pause, Resume and Cancel with exact vendor-job identity validation and normalized state guards.
-- Bambu LAN job-control mapping for native pause/resume/stop commands with native job-identity revalidation before publish.
-- Moonraker/Klipper job-control transport using `/printer/print/pause`, `/printer/print/resume` and `/printer/print/cancel`, with native filename/job-identity revalidation.
-- ADR 0004 guarded `POST /api/v1/printers/{printer_id}/job-control` command requiring `printer.control`, `Idempotency-Key`, durable replay protection and command audit.
-- Fleet capability metadata for supported job-control actions so clients do not infer controls from vendor/model names.
-- Capability/state-gated React printer controls with explicit cancel confirmation and EN/RU/UK localization parity.
-- P1 job-control design specification and automated domain/adapter/API/frontend coverage.
-- P2 FoxForge-owned application event journal with process epoch, monotonic sequence cursors, bounded replay and explicit `resync_required` semantics.
-- `GET /api/v1/events` Server-Sent Events endpoint with `Last-Event-ID` replay, heartbeat delivery and proxy-buffering safeguards.
-- Application-level realtime topics for normalized fleet changes, durable queue changes, durable inventory changes and printer configuration changes without vendor transport payload leakage.
-- React `EventSource` bridge that maps application topics to TanStack Query invalidation families and batches high-frequency changes while retaining HTTP polling as an alpha fallback.
-- P2 realtime design specification plus backend replay/SSE/durable-write tests and frontend invalidation-routing coverage.
+- Common typed `foxforge.job_control` v1 capability for Pause, Resume and Cancel with exact observed vendor-job identity guards.
+- Bambu LAN pause/resume/stop mapping and Moonraker `/printer/print/pause`, `/resume`, `/cancel` mapping with native job-identity revalidation.
+- Guarded `POST /api/v1/printers/{printer_id}/job-control` command with `printer.control`, durable HTTP idempotency and command audit.
+- FoxForge-owned application event journal with process epoch, monotonic sequence cursors, bounded replay and explicit `resync_required` semantics.
+- `GET /api/v1/events` Server-Sent Events endpoint plus React EventSource → TanStack Query invalidation bridge.
+- Complete normal inventory operator workflow: create spool, correct mass, change empty-spool mass, assign/move/unassign, archive and inspect history.
+- Atomic/idempotent inventory adjustment persistence for concurrency/restart safety.
+- Versioned configuration/SQLite persistence migrations with backup, validation and centralized schema ownership.
+- `SecretStore` boundary separating Bambu access codes and Moonraker API keys from ordinary runtime configuration.
+- Optional independent SHA-256 certificate pins for Bambu MQTT and FTPS.
+- Hardened Moonraker endpoint policy covering resolved destinations, unsafe mixed DNS results, redirects and URL userinfo.
+- Artifact quota/minimum-free-space controls, safe orphan retention/cleanup and restart cleanup.
+- Per-printer reconnect supervision with bounded global concurrency and independent backoff/jitter.
+- Production-container Playwright acceptance across desktop, tablet and mobile for printer setup, queue staging/start, realtime resync and representative inventory operations.
+- Machine-checkable physical/deployment evidence manifests for AUD-003, AUD-013 and the P3 resume gate.
 
-### Safety
+### Safety and governance
 
-- Every pause/resume/cancel request targets the exact vendor job identity observed by FoxForge; stale, unidentified or mismatched jobs are rejected before a device-side command.
-- `controlId` remains distinct from HTTP `Idempotency-Key` so logical device intent and HTTP replay identity are not conflated.
-- A conclusive same-key HTTP replay does not execute the adapter command again.
-- An `INDETERMINATE` job-control outcome deliberately leaves the durable HTTP reservation unresolved; replaying the same key returns reconciliation-required without resending the device command.
-- Browser job-control uncertainty triggers live-state refresh and blocks automatic blind retry.
-- Realtime continuity is fail-closed: fresh, restarted, malformed, expired or overflowed cursors require canonical HTTP snapshot resynchronization rather than inferred missing state.
-- Queue and inventory realtime notifications are emitted only after the underlying durable write succeeds; a failed write does not advance the application event journal.
-- P2 transports only FoxForge application invalidations; Bambu MQTT payloads, Moonraker WebSocket/JSON-RPC payloads, secrets and command credentials are not exposed through SSE.
+- Job-control side effects are non-retryable when the remote outcome is ambiguous; same-key unresolved replay never sends the command again.
+- Realtime continuity fails closed to canonical HTTP resynchronization on malformed, foreign, expired or overflowed cursors.
+- Queue/inventory realtime notifications publish only after durable writes succeed.
+- Browser operator credentials remain memory-only; production rejects tokenless `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true`.
+- Frozen npm/pip dependency inputs, Dependabot, dependency audits, final-image HIGH/CRITICAL scanning and branch-aware backend coverage governance are in place.
+- Backend measured branch-aware coverage is approximately 76% with a 75% CI floor.
+
+### Deployment
+
+- Backend package version: `0.1.0a4`.
+- Frontend/application version: `0.1.0-alpha.4`.
+- Frozen release commit: `457f8f3f044147772b1ecf13df90b38a35268cda`.
+- Versioned image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4`.
+- Published multi-architecture digest: `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`.
+- Linux `amd64` and `arm64` are published with SBOM/provenance metadata.
+- The companion Umbrel package line pins the exact immutable digest and maps Umbrel `APP_PASSWORD` to `FOXFORGE_COMMAND_TOKEN` for explicit memory-only **Unlock writes** while keeping App Proxy as defense in depth.
 
 ### Validation
 
-- P1 adds tests for common eligibility/state rules, vendor-job mismatch rejection, Bambu cancel→stop translation, Moonraker resume translation, non-retryable ambiguous transport outcomes, authenticated API execution, completed replay, idempotency conflicts, unresolved same-key replay, frontend control/HTTP identity separation and EN/RU/UK key parity.
-- P2 adds tests for fresh-stream resync, retained replay ordering, foreign/expired cursor rejection, slow-subscriber fail-closed behavior, successful durable-write publication, failed-write non-publication, SSE response/replay behavior and frontend cache-family routing.
-- The unified-container smoke now verifies that `/api/v1/events` returns the initial P2 `resync_required` contract in addition to health/SPA/persistence checks.
-- Physical Bambu X2D and Moonraker/OpenKE Pause/Resume/Cancel validation remains required before production-ready claims.
+- Guarded release workflow passed on the exact frozen release commit before publication.
+- Release validation passed manifest/version consistency, frozen dependency installation, Ruff lint/format, **269 backend tests**, TypeScript typecheck, **42 frontend tests**, Vite production build and unified release-image health/SPA/persistence smoke.
+- Linux `amd64` + `arm64` publication completed with SBOM/provenance before the GitHub pre-release was created.
+- Companion Umbrel package CI validates the exact digest, Compose/auth bootstrap contract, anonymous image pull and runtime startup on both `amd64` and `arm64`.
+
+### Known limitations
+
+- Physical Bambu X2D validation remains required for connection/reconnect, state sync, MQTT/FTPS certificate behavior, project delivery, print-start acknowledgement, Pause/Resume/Cancel, lifecycle completion and ambiguous-outcome reconciliation.
+- Physical Moonraker/OpenKE validation remains required for endpoint-policy compatibility, HTTP/WebSocket behavior, upload/checksum/start, Pause/Resume/Cancel and lifecycle completion/failure handling.
+- Representative Raspberry Pi 5/UmbrelOS installation, restart/persistence, real proxy/write path, direct-backend fail-closed behavior, printer-network reachability, upgrade and SSE reconnect/resync validation remains incomplete.
+- Automatic filament accounting P3 is **not included**; the partial implementation remains frozen in draft PR #58 behind the physical/deployment validation gate.
+- Persistent farm scheduling/distributed leases are not implemented.
+- Deep Bambu AMS/CFS operations, drying, HMS actions, K profiles, dual-nozzle controls and other vendor-depth capabilities remain future typed work.
+- Persistence compatibility remains pre-stable; back up the complete sensitive `/data` directory before upgrades.
 
 ## [0.1.0-alpha.3] - 2026-09-04
 

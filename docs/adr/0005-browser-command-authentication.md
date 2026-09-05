@@ -58,13 +58,17 @@ Standalone Docker:
 
 Umbrel:
 
-- the currently published immutable `v0.1.0-alpha.3` package remains historical and is not rewritten;
-- the next FoxForge package must either configure a real operator bootstrap accepted by this ADR or explicitly ship as read-only for writes;
-- App Proxy authentication is defense in depth, not an application principal.
+- the historical immutable `v0.1.0-alpha.3` package remains historical and is not rewritten;
+- the `v0.1.0-alpha.4` package implements an ADR-compatible explicit credential path by mapping Umbrel's per-app `APP_PASSWORD` to `FOXFORGE_COMMAND_TOKEN`;
+- the operator enters the same Umbrel app password in FoxForge **Unlock writes**, where it remains memory-only in the browser tab;
+- Umbrel App Proxy authentication remains defense in depth, not an application principal;
+- Store package CI validates the explicit mapping and package/runtime composition, while real Raspberry Pi/Umbrel proxy behavior remains a separate AUD-003 physical/deployment validation requirement.
+
+This packaging choice does not introduce tokenless trusted-proxy bootstrap. It simply supplies the explicit application credential already required by this ADR.
 
 ### 5. Session/token lifecycle
 
-The alpha operator token is deployment-managed and rotated by changing `FOXFORGE_COMMAND_TOKEN` and restarting the runtime. Browser copies are memory-only and disappear on tab close/reload or explicit Lock.
+The alpha operator token is deployment-managed and rotated by changing `FOXFORGE_COMMAND_TOKEN` and restarting the runtime. On Umbrel `alpha.4`, the deployment-owned value is the app's `APP_PASSWORD`. Browser copies are memory-only and disappear on tab close/reload or explicit Lock.
 
 Short-lived application sessions may be reintroduced after authenticated bootstrap exists. Multi-user identities/OIDC remain future work and must continue to resolve into FoxForge principals rather than entering domain services directly.
 
@@ -84,7 +88,7 @@ Rejected. Long-lived browser persistence increases exposure to XSS and shared-br
 
 ### Disable browser writes entirely
 
-Rejected for standalone use because an explicit in-memory operator credential provides a workable fail-closed path without weakening API authentication.
+Rejected for standalone use because an explicit in-memory operator credential provides a workable fail-closed path without weakening API authentication. Historical `alpha.3` Umbrel packaging remained effectively read-only, but `alpha.4` now supplies the same explicit-token model using the Umbrel app password.
 
 ## Consequences
 
@@ -92,6 +96,7 @@ Rejected for standalone use because an explicit in-memory operator credential pr
 
 - Directly exposed runtimes cannot become anonymous operator-token dispensers by toggling one flag.
 - Standalone Docker has a complete documented write-authentication path.
+- Umbrel `alpha.4` now has a package-defined write-authentication path without elevating App Proxy headers to a FoxForge principal.
 - Browser credentials are not persisted by the application.
 - Existing command permissions/idempotency/audit semantics remain unchanged.
 - Future Umbrel/OIDC integration can add a provider without changing printer/queue/inventory domain contracts.
@@ -99,8 +104,9 @@ Rejected for standalone use because an explicit in-memory operator credential pr
 ### Costs
 
 - Operators must enter the command token after page reload until a stronger authenticated session provider exists.
-- The next Umbrel package needs an explicit decision for write bootstrap rather than assuming App Proxy is sufficient.
+- Umbrel operators likewise enter the app password in **Unlock writes** after reload; App Proxy login alone does not silently grant FoxForge write authority.
 - The legacy `/operator-session` route remains present but intentionally unavailable to anonymous production requests.
+- Real Umbrel deployment/proxy behavior still requires physical evidence before AUD-003 can be resolved.
 
 ## Acceptance criteria
 
@@ -113,4 +119,5 @@ Rejected for standalone use because an explicit in-memory operator credential pr
 - standalone Compose exposes `FOXFORGE_COMMAND_TOKEN` configuration and documents read-only behavior when absent;
 - exactly one Add Printer launcher tree is rendered and remains available on narrow layouts;
 - backend/frontend/container tests remain green;
-- Umbrel write availability is not claimed until its package has a tested bootstrap compatible with this ADR.
+- Umbrel write availability is claimed only when its package has a tested bootstrap compatible with this ADR;
+- the `v0.1.0-alpha.4` Store package satisfies that software/package bootstrap criterion through explicit `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN` mapping, without weakening the separate physical/deployment evidence required by AUD-003.
