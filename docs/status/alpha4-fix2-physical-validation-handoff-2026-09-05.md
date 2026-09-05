@@ -56,6 +56,14 @@ The following changes were merged after the immutable Alpha 4.2 application rele
 
 Canonical evidence verification should therefore use validation tooling from commit `1831992b87571a45753d8c97b8ae001514e8fce0` or a later commit that preserves these fail-closed rules, while the manifest `sourceCommit` remains the released application commit `fe5b3437f1e342548df74ded78557c771ef40710`.
 
+### Validation-tooling bootstrap
+
+Do not install the newer verifier into the Alpha 4.2 application or rebuild the released image merely to collect evidence. Use a separate checkout as described in:
+
+`docs/testing/alpha4.2-validation-tooling-bootstrap.md`
+
+That bootstrap pins the minimum tooling baseline, runs the collector/verifier directly from `backend/src` through `PYTHONPATH`, defines the secret-safe evidence workspace, and keeps the released application identity independent from the validation-tooling identity.
+
 ## Required physical sequence
 
 ### 1. Raspberry Pi 5 / Umbrel
@@ -109,6 +117,10 @@ Required observations:
 Use the current runbook:
 
 `docs/testing/physical-validation-runbook.md`
+
+Bootstrap the post-release validation tooling separately:
+
+`docs/testing/alpha4.2-validation-tooling-bootstrap.md`
 
 For Alpha 4.2 start from:
 
