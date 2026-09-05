@@ -160,3 +160,17 @@ def test_container_workflow_cannot_publish_semver_or_tag_triggered_images() -> N
     assert "branches:\n      - main" in workflow
     assert "type=raw,value=main" in workflow
     assert "type=sha,prefix=sha-" in workflow
+
+
+def test_release_workflow_requires_exact_commit_browser_gate_before_publication() -> None:
+    workflow = (_ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    browser_gate = workflow.index("- name: Exact-commit browser acceptance")
+    source_map_gate = workflow.index("- name: Verify production assets contain no public source maps")
+    create_tag = workflow.index("- name: Create immutable Git release tag")
+    publish_image = workflow.index("- name: Publish versioned multi-architecture image")
+
+    assert "npm run test:e2e" in workflow
+    assert "FOXFORGE_E2E_COMMAND_TOKEN" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert browser_gate < source_map_gate < create_tag < publish_image
