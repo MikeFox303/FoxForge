@@ -176,7 +176,7 @@ export function InventoryOperatorDialog({
             {history.data?.adjustments.map((item) => (
               <article className="inventory-history-item" key={item.adjustmentId}>
                 <div><strong>{t(`inventoryOperator.kinds.${item.kind}`)}</strong><span>{new Date(item.createdAt).toLocaleString()}</span></div>
-                <strong className={Number(item.deltaFilamentMassG) < 0 ? 'warning-text' : ''}>{signedMass(item.deltaFilamentMassG)}</strong>
+                <strong className={item.deltaFilamentMassG.startsWith('-') ? 'warning-text' : ''}>{signedMass(item.deltaFilamentMassG)}</strong>
                 {item.note && <p>{item.note}</p>}
               </article>
             ))}
@@ -232,6 +232,14 @@ function nonnegative(value: string): boolean {
 }
 
 function signedMass(value: string): string {
-  const parsed = Number(value);
-  return `${parsed > 0 ? '+' : ''}${value} g`;
+  const normalized = normalizeDecimal(value);
+  const sign = normalized !== '0' && !normalized.startsWith('-') ? '+' : '';
+  return `${sign}${normalized} g`;
+}
+
+function normalizeDecimal(value: string): string {
+  const [integerPart, fractionalPart] = value.split('.', 2);
+  if (fractionalPart === undefined) return integerPart;
+  const trimmedFraction = fractionalPart.replace(/0+$/, '');
+  return trimmedFraction ? `${integerPart}.${trimmedFraction}` : integerPart;
 }
