@@ -40,7 +40,7 @@ Current source provides:
 python -m foxforge.testing.physical_validation --help
 ```
 
-The probe uses only Python's standard library and does not print configured secret values.
+The probe uses only Python's standard library and does not print configured secret values. HTTP probes refuse redirects, so FoxForge Bearer credentials and Moonraker API keys remain bound to the operator-supplied target rather than being forwarded through a 3xx response.
 
 By default target host/URL values are redacted from JSON evidence. Add `--include-targets` only when the resulting file is intentionally private and local addressing information is acceptable.
 
@@ -59,12 +59,24 @@ For an Umbrel package, `FOXFORGE_VALIDATION_COMMAND_TOKEN` should contain the Fo
 
 ## 1. Bambu X2D TLS certificate evidence — AUD-013
 
-Run from the same host/network namespace that FoxForge will use to reach the printer, preferably the Raspberry Pi/Umbrel host for final evidence:
+Run from the same host/network namespace that FoxForge will use to reach the printer, preferably the Raspberry Pi/Umbrel host for final evidence.
+
+Before restart:
 
 ```bash
 python -m foxforge.testing.physical_validation \
   --bambu-host <X2D_IP> \
-  --output x2d-certificates-before.json
+  --output foxforge-physical-prerequisites.json
+```
+
+If collecting the combined prerequisite report, add the Moonraker/FoxForge arguments described below to this first command. The important requirement is that this file contains the first successful `bambu_tls` sample.
+
+Then restart the X2D normally. After it is fully available again, collect a separate second TLS file:
+
+```bash
+python -m foxforge.testing.physical_validation \
+  --bambu-host <X2D_IP> \
+  --output x2d-certificates-after-restart.json
 ```
 
 The probe performs TLS handshakes against the FoxForge default Bambu LAN services:
@@ -74,19 +86,27 @@ The probe performs TLS handshakes against the FoxForge default Bambu LAN service
 
 It records only the SHA-256 fingerprint of each presented certificate plus whether both services presented the same certificate.
 
+The evidence verifier now requires at least two **distinct referenced probe files** containing successful Bambu TLS samples before AUD-013 can pass. It independently verifies that:
+
+- every referenced MQTT fingerprint is identical across the samples;
+- every referenced FTPS fingerprint is identical across the samples.
+
+This machine check prevents `fingerprintsStableAcrossRestart=true` from overriding missing or contradictory certificate data. The boolean is still required because the verifier cannot prove that a real normal printer restart occurred between the two files; that part remains operator-observed evidence.
+
 Required AUD-013 sequence:
 
-1. collect `before` fingerprints while the X2D is in the normal LAN-only/developer configuration used by FoxForge;
-2. restart the printer normally and collect a second file;
-3. verify whether MQTT and FTPS fingerprints remain stable across restart;
-4. if practical, repeat after a firmware update before adopting a persistent default trust policy;
-5. configure the observed fingerprints in a test FoxForge deployment;
-6. prove normal connect/state/project-storage behavior succeeds with the correct pins;
-7. deliberately change the MQTT fingerprint and prove MQTT fails closed before subscription;
-8. restore MQTT, deliberately change the FTPS fingerprint and prove FTPS fails closed before login/upload;
-9. restore the correct values and prove recovery without deleting unrelated printer state.
+1. collect the first fingerprints while the X2D is in the normal LAN-only/developer configuration used by FoxForge;
+2. restart the printer normally and collect the second TLS file only after the printer is fully available again;
+3. verify the evidence manifest reports `bambuTlsSampleFiles >= 2` and `bambuTlsStableAcrossSamples: true`;
+4. only then mark `fingerprintsStableAcrossRestart=true` in the manifest;
+5. if practical, repeat after a firmware update before adopting a persistent default trust policy;
+6. configure the observed fingerprints in a test FoxForge deployment;
+7. prove normal connect/state/project-storage behavior succeeds with the correct pins;
+8. deliberately change the MQTT fingerprint and prove MQTT fails closed before subscription;
+9. restore MQTT, deliberately change the FTPS fingerprint and prove FTPS fails closed before login/upload;
+10. restore the correct values and prove recovery without deleting unrelated printer state.
 
-Do **not** change the Bambu trust default solely because one certificate snapshot was obtainable. The decision depends on observed stability and update behavior.
+If the two TLS samples disagree, record the mismatch and keep AUD-013 unresolved. Do **not** change the Bambu trust default solely because one certificate snapshot was obtainable or because an operator checkbox was set.
 
 ## 2. Moonraker/OpenKE reachability
 
@@ -98,7 +118,7 @@ python -m foxforge.testing.physical_validation \
   --output moonraker-reachability.json
 ```
 
-If the Moonraker instance requires an API key, export `FOXFORGE_VALIDATION_MOONRAKER_API_KEY` first. The probe requests `/server/info` and records only status/JSON-shape evidence.
+If the Moonraker instance requires an API key, export `FOXFORGE_VALIDATION_MOONRAKER_API_KEY` first. The probe requests `/server/info` and records only status/JSON-shape evidence. Redirects are not followed.
 
 This is a reachability/authentication prerequisite only. Full printer validation must still cover upload/checksum/start, live state, pause/resume/cancel, completion/failure and ambiguous command outcomes through FoxForge.
 
@@ -119,7 +139,8 @@ The probe:
 - performs a protected inventory POST using an intentionally invalid empty body;
 - with a correct command token, expects authentication to pass and request validation to fail with HTTP 400 / `invalid_request` before any mutation;
 - without a token, accepts only truthful fail-closed 401/503 behavior;
-- never submits a valid inventory object, so the auth-boundary check creates no spool.
+- never submits a valid inventory object, so the auth-boundary check creates no spool;
+- refuses redirects rather than forwarding the command token to another HTTP target.
 
 Run this through the actual Umbrel App Proxy/browser-facing path and separately confirm that the direct backend path does not become an anonymous credential source. This is AUD-003 package evidence; the generic proxy-security design itself is already covered by resolved AUD-004.
 
@@ -127,7 +148,7 @@ Also perform at least one real protected UI command after **Unlock writes** usin
 
 ## 4. Combined host-network prerequisite probe
 
-From Raspberry Pi 5/Umbrel, all three prerequisite checks can be collected together:
+From Raspberry Pi 5/Umbrel, the first X2D sample plus Moonraker and FoxForge prerequisites can be collected together:
 
 ```bash
 export FOXFORGE_VALIDATION_COMMAND_TOKEN='...'
@@ -140,7 +161,7 @@ python -m foxforge.testing.physical_validation \
   --output foxforge-physical-prerequisites.json
 ```
 
-Exit code is zero only when every requested probe passes.
+Exit code is zero only when every requested probe passes. After the normal X2D restart, collect the second Bambu-only file separately as shown in section 1. A duplicate reference to the same JSON file is rejected by the evidence verifier and cannot satisfy the two-sample AUD-013 requirement.
 
 ## 5. Evidence manifest and verifier
 
@@ -154,7 +175,7 @@ The generic schema example remains available at:
 
 `docs/testing/evidence/physical-validation-manifest.example.json`
 
-The Alpha 4.2 template already contains the correct non-secret identities but all operator observations are `false`. Copy it into a new evidence directory and change values only when the corresponding real behavior has been observed.
+The Alpha 4.2 template already contains the correct non-secret identities, references the expected prerequisite and post-restart TLS files, and keeps all operator observations `false`. Copy it into a new evidence directory and change values only when the corresponding real behavior has been observed.
 
 Canonical Alpha 4.2 manifest identity:
 
@@ -176,6 +197,13 @@ python -m foxforge.testing.physical_evidence \
   --expected-package-identity "$PACKAGE_IDENTITY"
 ```
 
+For a valid two-sample X2D evidence set, inspect the emitted fields:
+
+```text
+bambuTlsSampleFiles >= 2
+bambuTlsStableAcrossSamples = true
+```
+
 To require a specific gate, keep the same expected identity arguments:
 
 ```bash
@@ -195,9 +223,9 @@ python -m foxforge.testing.physical_evidence <manifest> \
   --require p3
 ```
 
-An identity mismatch is rejected with verifier exit code `2`; it cannot produce a passing AUD-003, AUD-013 or P3 result for the intended release. The expected-identity flags remain generic, so historical/future evidence can be checked against its own exact identities.
+An identity mismatch is rejected with verifier exit code `2`; it cannot produce a passing AUD-003, AUD-013 or P3 result for the intended release. Missing or mismatched before/after TLS data keeps AUD-013/P3 incomplete even when operator booleans are true. The expected-identity flags remain generic, so historical/future evidence can be checked against their own exact identities.
 
-The verifier also rejects missing observations, unknown fields, failed probes, evidence that is not marked secret-safe, and non-redacted targets by default. See `docs/testing/physical-evidence-gate.md` for the complete contract.
+The verifier also rejects duplicate probe paths, missing observations, unknown fields, failed probes, evidence that is not marked secret-safe, and non-redacted targets by default. See `docs/testing/physical-evidence-gate.md` for the complete contract.
 
 ## Required full physical matrix before P3 resumes
 
@@ -209,7 +237,7 @@ The JSON probe is only the prerequisite/evidence collector. The following behavi
 | Bambu X2D | connect/reconnect, normalized state, project upload/storage, print-start acknowledgement, pause, resume, cancel, completion, ambiguous outcome handling |
 | Moonraker/OpenKE | HTTP/WebSocket connect/reconnect, upload/checksum/start, pause, resume, cancel, completion/failure, ambiguous outcome handling |
 | Browser auth | Add Printer and at least one other protected workflow through the exact packaged deployment; missing/invalid credential stays fail-closed; reload clears memory-only credential |
-| Bambu certificate trust | stable/repeatable MQTT + FTPS fingerprints, correct-pin success, independent wrong-pin fail-closed behavior, recovery, firmware-update observation where practical |
+| Bambu certificate trust | two distinct before/after-restart TLS evidence files with stable MQTT + FTPS fingerprints, correct-pin success, independent wrong-pin fail-closed behavior, recovery, firmware-update observation where practical |
 
 ## Evidence file rules
 
@@ -218,6 +246,8 @@ When adding evidence under `docs/testing/evidence/` or linking it from the remed
 - do not commit access codes, API keys, command tokens, app passwords, session tokens or cookies;
 - target IPs/URLs should remain redacted in repository evidence;
 - include FoxForge release commit SHA, exact package/image/digest identity, Store package commit and validation date in the evidence manifest/run notes;
+- use distinct files for before/after-restart Bambu TLS observations; duplicate `probeFiles` entries are rejected;
+- distinguish machine-checked fingerprint equality from the operator-observed fact that a real restart occurred between samples;
 - distinguish automated prerequisite output from operator-observed printer behavior;
 - record failures as well as successes; do not discard evidence that changes the trust/deployment design conclusion;
 - run `physical_evidence` with the exact expected release/package identity before proposing an audit-status change.
@@ -225,7 +255,7 @@ When adding evidence under `docs/testing/evidence/` or linking it from the remed
 ## Closure rules
 
 - **AUD-003**: may move from `VALIDATION REQUIRED` to `RESOLVED` only after the exact published `my3d-foxforge` package demonstrates the configured write-enabled behavior end to end on representative Raspberry Pi/Umbrel and the corresponding evidence manifest passes `--require aud003` with the expected Alpha 4.2 identities.
-- **AUD-013**: requires physical X2D certificate stability/pinning evidence and a manifest passing `--require aud013` with the expected Alpha 4.2 identities before any default TLS trust behavior is changed or the finding is resolved.
+- **AUD-013**: requires two distinct successful before/after-restart X2D TLS probe files with machine-verified stable MQTT and FTPS fingerprints, plus the physical correct-pin/wrong-pin/recovery observations, before a manifest may pass `--require aud013` with the expected Alpha 4.2 identities.
 - **P3**: physical/deployment readiness additionally requires the complete Bambu + Moonraker/OpenKE lifecycle matrix and a manifest passing `--require p3` with the exact intended release/package identity.
 
 A successful Store CI run or network probe alone is not sufficient to close either remaining finding or to resume P3.
