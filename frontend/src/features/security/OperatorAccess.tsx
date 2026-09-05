@@ -75,6 +75,7 @@ export function OperatorAccess() {
         </div>
       ) : (
         <div className="operator-access">
+          <small>{t('operatorAccess.credentialHelp')}</small>
           <label>
             <span className="sr-only">{t('operatorAccess.token')}</span>
             <input
