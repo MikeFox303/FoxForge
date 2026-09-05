@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 MikeFox303
 
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 const routes = [
   '/',
@@ -13,13 +13,26 @@ const routes = [
   '/system',
 ] as const;
 
-const screenshotRoutes = new Set(['/', '/queue', '/inventory']);
-
 function overlaps(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): boolean {
   return a.x < b.x + b.width
     && a.x + a.width > b.x
     && a.y < b.y + b.height
     && a.y + a.height > b.y;
+}
+
+async function expectNoHorizontalViewportOverflow(page: Page): Promise<void> {
+  const viewport = await page.evaluate(() => ({
+    width: window.innerWidth,
+    htmlScrollWidth: document.documentElement.scrollWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+  }));
+
+  expect(viewport.htmlScrollWidth).toBeLessThanOrEqual(viewport.width + 1);
+  expect(viewport.bodyScrollWidth).toBeLessThanOrEqual(viewport.width + 1);
+}
+
+function safeRouteName(route: typeof routes[number]): string {
+  return route === '/' ? 'overview' : route.slice(1);
 }
 
 for (const route of routes) {
@@ -43,20 +56,14 @@ for (const route of routes) {
     await expect(operatorToggle).toBeVisible();
     await expect(operatorInput).toBeHidden();
 
-    const viewport = await page.evaluate(() => ({
-      width: window.innerWidth,
-      htmlScrollWidth: document.documentElement.scrollWidth,
-      bodyScrollWidth: document.body.scrollWidth,
-    }));
-
-    expect(viewport.htmlScrollWidth).toBeLessThanOrEqual(viewport.width + 1);
-    expect(viewport.bodyScrollWidth).toBeLessThanOrEqual(viewport.width + 1);
+    await expectNoHorizontalViewportOverflow(page);
+    const viewportWidth = await page.evaluate(() => window.innerWidth);
 
     for (const locator of [shell, sidebar, topbar, content, addPrinter, operatorShell]) {
       const box = await locator.boundingBox();
       expect(box).not.toBeNull();
       expect(box!.x).toBeGreaterThanOrEqual(-1);
-      expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+      expect(box!.x + box!.width).toBeLessThanOrEqual(viewportWidth + 1);
     }
 
     const addPrinterBox = await addPrinter.boundingBox();
@@ -86,14 +93,49 @@ for (const route of routes) {
       expect(Math.abs(leftGap - rightGap)).toBeLessThanOrEqual(2);
     }
 
-    if (screenshotRoutes.has(route) && testInfo.project.name !== 'tablet') {
-      const safeRoute = route === '/' ? 'overview' : route.slice(1);
+    await page.screenshot({
+      path: testInfo.outputPath(`${testInfo.project.name}-${safeRouteName(route)}.png`),
+      fullPage: false,
+    });
+  });
+}
+
+for (const language of ['ru', 'uk'] as const) {
+  for (const route of routes) {
+    test(`${language} copy stays bounded on ${route}`, async ({ page }, testInfo) => {
+      test.skip(!['phone', 'desktop-16-9'].includes(testInfo.project.name));
+
+      await page.addInitScript((selectedLanguage) => {
+        window.localStorage.setItem('foxforge.language', selectedLanguage);
+      }, language);
+      await page.goto(route);
+
+      const shell = page.locator('.app-shell');
+      const sidebar = page.locator('.sidebar');
+      const topbar = page.locator('.topbar');
+      const content = page.locator('.content');
+      const addPrinter = page.locator('.printer-setup-launcher');
+      const operatorShell = page.locator('.operator-access-shell');
+
+      for (const locator of [shell, sidebar, topbar, content, addPrinter, operatorShell]) {
+        await expect(locator).toBeVisible();
+      }
+
+      await expectNoHorizontalViewportOverflow(page);
+      const viewportWidth = await page.evaluate(() => window.innerWidth);
+      for (const locator of [shell, sidebar, topbar, content, addPrinter, operatorShell]) {
+        const box = await locator.boundingBox();
+        expect(box).not.toBeNull();
+        expect(box!.x).toBeGreaterThanOrEqual(-1);
+        expect(box!.x + box!.width).toBeLessThanOrEqual(viewportWidth + 1);
+      }
+
       await page.screenshot({
-        path: testInfo.outputPath(`${testInfo.project.name}-${safeRoute}.png`),
+        path: testInfo.outputPath(`${testInfo.project.name}-${language}-${safeRouteName(route)}.png`),
         fullPage: false,
       });
-    }
-  });
+    });
+  }
 }
 
 test('printer setup modal owns the viewport and stays above global controls', async ({ page }, testInfo) => {
@@ -163,3 +205,32 @@ test('printer setup modal owns the viewport and stays above global controls', as
   await expect(backdrop).toBeHidden();
   expect(await page.evaluate(() => document.body.style.overflow)).not.toBe('hidden');
 });
+
+for (const language of ['ru', 'uk'] as const) {
+  test(`printer setup modal stays readable in ${language}`, async ({ page }, testInfo) => {
+    test.skip(!['phone', 'desktop-16-9'].includes(testInfo.project.name));
+
+    await page.addInitScript((selectedLanguage) => {
+      window.localStorage.setItem('foxforge.language', selectedLanguage);
+    }, language);
+    await page.goto('/');
+    await page.locator('.printer-setup-launcher').click();
+
+    const dialog = page.locator('.setup-dialog');
+    await expect(dialog).toBeVisible();
+    await expectNoHorizontalViewportOverflow(page);
+
+    const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
+    const dialogBox = await dialog.boundingBox();
+    expect(dialogBox).not.toBeNull();
+    expect(dialogBox!.x).toBeGreaterThanOrEqual(-1);
+    expect(dialogBox!.y).toBeGreaterThanOrEqual(-1);
+    expect(dialogBox!.x + dialogBox!.width).toBeLessThanOrEqual(viewport.width + 1);
+    expect(dialogBox!.y + dialogBox!.height).toBeLessThanOrEqual(viewport.height + 1);
+
+    await page.screenshot({
+      path: testInfo.outputPath(`${testInfo.project.name}-${language}-printer-setup-modal.png`),
+      fullPage: false,
+    });
+  });
+}
