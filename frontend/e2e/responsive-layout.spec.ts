@@ -218,6 +218,11 @@ for (const language of ['ru', 'uk'] as const) {
 
     const dialog = page.locator('.setup-dialog');
     await expect(dialog).toBeVisible();
+    const localizedLockedMessage = language === 'ru'
+      ? 'Управление FoxForge заблокировано'
+      : 'Керування FoxForge заблоковано';
+    await expect(page.getByRole('alert')).toContainText(localizedLockedMessage);
+    await expect(page.getByRole('alert')).not.toContainText('write controls are locked');
     await expectNoHorizontalViewportOverflow(page);
 
     const viewport = await page.evaluate(() => ({ width: window.innerWidth, height: window.innerHeight }));
