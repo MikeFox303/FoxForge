@@ -6,6 +6,8 @@
 
 This record is intentionally committed after the immutable release tag. It documents the release and Store publication chain without moving or rewriting the released commit.
 
+The current release-freeze and operator handoff is recorded in `docs/status/alpha4-fix2-physical-validation-handoff-2026-09-05.md`. That document separates the immutable released application identity from newer repository-only validation tooling and defines when a new release version is required instead of silently changing Alpha 4.2.
+
 ## Release identity
 
 - GitHub release workflow: run `33973431720`, completed successfully on exact commit `fe5b3437f1e342548df74ded78557c771ef40710`.
@@ -85,18 +87,30 @@ Post-merge validation on Store `main` also completed successfully:
 - FoxForge Umbrel Package run `33980306219` — success;
 - Store Release Gate run `33980306217` — success.
 
+## Post-release validation tooling
+
+After Alpha 4.2 was published, the repository added stricter validation tooling without modifying the released application image:
+
+- PR #107 binds a physical-evidence manifest to an explicitly expected release commit and package identity;
+- PR #108 prevents physical HTTP probes from following redirects while carrying FoxForge bearer credentials or Moonraker API keys;
+- PR #109 requires two distinct Bambu TLS evidence samples and machine-checks MQTT and FTPS fingerprint stability across those samples.
+
+The latest validation-tooling baseline at this handoff is `1831992b87571a45753d8c97b8ae001514e8fce0`. Canonical Alpha 4.2 evidence should use that tooling baseline or a later compatible verifier while keeping manifest `sourceCommit` equal to the immutable released application commit `fe5b3437f1e342548df74ded78557c771ef40710`.
+
+Open dependency/tooling upgrade PRs are not part of the frozen Alpha 4.2 candidate. If any such change becomes mandatory before physical acceptance, prepare a new release identity rather than silently changing Alpha 4.2.
+
 ## Validation boundary and next target
 
 No CI run, QEMU runtime smoke-test, browser emulator, mock adapter or container test in this record constitutes validation on the user's actual hardware.
 
-The exact physical-test target is now fixed: install/update the Umbrel package from Store commit `e842c411e26689609e9bbba4681df903f3624bbd`, which pins the Alpha 4.2 image digest above, and follow `docs/testing/physical-validation-runbook.md`.
+The exact physical-test target is now fixed: install/update the Umbrel package from Store commit `e842c411e26689609e9bbba4681df903f3624bbd`, which pins the Alpha 4.2 image digest above, and follow `docs/testing/physical-validation-runbook.md` plus `docs/status/alpha4-fix2-physical-validation-handoff-2026-09-05.md`.
 
 Required real-device coverage remains:
 
 - Raspberry Pi 5 / Umbrel install-update, restart, persistence, App Proxy write flow and SSE reconnect/resync;
 - Bambu Lab X2D + AMS 2 Pro connect/reconnect, storage/upload, start acknowledgement, pause/resume/cancel and terminal/ambiguous outcomes;
 - Ender 3 V3 KE with OpenKE/Moonraker connect/reconnect, upload/checksum/start, pause/resume/cancel and terminal/ambiguous outcomes;
-- X2D MQTT/FTPS certificate stability and fail-closed pinning behavior;
+- two distinct X2D MQTT/FTPS TLS samples separated by a real normal restart, plus correct-pin/wrong-pin/recovery behavior;
 - browser Add Printer and another protected command with memory-only operator credential behavior.
 
 `AUD-003` and `AUD-013` remain **`VALIDATION REQUIRED`** until secret-safe real-device evidence is collected and reviewed.
@@ -110,6 +124,8 @@ Required real-device coverage remains:
 - [x] Umbrel package is pinned by semantic version plus immutable digest.
 - [x] Persistent data and command-token contracts are preserved.
 - [x] PR-head and post-merge Store gates are green.
+- [x] Release freeze and physical-validation handoff are recorded separately from the immutable application release.
+- [x] Post-release validation-tooling changes are explicitly not claimed as part of the Alpha 4.2 image.
 - [x] No physical validation claim is made from automated evidence.
 - [ ] Physical validation runbook completed on Raspberry Pi 5, X2D + AMS 2 Pro, and Ender 3 V3 KE/OpenKE.
 - [ ] `AUD-003` and `AUD-013` closed with reviewed real-device evidence.
