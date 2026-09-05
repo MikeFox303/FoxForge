@@ -1,8 +1,8 @@
 {
-  "version": "0.1.0-alpha.3",
-  "pythonVersion": "0.1.0a3",
-  "tag": "v0.1.0-alpha.3",
-  "title": "FoxForge v0.1.0-alpha.3",
+  "version": "0.1.0-alpha.4",
+  "pythonVersion": "0.1.0a4",
+  "tag": "v0.1.0-alpha.4",
+  "title": "FoxForge v0.1.0-alpha.4",
   "prerelease": true,
-  "notes": "release/v0.1.0-alpha.3.md"
+  "notes": "release/v0.1.0-alpha.4.md"
 }
