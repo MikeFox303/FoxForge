@@ -19,12 +19,26 @@ The verifier is intentionally strict:
 
 The example manifest is `docs/testing/evidence/physical-validation-manifest.example.json`.
 
+## Current exact validation target
+
+Canonical Alpha 4 Fix 2 physical evidence must use the package that is now published in the companion Umbrel Store:
+
+- Store app: `my3d-foxforge`;
+- package version: `0.1.0-alpha.4.2`;
+- FoxForge release: `v0.1.0-alpha.4.2`;
+- release commit: `fe5b3437f1e342548df74ded78557c771ef40710`;
+- Store package commit: `e842c411e26689609e9bbba4681df903f3624bbd`;
+- image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`;
+- platforms: `linux/amd64`, `linux/arm64`.
+
+Do not collect new canonical Alpha 4.2 evidence against a floating tag, `main`, an older Alpha 4/4.1 package, or a locally rebuilt image. Historical evidence for older packages remains historical and must not be relabeled.
+
 ## Workflow
 
-1. Build/install the exact candidate that is being validated. For current Umbrel validation this is `my3d-foxforge` `0.1.0-alpha.4`, pinned to multi-architecture digest `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`.
+1. Install/update the exact `my3d-foxforge` `0.1.0-alpha.4.2` package identified above and verify the installed image still resolves to the recorded immutable digest.
 2. From the real FoxForge deployment network namespace, collect the prerequisite probes described in `physical-validation-runbook.md`.
 3. Copy the example manifest next to the redacted probe JSON files.
-4. Replace `sourceCommit`, `packageIdentity`, `validationDate` and `probeFiles` with the exact evidence identities.
+4. Replace `sourceCommit`, `packageIdentity`, `validationDate` and `probeFiles` with the exact evidence identities. For Alpha 4.2, `sourceCommit` is the FoxForge release commit `fe5b3437f1e342548df74ded78557c771ef40710`; `packageIdentity` must include the exact versioned image/digest and should also identify Store commit `e842c411e26689609e9bbba4681df903f3624bbd`.
 5. Change an observation to `true` only after that behavior has actually been observed on the real device/deployment.
 6. Run the verifier before committing evidence.
 
@@ -59,7 +73,7 @@ Exit status is:
 - X2D and Moonraker reachability from the deployment namespace;
 - representative SSE reconnect/resync through that deployment.
 
-This remains package-specific. Source-only Docker success, Store CI, QEMU `arm64` success and Compose validation do not automatically validate the published `alpha.4` Umbrel package on a real Raspberry Pi/Umbrel deployment. The current package software/bootstrap contract is already merged; AUD-003 now requires the real observations above rather than a hypothetical future package.
+This remains package-specific. Source-only Docker success, Store CI, QEMU `arm64` success and Compose validation do not automatically validate the published Alpha 4.2 Umbrel package on a real Raspberry Pi/Umbrel deployment. The current package software/bootstrap contract is already merged; AUD-003 now requires the real observations above rather than a hypothetical future package.
 
 ## AUD-013 evidence
 
