@@ -22,7 +22,9 @@ The `alpha.3` package may still be used for controlled installation/read-path te
 1. configure and test an application authentication bootstrap compatible with [ADR 0005](../../docs/adr/0005-browser-command-authentication.md); or
 2. deliberately present protected writes as unavailable/read-only with a truthful explanation.
 
-See the [deployment authentication acceptance contract](../../docs/testing/deployment-auth-contract.md).
+The companion Store also carries a package-level auth capability declaration. The historical package is explicitly `read-only`; any future `write-enabled` package must pass the Store package contract and provide an explicit FoxForge application command credential rather than relying on App Proxy authentication alone.
+
+See the [deployment authentication acceptance contract](../../docs/testing/deployment-auth-contract.md) and the [physical evidence gate](../../docs/testing/physical-evidence-gate.md).
 
 ## Packaging model
 
@@ -83,9 +85,10 @@ Before FoxForge can claim a write-capable Umbrel deployment, record all of the f
 5. tokenless `/api/v1/operator-session` does not issue credentials;
 6. Bambu Lab X2D and Moonraker/OpenKE are reachable from the actual Umbrel network environment;
 7. real upload/start/lifecycle/control/completion behavior is validated on both printer families;
-8. upgrade/migration behavior is tested between the relevant published package versions.
+8. upgrade/migration behavior is tested between the relevant published package versions;
+9. the redacted evidence manifest passes `python -m foxforge.testing.physical_evidence <manifest> --require aud003`.
 
-Until that evidence exists, AUD-003/AUD-004 remain deployment-validation findings rather than resolved production claims.
+Until that evidence exists, **AUD-003 remains `VALIDATION REQUIRED`**. AUD-004 is already resolved by the representative reverse-proxy/application-auth contract and is not reopened by the remaining physical Umbrel validation.
 
 ## Versioning note
 
