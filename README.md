@@ -8,6 +8,7 @@ FoxForge combines a vendor-independent printer/application core with deep Bambu 
 > **Published release commit:** `457f8f3f044147772b1ecf13df90b38a35268cda`  
 > **Published image:** `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4`  
 > **Multi-arch digest:** `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`  
+> **Umbrel package:** `my3d-foxforge` `0.1.0-alpha.4`, merged to Store `main` via PR #26 (`de430fe63d79843b0a646851e8f03b05e37f624d`)  
 > **Maturity:** runnable/installable alpha, **not production-ready**. Representative physical Bambu X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel validation is still required.
 
 ## What FoxForge currently implements
@@ -126,7 +127,7 @@ Configuration and SQLite migrations are versioned and backed up before migration
 | Automatic filament accounting | **Frozen draft in PR #58; not merged** |
 | Farm scheduler | Not implemented |
 | Docker/ARM64 | `alpha.4` published for `amd64` + `arm64`; representative hardware validation pending |
-| Umbrel | Companion Store update to `alpha.4` is tracked separately; physical Raspberry Pi/Umbrel evidence remains pending |
+| Umbrel | `my3d-foxforge` `0.1.0-alpha.4` is merged in Store `main`, pinned to the immutable release digest and configured with `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN`; physical Raspberry Pi/Umbrel evidence remains pending |
 
 ## Independent audit and development order
 
