@@ -14,6 +14,7 @@ from foxforge.application.printer_management import (
     PrinterConfiguration,
     PrinterConfigurationConflictError,
     PrinterConfigurationNotFoundError,
+    PrinterConnectionValidationError,
     PrinterSetupOutcome,
 )
 from foxforge.application.secrets import SecretStore
@@ -99,7 +100,7 @@ class RuntimePrinterManager:
             # validated before FoxForge creates any durable printer state.
             preflight = await self.test_connection(configuration)
             if preflight.connection_error is not None:
-                return preflight
+                raise PrinterConnectionValidationError(preflight.connection_error)
 
             adapter = self._registry.create(configuration.identity, configuration.settings)
             await self._fleet.add_adapter(adapter)
@@ -107,7 +108,7 @@ class RuntimePrinterManager:
             if connected.connection_error is not None:
                 with suppress(Exception):
                     await self._fleet.remove_adapter(printer_id)
-                return connected
+                raise PrinterConnectionValidationError(connected.connection_error)
 
             previous = self._config
             try:
