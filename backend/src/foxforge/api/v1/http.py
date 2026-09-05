@@ -648,9 +648,7 @@ def _public_connection_message(code: str) -> str | None:
         "printer_connection_timeout": (
             "The printer connection timed out before FoxForge received a valid initial state."
         ),
-        "printer_connection_internal_adapter_error": (
-            "The printer adapter failed while establishing the connection."
-        ),
+        "printer_connection_internal_adapter_error": ("The printer adapter failed while establishing the connection."),
     }
     return messages.get(code)
 
