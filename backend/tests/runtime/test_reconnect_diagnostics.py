@@ -6,6 +6,9 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime
 
+from aiohttp import web
+from aiohttp.test_utils import TestClient, TestServer
+
 from foxforge.domain.printers import (
     ConnectionState,
     OperationalState,
@@ -14,6 +17,7 @@ from foxforge.domain.printers import (
     PrinterSnapshot,
 )
 from foxforge.runtime.reconnect import ReconnectDiagnostics, ReconnectPolicy, run_connection_supervisor
+from foxforge.runtime.reconnect_routes import register_reconnect_diagnostic_routes
 
 
 class _FailThenRecoverFleet:
@@ -45,9 +49,9 @@ class _FailThenRecoverFleet:
         if self.attempts == 1:
             raise PrinterAdapterError(
                 code=PrinterErrorCode.AUTHENTICATION_FAILED,
-                message="raw access code rejected by broker",
+                message="synthetic broker authentication failure",
                 retryable=False,
-                vendor_code="5",
+                vendor_code="synthetic-code",
             )
         self.state = ConnectionState.CONNECTED
         self.connected.set()
@@ -85,6 +89,29 @@ def test_registry_keeps_only_normalized_reconnect_context() -> None:
     assert not hasattr(status, "vendor_code")
 
 
+def test_disconnect_event_context_is_normalized_and_redacted() -> None:
+    diagnostics = ReconnectDiagnostics()
+    diagnostics.record_disconnect_error(
+        "x2d-main",
+        PrinterAdapterError(
+            code=PrinterErrorCode.UNAVAILABLE,
+            message="raw transport detail that must stay private",
+            retryable=True,
+            vendor_code="raw-vendor-detail",
+        ),
+    )
+
+    status = diagnostics.statuses()[0]
+    assert status.consecutive_failures == 0
+    assert status.last_error_code == PrinterErrorCode.UNAVAILABLE
+    assert status.last_error_retryable is True
+    assert status.last_failure_at is not None
+    assert status.next_retry_at is None
+    assert status.recovered_at is None
+    assert not hasattr(status, "message")
+    assert not hasattr(status, "vendor_code")
+
+
 def test_supervisor_retains_last_failure_context_after_recovery() -> None:
     async def scenario() -> None:
         fleet = _FailThenRecoverFleet()
@@ -116,6 +143,43 @@ def test_supervisor_retains_last_failure_context_after_recovery() -> None:
         finally:
             supervisor.cancel()
             await asyncio.gather(supervisor, return_exceptions=True)
+
+    asyncio.run(scenario())
+
+
+def test_reconnect_diagnostics_route_exposes_only_normalized_fields() -> None:
+    async def scenario() -> None:
+        diagnostics = ReconnectDiagnostics()
+        diagnostics.record_disconnect_error(
+            "x2d-main",
+            PrinterAdapterError(
+                code=PrinterErrorCode.AUTHENTICATION_FAILED,
+                message="private-transport-detail",
+                retryable=False,
+                vendor_code="private-vendor-detail",
+            ),
+        )
+        app = web.Application()
+        register_reconnect_diagnostic_routes(app, diagnostics)
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            response = await client.get("/api/v1/diagnostics/reconnect")
+            assert response.status == 200
+            body = await response.json()
+            assert body["apiVersion"] == "1"
+            assert len(body["printers"]) == 1
+            printer = body["printers"][0]
+            assert printer["printerId"] == "x2d-main"
+            assert printer["lastErrorCode"] == "authentication_failed"
+            assert printer["lastErrorRetryable"] is False
+            assert "message" not in printer
+            assert "vendorCode" not in printer
+            serialized = str(body)
+            assert "private-transport-detail" not in serialized
+            assert "private-vendor-detail" not in serialized
+        finally:
+            await client.close()
 
     asyncio.run(scenario())
 
