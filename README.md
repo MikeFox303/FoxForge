@@ -4,16 +4,16 @@
 
 FoxForge combines a vendor-independent printer/application core with deep Bambu Lab support, Moonraker/Klipper support, durable print queues, filament/spool inventory, material-system integration, farm workflows and Docker/Umbrel deployment.
 
-> **Published pre-release:** `v0.1.0-alpha.4`  
-> **Published release commit:** `457f8f3f044147772b1ecf13df90b38a35268cda`  
-> **Published image:** `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4`  
-> **Multi-arch digest:** `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`  
-> **Umbrel package:** `my3d-foxforge` `0.1.0-alpha.4`, merged to Store `main` via PR #26 (`de430fe63d79843b0a646851e8f03b05e37f624d`)  
+> **Published pre-release:** `v0.1.0-alpha.4.2`  
+> **Published release commit:** `fe5b3437f1e342548df74ded78557c771ef40710`  
+> **Published image:** `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2`  
+> **Multi-arch digest:** `sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`  
+> **Umbrel package:** `my3d-foxforge` `0.1.0-alpha.4.2`, merged to Store `main` via PR #28 (`e842c411e26689609e9bbba4681df903f3624bbd`)  
 > **Maturity:** runnable/installable alpha, **not production-ready**. Representative physical Bambu X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel validation is still required.
 
 ## What FoxForge currently implements
 
-`v0.1.0-alpha.4` and its frozen release source include:
+`v0.1.0-alpha.4.2` and its frozen release source include:
 
 - FoxForge-owned `PrinterAdapter` contracts with typed capability discovery;
 - Bambu Lab and Moonraker/Klipper adapters behind a vendor-neutral application boundary;
@@ -29,11 +29,12 @@ FoxForge combines a vendor-independent printer/application core with deep Bambu 
 - complete normal inventory operator workflow: create, correct mass, edit empty-spool mass, assign/move/unassign, archive and inspect history;
 - FoxForge-owned SSE application events with replay/resync semantics and TanStack Query invalidation;
 - React + TypeScript + Vite UI with EN/RU/UK localization;
-- production-container browser acceptance on desktop, tablet and phone layouts;
+- production-container browser acceptance across phone, tablet, 16:9 desktop and 32:9 ultra-wide layouts;
+- dedicated Add Printer modal, Operator Access, browser-runtime and CSS token regression coverage;
 - Docker and Linux `amd64`/`arm64` guarded release publication with SBOM/provenance;
 - frozen frontend/backend dependency graphs, dependency audits, final-image vulnerability scanning and measured backend branch-coverage governance.
 
-Automatic filament accounting is **not** part of `alpha.4`. The partial P3 work remains frozen in draft PR #58 behind the physical/deployment validation gate.
+Automatic filament accounting is **not** part of `alpha.4.2`. The partial P3 work remains frozen in draft PR #58 behind the physical/deployment validation gate.
 
 ## Core architecture
 
@@ -91,9 +92,9 @@ See [ADR 0004](docs/adr/0004-command-api-security.md), [ADR 0005](docs/adr/0005-
 
 ## Web interface
 
-The `alpha.4` UI supports live fleet/queue/inventory reads, printer setup, browser artifact hashing/staging, durable enqueue/dispatch/reconciliation, capability-gated Pause/Resume/Cancel and the complete normal inventory operator workflow.
+The `alpha.4.2` UI supports live fleet/queue/inventory reads, printer setup, browser artifact hashing/staging, durable enqueue/dispatch/reconciliation, capability-gated Pause/Resume/Cancel and the complete normal inventory operator workflow.
 
-Production-container Playwright acceptance covers desktop, tablet and phone layouts, routing, Add Printer keyboard behavior, memory-only operator write bootstrap, browser file staging/enqueue, realtime `resync_required` refetch and representative inventory create/correct/assignment/history/archive behavior. Periodic polling remains an alpha fallback.
+Production-container Playwright acceptance covers phone 390×844, tablet 900×1024, desktop 1920×1080 and ultra-wide 5120×1440 layouts, routing, Add Printer modal ownership/stacking/keyboard behavior, memory-only Operator Access, browser file staging/enqueue, realtime `resync_required` refetch and representative inventory create/correct/assignment/history/archive behavior. Periodic polling remains an alpha fallback.
 
 ## Runtime and persistence
 
@@ -109,7 +110,7 @@ Configuration and SQLite migrations are versioned and backed up before migration
 
 ## Current status
 
-| Area | `v0.1.0-alpha.4` / current release source |
+| Area | `v0.1.0-alpha.4.2` / current release source |
 | --- | --- |
 | Common printer domain | Implemented |
 | Bambu adapter | LAN/control foundation implemented; optional cert pinning implemented; physical X2D validation pending |
@@ -122,12 +123,12 @@ Configuration and SQLite migrations are versioned and backed up before migration
 | Secret storage boundary | Implemented |
 | Pause/Resume/Cancel | Implemented and released; physical printer validation pending |
 | Realtime application events | Implemented and released through SSE replay/resync + query invalidation |
-| Browser acceptance | Production-container desktop/tablet/phone matrix implemented |
+| Browser acceptance | Production-container phone/tablet/16:9/32:9 matrix implemented with modal/operator/runtime regression coverage |
 | Backend coverage governance | ~76% measured baseline; 75% branch-aware CI floor |
 | Automatic filament accounting | **Frozen draft in PR #58; not merged** |
 | Farm scheduler | Not implemented |
-| Docker/ARM64 | `alpha.4` published for `amd64` + `arm64`; representative hardware validation pending |
-| Umbrel | `my3d-foxforge` `0.1.0-alpha.4` is merged in Store `main`, pinned to the immutable release digest and configured with `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN`; physical Raspberry Pi/Umbrel evidence remains pending |
+| Docker/ARM64 | `alpha.4.2` published for `amd64` + `arm64`; representative hardware validation pending |
+| Umbrel | `my3d-foxforge` `0.1.0-alpha.4.2` is merged in Store `main`, pinned to the immutable release digest and configured with `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN`; physical Raspberry Pi/Umbrel evidence remains pending |
 
 ## Independent audit and development order
 
@@ -142,7 +143,7 @@ P3 automatic filament accounting is preserved in draft PR #58 and remains frozen
 
 ### Current development priorities
 
-1. Record representative **Bambu X2D**, **Moonraker/OpenKE** and **Raspberry Pi 5/Umbrel** evidence required by AUD-003/AUD-013 and the P3 resume gate.
+1. Record representative **Bambu X2D**, **Moonraker/OpenKE** and **Raspberry Pi 5/Umbrel** evidence against the exact Alpha 4.2 package required by AUD-003/AUD-013 and the P3 resume gate.
 2. Keep deployment/package documentation aligned with what was actually validated; do not convert CI/QEMU evidence into physical support claims.
 3. Resume **P3 automatic filament accounting** only after the physical/deployment gate passes, synchronize draft PR #58 with then-current `main`, preserve all stabilization changes and rerun exact-head backend/frontend/container/security/browser gates.
 4. After P3 is safely integrated, continue persistent farm scheduling and deeper Bambu capabilities behind typed vendor interfaces.
@@ -155,7 +156,7 @@ FoxForge must not yet claim production-ready printer support. Required real-devi
 
 1. **Bambu X2D / Bambu LAN** — connection/reconnect, state synchronization, certificate observations, project delivery, print-start acknowledgement, pause/resume/cancel, lifecycle and ambiguous-outcome reconciliation.
 2. **Moonraker/OpenKE** — HTTP/WebSocket connectivity, endpoint policy against the real printer address, upload/start, pause/resume/cancel and lifecycle completion/failure behavior.
-3. **Raspberry Pi 5 / UmbrelOS** — install/restart/persistence, printer reachability from the actual Umbrel network, authenticated proxy/write behavior, upgrade behavior and representative SSE reconnect/resync behavior.
+3. **Raspberry Pi 5 / UmbrelOS** — install/restart/persistence of the exact Alpha 4.2 package, printer reachability from the actual Umbrel network, authenticated proxy/write behavior, upgrade behavior and representative SSE reconnect/resync behavior.
 
 Automated CI, QEMU and browser tests are required but do not replace these physical matrices.
 
@@ -205,6 +206,8 @@ Important current documents:
 
 - [Project status](docs/project-status.md)
 - [Documentation index](docs/README.md)
+- [Alpha 4.2 release evidence](docs/status/alpha4-fix2-release-evidence-2026-09-05.md)
+- [Physical validation runbook](docs/testing/physical-validation-runbook.md)
 - [Independent audit](docs/audits/2026-09-04-independent-project-audit.md)
 - [Audit remediation tracker](docs/audits/2026-09-04-remediation-tracker.md)
 - [P3 frozen state and resume gate](docs/status/p3-frozen-state-2026-09-04.md)
@@ -214,7 +217,7 @@ Important current documents:
 - [Moonraker transport](docs/design/moonraker-http-transport.md)
 - [Secret storage](docs/design/secret-storage.md)
 - [Persistent migrations](docs/design/persistence-migrations.md)
-- [Release notes: v0.1.0-alpha.4](release/v0.1.0-alpha.4.md)
+- [Release notes: v0.1.0-alpha.4.2](release/v0.1.0-alpha.4.2.md)
 
 ## ❤️ Support FoxForge
 
