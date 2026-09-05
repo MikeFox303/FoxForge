@@ -25,6 +25,11 @@ BAMBU_SSDP_TARGET = "urn:bambulab-com:device:3dprinter:1"
 _MAX_DISCOVERY_HOSTS = 1022  # /22 minus network/broadcast for IPv4
 _DEFAULT_CONCURRENCY = 32
 _DEFAULT_TIMEOUT_SECONDS = 0.35
+_RFC1918_NETWORKS = (
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+    ipaddress.ip_network("192.168.0.0/16"),
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,7 +42,6 @@ class BambuDiscoveryCandidate:
     ftps_port: int = BAMBU_FTPS_PORT
 
 
-ProbeHost = Callable[[str, float], Awaitable[bool]]
 DescribeHost = Callable[[str, float], Awaitable[tuple[str | None, str | None, str | None]]]
 
 
@@ -68,17 +72,8 @@ def discovery_network(subnet: str) -> ipaddress.IPv4Network:
         raise ValueError("Bambu subnet discovery is limited to /22 or smaller networks")
     if network.num_addresses - 2 > _MAX_DISCOVERY_HOSTS:
         raise ValueError("Bambu subnet discovery is limited to 1022 usable hosts")
-
-    address = network.network_address
-    if (
-        not address.is_private
-        or address.is_loopback
-        or address.is_link_local
-        or address.is_multicast
-        or address.is_reserved
-        or address.is_unspecified
-    ):
-        raise ValueError("Bambu subnet discovery is restricted to private LAN ranges")
+    if not any(network.subnet_of(private_network) for private_network in _RFC1918_NETWORKS):
+        raise ValueError("Bambu subnet discovery is restricted to RFC1918 private LAN ranges")
     return network
 
 
@@ -92,7 +87,7 @@ async def scan_bambu_subnet(
 ) -> tuple[BambuDiscoveryCandidate, ...]:
     """Find conservative Bambu candidates by requiring both LAN service ports.
 
-    The scan is intentionally bounded and only accepts private IPv4 CIDRs. Open
+    The scan is intentionally bounded and only accepts RFC1918 IPv4 CIDRs. Open
     ports are a discovery hint, not proof of printer identity; callers must run
     the authenticated Bambu setup preflight before persisting anything.
     """
