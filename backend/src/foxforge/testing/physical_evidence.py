@@ -71,6 +71,18 @@ def _require_bool_map(value: object, names: tuple[str, ...], *, label: str) -> d
     return result
 
 
+def _resolve_probe_path(manifest_path: Path, value: str) -> Path:
+    if not value or Path(value).is_absolute():
+        raise ValueError("probeFiles entries must be non-empty relative paths")
+    evidence_root = manifest_path.parent.resolve()
+    candidate = (evidence_root / value).resolve()
+    try:
+        candidate.relative_to(evidence_root)
+    except ValueError as exc:
+        raise ValueError("probeFiles entries must stay inside the manifest directory") from exc
+    return candidate
+
+
 def _validate_probe(path: Path, *, allow_targets: bool) -> dict[str, Any]:
     raw = _load_json(path)
     if not isinstance(raw, dict) or raw.get("schemaVersion") != 1:
@@ -119,7 +131,7 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
     if not isinstance(probe_files, list) or not probe_files or not all(isinstance(item, str) for item in probe_files):
         raise ValueError("probeFiles must be a non-empty string array")
     probe_reports = [
-        _validate_probe((path.parent / item).resolve(), allow_targets=allow_targets) for item in probe_files
+        _validate_probe(_resolve_probe_path(path, item), allow_targets=allow_targets) for item in probe_files
     ]
     probe_kinds = {
         probe.get("kind")
@@ -141,13 +153,16 @@ def validate_manifest(path: Path, *, allow_targets: bool = False) -> dict[str, o
 
     aud003_ready = all(observations["umbrel"].values()) and "foxforge" in probe_kinds
     aud013_ready = (
-        all(observations["bambu"][name] for name in (
-            "fingerprintsStableAcrossRestart",
-            "correctPinsSucceed",
-            "wrongMqttPinFailsClosed",
-            "wrongFtpsPinFailsClosed",
-            "pinRecovery",
-        ))
+        all(
+            observations["bambu"][name]
+            for name in (
+                "fingerprintsStableAcrossRestart",
+                "correctPinsSucceed",
+                "wrongMqttPinFailsClosed",
+                "wrongFtpsPinFailsClosed",
+                "pinRecovery",
+            )
+        )
         and "bambu_tls" in probe_kinds
     )
     p3_ready = (
