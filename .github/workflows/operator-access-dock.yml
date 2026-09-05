@@ -1,0 +1,47 @@
+name: Operator access chrome docking
+
+on:
+  push:
+    branches:
+      - fix/printer-setup-modal-layering
+    paths:
+      - '.github/workflows/operator-access-dock.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  dock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/printer-setup-modal-layering
+          fetch-depth: 0
+      - name: Dock operator access into topbar actions
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('frontend/src/FoxForgeApp.tsx')
+          text = path.read_text(encoding='utf-8')
+          old_import = "import { PrinterSetupLauncher } from './features/printers/PrinterSetupLauncher';\n"
+          new_import = old_import + "import { OperatorAccess } from './features/security/OperatorAccess';\n"
+          if text.count(old_import) != 1:
+              raise SystemExit('PrinterSetupLauncher import insertion point changed')
+          text = text.replace(old_import, new_import)
+
+          old_actions = "            <div className={`live-pill tone-${runtimeTone}`} aria-live=\"polite\"><span className={`status-dot ${runtimeTone}`} /> {runtimeLabel}</div>\n            <PrinterSetupLauncher />\n"
+          new_actions = "            <div className={`live-pill tone-${runtimeTone}`} aria-live=\"polite\"><span className={`status-dot ${runtimeTone}`} /> {runtimeLabel}</div>\n            <PrinterSetupLauncher />\n            <div className=\"operator-access-shell\">\n              <OperatorAccess />\n            </div>\n"
+          if text.count(old_actions) != 1:
+              raise SystemExit('topbar action insertion point changed')
+          path.write_text(text.replace(old_actions, new_actions), encoding='utf-8')
+          PY
+
+          rm .github/workflows/operator-access-dock.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/FoxForgeApp.tsx .github/workflows/operator-access-dock.yml
+          git commit -m 'fix(ui): dock operator access in topbar'
+          git push origin HEAD:fix/printer-setup-modal-layering
