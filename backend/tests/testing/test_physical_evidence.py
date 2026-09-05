@@ -127,3 +127,29 @@ def test_manifest_rejects_unknown_observation_fields(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="unknown observations"):
         physical_evidence.validate_manifest(manifest)
+
+
+def test_probe_file_cannot_escape_manifest_directory(tmp_path: Path) -> None:
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    _write_probe(tmp_path / "outside.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = evidence_dir / "manifest.json"
+    _write_manifest(manifest)
+    raw = json.loads(manifest.read_text(encoding="utf-8"))
+    raw["probeFiles"] = ["../outside.json"]
+    manifest.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must stay inside the manifest directory"):
+        physical_evidence.validate_manifest(manifest)
+
+
+def test_probe_file_must_be_relative(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+    raw = json.loads(manifest.read_text(encoding="utf-8"))
+    raw["probeFiles"] = [str((tmp_path / "probes.json").resolve())]
+    manifest.write_text(json.dumps(raw), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="must be non-empty relative paths"):
+        physical_evidence.validate_manifest(manifest)
