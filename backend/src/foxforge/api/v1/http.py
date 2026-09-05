@@ -544,7 +544,7 @@ def _public_connection_error(error: PrinterAdapterError) -> tuple[str, str]:
     if error.code == PrinterErrorCode.TIMEOUT and error.vendor_code == "initial_state_timeout":
         return (
             "printer_initial_state_timeout",
-            "MQTT connected, but FoxForge did not receive the printer initial state. Verify the Bambu serial number and LAN mode.",
+            "MQTT connected, but FoxForge did not receive initial state. Verify the Bambu serial number and LAN mode.",
         )
     if error.code == PrinterErrorCode.TIMEOUT:
         return (
