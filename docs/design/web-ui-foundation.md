@@ -25,7 +25,9 @@ Normal runtime consumes live FoxForge HTTP read models and guarded command APIs.
 Current data/command seams include:
 
 - `src/data/fleetGateway.ts` — live fleet and queue reads;
-- `src/features/inventory/inventoryGateway.ts` — live spool inventory reads;
+- `src/features/inventory/inventoryGateway.ts` — live spool inventory/history reads;
+- `src/features/inventory/inventoryCommandClient.ts` — typed authenticated spool create/correct/empty-mass/move/unassign/archive commands;
+- `src/features/inventory/InventoryOperatorDialog.tsx` — normal operator create/correct/move/history/empty-mass dialog workflows;
 - `src/data/realtime.tsx` — P2 EventSource bridge and application-topic → query-family invalidation;
 - `src/data/commandClient.ts` — shared browser operator-session/authentication/idempotency/error plumbing;
 - `src/data/printerSetupClient.ts` — printer configuration commands;
@@ -52,7 +54,7 @@ Top-level and printer-detail pages are URL-addressable:
 2. **Printers** — common fleet cards, printer setup, route-based printer cockpit and typed common job controls.
 3. **Print queue** — durable queue state plus safe file staging/enqueue/dispatch/reconciliation.
 4. **Materials** — capability-driven physical multi-slot/external material systems.
-5. **Spool inventory** — FoxForge-owned spool state, remaining mass and opaque physical assignments.
+5. **Spool inventory** — FoxForge-owned spool state, remaining mass, exact ledger history and opaque physical assignments with guarded operator mutations.
 6. **Farm** — dense operational command-center view for multi-printer use.
 7. **System** — runtime/deployment status, language and diagnostics.
 
@@ -106,6 +108,8 @@ The browser does not persist its own event history. Standard EventSource `Last-E
 
 It must not learn printer-, queue- or inventory-specific business rules. Feature clients remain typed and independent.
 
+For inventory mutations, `inventoryCommandClient.ts` sends only FoxForge spool DTOs and opaque `printerId + slotId` assignment identities. The operator UI keeps one idempotency key across a retry of an unchanged payload and rotates it only after the operator edits that payload. Successful mutations invalidate the canonical inventory query family; realtime/polling remain recovery paths.
+
 For job control, `jobControlClient.ts` owns the P1 request DTO and keeps logical `controlId` separate from HTTP `Idempotency-Key`. `JobControlActions.tsx` owns only presentation/state gating and never translates actions into Bambu or Moonraker commands.
 
 ### Routes are product URLs
@@ -156,11 +160,11 @@ The browser queue workflow follows [queue-command-ui.md](queue-command-ui.md):
 - never expose blind retry for `INDETERMINATE`;
 - expose failed-entry retry only when backend read state marks it retryable.
 
-The same no-blind-retry principle also applies to ambiguous P1 job-control side effects.
+The same no-blind-retry principle also applies to ambiguous P1 job-control side effects and inventory mutations.
 
 ### Localization uses one component tree
 
-English, Russian and Ukrainian share one component/data model. Translation parity tests prevent one locale from silently missing command/safety copy. P1 job-control strings have their own key-parity test in addition to the existing application translation checks.
+English, Russian and Ukrainian share one component/data model. Translation parity tests prevent one locale from silently missing command/safety copy. Inventory operator strings and P1 job-control strings are included in parity coverage.
 
 P2 itself adds no user-facing strings in the first slice because EventSource operation is transparent; any future connection-status UI must preserve the same EN/RU/UK parity discipline.
 
@@ -192,14 +196,16 @@ The UI has progressed from static/demo foundation to functional alpha:
 - P2 EventSource bridge for fleet/queue/inventory/configuration invalidation;
 - P2 replay-gap/restart resync handling through canonical HTTP reads;
 - batched high-frequency realtime invalidation plus periodic polling fallback;
+- guarded inventory create/correct/empty-spool-mass/move/assign/unassign/archive/history workflow;
+- exact Decimal history presentation without converting persisted ledger values through binary floating point;
+- production-browser inventory acceptance across desktop/tablet/phone;
 - restrained Ko-fi support link;
 - responsive/mobile layout.
 
 Still absent until real contracts exist:
 
-- inventory mutation controls for every already-available backend inventory command;
 - deeper Bambu capability panels;
-- trustworthy automatic material accounting;
+- trustworthy automatic material accounting (P3 remains frozen pending physical/deployment validation and final synchronization);
 - persistent farm scheduling controls;
 - distributed/multi-process realtime fan-out beyond the current single-process journal.
 
@@ -212,7 +218,7 @@ React views
    |
 feature query/command gateways + P2 invalidation bridge
    |
-FoxForge REST read DTOs + SSE invalidations + ADR 0004 command DTOs
+FoxForge REST read DTOs + SSE invalidations + guarded command DTOs
    |
 FleetService / QueueService / InventoryService / typed capabilities
    |
@@ -227,7 +233,7 @@ P2 realtime carries only FoxForge application invalidations and never exposes ve
 
 The frontend builds to static assets and runs inside the unified FoxForge server/container. Production does not require a separate Node process. This keeps deployment suitable for Docker, ARM64 and Umbrel.
 
-The immutable `v0.1.0-alpha.3` image predates P1 and P2. Those source features become available to versioned Docker/Umbrel users only after a later guarded FoxForge release and corresponding Umbrel Store update.
+The immutable `v0.1.0-alpha.3` image predates P1, P2 and the completed inventory operator workflow. Those source features become available to versioned Docker/Umbrel users only after a later guarded FoxForge release and corresponding Umbrel Store update.
 
 ## Acceptance criteria
 
@@ -244,6 +250,8 @@ The current web UI foundation is acceptable when:
 - selected print files are staged without leaking client paths;
 - queue command UI preserves backend idempotency/reconciliation rules;
 - printer setup uses guarded command APIs rather than local mock mutations;
+- inventory operator UI uses guarded FoxForge commands, preserves opaque physical slot IDs and keeps unchanged-payload retries idempotent;
+- spool history exposes operator-safe ledger information without internal idempotency keys;
 - P1 job controls are rendered from `foxforge.job_control` metadata rather than vendor inference;
 - P1 controls require a fresh exact active vendor job identity;
 - ambiguous P1 control outcomes never trigger an automatic resend;
@@ -254,7 +262,8 @@ The current web UI foundation is acceptable when:
 - unavailable printer controls are not fabricated;
 - responsive layout remains usable on desktop and narrow/mobile widths;
 - upstream provenance remains clear;
-- unified-container smoke proves compiled UI, API and SSE ship together.
+- unified-container smoke proves compiled UI, API and SSE ship together;
+- production-container Playwright covers representative inventory create/correct/history/archive and assignment/unassign workflows on desktop/tablet/phone.
 
 ## Tests
 
@@ -265,6 +274,6 @@ The current web UI foundation is acceptable when:
 - Vitest unit tests;
 - Vite production build.
 
-The unified container workflow independently builds the production application image and smoke-tests server startup/health/UI delivery plus the initial P2 SSE `resync_required` contract.
+The production browser gate builds the unified runtime image and exercises representative desktop/tablet/phone workflows, including inventory create → correct → history → archive and opaque slot assignment → unassign. The unified container workflow independently smoke-tests server startup/health/UI delivery plus the initial P2 SSE `resync_required` contract.
 
-Queue command client tests cover browser hashing, byte-only staging and separation of durable queue identities from HTTP command idempotency keys. P1 tests cover separation of `controlId` from HTTP idempotency identity, exact job-control request payloads and EN/RU/UK job-control key parity. P2 tests cover topic routing, malformed/unknown fail-closed resync behavior and the backend replay/durable-write/SSE contracts.
+Queue command client tests cover browser hashing, byte-only staging and separation of durable queue identities from HTTP command idempotency keys. Inventory tests cover typed mutation payloads, history DTOs, operator idempotency behavior and EN/RU/UK parity. P1 tests cover separation of `controlId` from HTTP idempotency identity, exact job-control request payloads and EN/RU/UK job-control key parity. P2 tests cover topic routing, malformed/unknown fail-closed resync behavior and the backend replay/durable-write/SSE contracts.
