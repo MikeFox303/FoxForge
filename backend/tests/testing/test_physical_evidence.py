@@ -11,6 +11,31 @@ import pytest
 from foxforge.testing import physical_evidence
 
 
+def _probe(kind: str, *, target: str = "redacted", ok: bool = True) -> dict[str, object]:
+    base: dict[str, object] = {"kind": kind, "target": target, "ok": ok}
+    if kind == "foxforge":
+        base.update(
+            {
+                "healthStatus": 200,
+                "healthOk": True,
+                "authBoundaryStatus": 400,
+                "authBoundaryCode": "invalid_request",
+                "authBoundaryOk": True,
+            }
+        )
+    elif kind == "bambu_tls":
+        base.update(
+            {
+                "mqttCertificateSha256": "a" * 64,
+                "ftpsCertificateSha256": "b" * 64,
+                "sameCertificate": False,
+            }
+        )
+    elif kind == "moonraker":
+        base.update({"status": 200, "jsonResponse": True})
+    return base
+
+
 def _write_probe(path: Path, *kinds: str, target: str = "redacted", ok: bool = True) -> None:
     path.write_text(
         json.dumps(
@@ -18,7 +43,7 @@ def _write_probe(path: Path, *kinds: str, target: str = "redacted", ok: bool = T
                 "schemaVersion": 1,
                 "generatedAt": "2026-09-05T00:00:00Z",
                 "secretValuesIncluded": False,
-                "probes": [{"kind": kind, "target": target, "ok": ok} for kind in kinds],
+                "probes": [_probe(kind, target=target, ok=ok) for kind in kinds],
             }
         ),
         encoding="utf-8",
@@ -97,14 +122,14 @@ def test_probe_targets_must_be_redacted_by_default(tmp_path: Path) -> None:
         physical_evidence.validate_manifest(manifest)
 
 
-def test_probe_must_be_secret_safe_and_successful(tmp_path: Path) -> None:
+def test_probe_must_be_secret_safe(tmp_path: Path) -> None:
     probe = tmp_path / "probes.json"
     probe.write_text(
         json.dumps(
             {
                 "schemaVersion": 1,
                 "secretValuesIncluded": True,
-                "probes": [{"kind": "foxforge", "target": "redacted", "ok": True}],
+                "probes": [_probe("foxforge")],
             }
         ),
         encoding="utf-8",
@@ -113,6 +138,44 @@ def test_probe_must_be_secret_safe_and_successful(tmp_path: Path) -> None:
     _write_manifest(manifest)
 
     with pytest.raises(ValueError, match="not marked secret-safe"):
+        physical_evidence.validate_manifest(manifest)
+
+
+def test_probe_kind_must_have_canonical_shape(tmp_path: Path) -> None:
+    probe = tmp_path / "probes.json"
+    probe.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "secretValuesIncluded": False,
+                "probes": [{"kind": "bambu_tls", "target": "redacted", "ok": True}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+
+    with pytest.raises(ValueError, match="mqttCertificateSha256"):
+        physical_evidence.validate_manifest(manifest)
+
+
+def test_unknown_probe_kind_is_rejected(tmp_path: Path) -> None:
+    probe = tmp_path / "probes.json"
+    probe.write_text(
+        json.dumps(
+            {
+                "schemaVersion": 1,
+                "secretValuesIncluded": False,
+                "probes": [{"kind": "custom", "target": "redacted", "ok": True}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+
+    with pytest.raises(ValueError, match="unknown probe kind custom"):
         physical_evidence.validate_manifest(manifest)
 
 
