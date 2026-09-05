@@ -19,10 +19,67 @@
 }
 
 @media (max-width: 620px) {
+  .sidebar {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: center;
+    min-height: 0;
+    height: auto;
+    gap: 8px;
+    padding: 9px 10px;
+  }
+
+  .brand {
+    min-width: 0;
+    padding: 0;
+    gap: 7px;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+  }
+
+  .brand-name {
+    font-size: 14px;
+  }
+
+  .sidebar-nav {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+    min-width: 0;
+    overflow: visible;
+    padding-bottom: 0;
+  }
+
+  .nav-item {
+    min-width: 0;
+    width: 100%;
+    padding: 5px 2px;
+  }
+
+  .nav-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 8px;
+  }
+
   .printer-setup-launcher {
     min-height: 38px;
     padding-inline: 12px;
     border-radius: 999px;
     box-shadow: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .brand > div:last-child {
+    display: none;
+  }
+
+  .nav-icon {
+    width: 26px;
+    height: 26px;
   }
 }
