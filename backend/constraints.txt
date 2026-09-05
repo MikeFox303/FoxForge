@@ -8,7 +8,7 @@ aiosignal==1.4.0
     # via aiohttp
 attrs==26.1.0
     # via aiohttp
-coverage==7.15.2
+coverage==7.16.0
     # via foxforge (pyproject.toml)
 frozenlist==1.8.0
     # via
@@ -34,9 +34,9 @@ propcache==0.5.2
     #   yarl
 pygments==2.21.0
     # via pytest
-pytest==9.0.3
+pytest==9.1.1
     # via foxforge (pyproject.toml)
-ruff==0.15.20
+ruff==0.16.5
     # via foxforge (pyproject.toml)
 typing-extensions==4.16.0
     # via
