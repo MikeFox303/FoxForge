@@ -12,8 +12,26 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   projects: [
-    { name: 'desktop', use: { viewport: { width: 1440, height: 900 } } },
-    { name: 'tablet', use: { viewport: { width: 900, height: 1024 } } },
-    { name: 'phone', use: { viewport: { width: 390, height: 844 } } },
+    {
+      name: 'desktop-16-9',
+      use: { viewport: { width: 1920, height: 1080 } },
+    },
+    {
+      name: 'desktop-32-9',
+      use: { viewport: { width: 5120, height: 1440 } },
+    },
+    {
+      name: 'tablet',
+      use: { viewport: { width: 900, height: 1024 } },
+    },
+    {
+      name: 'phone',
+      use: {
+        viewport: { width: 390, height: 844 },
+        deviceScaleFactor: 3,
+        hasTouch: true,
+        isMobile: true,
+      },
+    },
   ],
 });

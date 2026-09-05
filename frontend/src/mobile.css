@@ -16,14 +16,15 @@
   .nav-item { min-width: 0; width: 100%; justify-content: center; gap: 0; padding: 7px 4px; border-radius: 9px; }
   .nav-item > span:last-child { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .nav-icon { width: 30px; height: 30px; font-size: 9px; }
+  .sidebar-footer { display: none; margin-top: 0; }
   .topbar { min-height: 64px; padding: 11px 14px; gap: 10px; position: static; }
   .topbar h1 { font-size: 20px; }
   .topbar .eyebrow { font-size: 9px; }
-  .topbar-actions { gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .topbar-actions { gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }
   .topbar-actions .secondary-button:not(.printer-setup-launcher) { display: none; }
+  .topbar .live-pill { display: none; }
   .printer-setup-launcher { min-height: 36px; padding: 7px 9px; font-size: 10px; }
-  .live-pill { display: inline-flex; padding: 7px 9px; font-size: 10px; }
-  .content { padding: 16px 14px 32px; }
+  .content { padding: 16px 14px calc(96px + env(safe-area-inset-bottom)); }
   .stack-xl { gap: 20px; }
   .stack-lg { gap: 16px; }
   .hero-panel, .farm-hero { gap: 16px; padding: 19px; border-radius: 14px; }
@@ -56,4 +57,28 @@
 @media (max-width: 360px) {
   .metric-grid { grid-template-columns: 1fr; }
   .nav-icon { width: 28px; height: 28px; }
+}
+
+/* Alpha.4 fix-1 responsive containment. Auto rows in the single-column grid
+ * must not stretch to fill the shell's 100vh minimum; otherwise the sidebar
+ * height changes with the routed page's content. */
+@media (max-width: 900px) {
+  html, body, #root { max-width: 100%; overflow-x: hidden; }
+  .app-shell {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    align-content: start;
+  }
+  .main-column, .topbar, .content, .sidebar { min-width: 0; max-width: 100%; }
+  .sidebar { width: 100%; height: auto; min-height: 0; align-self: start; }
+  .main-column { align-self: start; }
+  .topbar { width: 100%; }
+  .content { width: 100%; }
+}
+
+@media (max-width: 620px) {
+  .sidebar { gap: 7px; padding: 8px 10px 7px; }
+  .brand { min-height: 34px; }
 }

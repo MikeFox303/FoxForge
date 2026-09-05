@@ -17,6 +17,7 @@ export function OperatorAccess() {
   const [unlocked, setUnlocked] = useState(() => hasOperatorCommandToken());
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const unlock = async () => {
     if (!token.trim() || busy) return;
@@ -35,6 +36,7 @@ export function OperatorAccess() {
       }
       setToken('');
       setUnlocked(true);
+      setPanelOpen(false);
     } catch (cause) {
       clearOperatorCommandToken();
       setUnlocked(false);
@@ -48,37 +50,49 @@ export function OperatorAccess() {
     clearOperatorCommandToken();
     setToken('');
     setUnlocked(false);
+    setPanelOpen(false);
     setError(null);
   };
 
-  if (unlocked) {
-    return (
-      <div className="operator-access operator-access-unlocked" role="status">
-        <span>{t('operatorAccess.unlocked')}</span>
-        <button className="text-button" type="button" onClick={lock}>{t('operatorAccess.lock')}</button>
-      </div>
-    );
-  }
-
   return (
-    <div className="operator-access">
-      <label>
-        <span className="sr-only">{t('operatorAccess.token')}</span>
-        <input
-          type="password"
-          autoComplete="off"
-          value={token}
-          placeholder={t('operatorAccess.placeholder')}
-          onChange={(event) => setToken(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter') void unlock();
-          }}
-        />
-      </label>
-      <button className="text-button" type="button" disabled={!token.trim() || busy} onClick={() => void unlock()}>
-        {busy ? t('operatorAccess.checking') : t('operatorAccess.unlock')}
+    <div className={`operator-access-frame ${panelOpen ? 'is-open' : 'is-collapsed'} ${unlocked ? 'is-unlocked' : ''}`}>
+      <button
+        className="operator-access-toggle"
+        type="button"
+        aria-expanded={panelOpen}
+        onClick={() => setPanelOpen((open) => !open)}
+      >
+        <span className={`status-dot ${unlocked ? 'good' : ''}`} aria-hidden="true" />
+        <span>{t('operatorAccess.token')}</span>
+        <span className="operator-access-toggle-icon" aria-hidden="true">{panelOpen ? '×' : '⌃'}</span>
       </button>
-      {error && <small className="warning-text" role="alert">{error}</small>}
+
+      {unlocked ? (
+        <div className="operator-access operator-access-unlocked" role="status">
+          <span>{t('operatorAccess.unlocked')}</span>
+          <button className="text-button" type="button" onClick={lock}>{t('operatorAccess.lock')}</button>
+        </div>
+      ) : (
+        <div className="operator-access">
+          <label>
+            <span className="sr-only">{t('operatorAccess.token')}</span>
+            <input
+              type="password"
+              autoComplete="off"
+              value={token}
+              placeholder={t('operatorAccess.placeholder')}
+              onChange={(event) => setToken(event.currentTarget.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') void unlock();
+              }}
+            />
+          </label>
+          <button className="text-button" type="button" disabled={!token.trim() || busy} onClick={() => void unlock()}>
+            {busy ? t('operatorAccess.checking') : t('operatorAccess.unlock')}
+          </button>
+          {error && <small className="warning-text" role="alert">{error}</small>}
+        </div>
+      )}
     </div>
   );
 }

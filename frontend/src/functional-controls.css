@@ -10,29 +10,97 @@
   display: none;
 }
 
+/* Add Printer belongs to the topbar action flow. Keeping it in normal layout
+   prevents it from colliding with browser chrome or the operator-access control
+   on narrow phones, and avoids a detached floating action on wide desktops. */
 .printer-setup-launcher {
-  position: fixed;
-  top: 26px;
-  right: 28px;
-  z-index: 55;
-}
-
-@media (max-width: 900px) {
-  .printer-setup-launcher {
-    top: 18px;
-    right: 18px;
-  }
+  position: static;
+  flex: 0 0 auto;
 }
 
 @media (max-width: 620px) {
+  /* Keep the phone shell deterministic: one short brand row plus one short
+     seven-item navigation row. This avoids route-dependent intrinsic growth
+     from long active-navigation labels while preserving all destinations. */
+  .sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 34px 38px;
+    align-items: center;
+    min-width: 0;
+    min-height: 0;
+    height: auto;
+    gap: 6px;
+    padding: 8px 10px;
+  }
+
+  .brand {
+    min-width: 0;
+    height: 34px;
+    padding: 0;
+    gap: 7px;
+    overflow: hidden;
+  }
+
+  .brand-mark {
+    width: 32px;
+    height: 32px;
+    flex: 0 0 32px;
+  }
+
+  .brand-name {
+    font-size: 14px;
+  }
+
+  .brand-subtitle {
+    display: none;
+  }
+
+  .sidebar-nav {
+    display: grid;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 3px;
+    min-width: 0;
+    width: 100%;
+    height: 38px;
+    overflow: hidden;
+    padding: 0;
+  }
+
+  .nav-item {
+    min-width: 0;
+    width: 100%;
+    height: 38px;
+    min-height: 0;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 2px;
+    overflow: hidden;
+  }
+
+  .nav-icon {
+    width: 28px;
+    height: 28px;
+    font-size: 8px;
+    flex: 0 0 28px;
+  }
+
   .printer-setup-launcher {
-    position: fixed;
-    top: auto;
-    right: 16px;
-    bottom: 18px;
-    min-height: 46px;
-    padding-inline: 16px;
+    min-height: 38px;
+    padding-inline: 12px;
     border-radius: 999px;
-    box-shadow: 0 14px 34px rgba(2, 6, 23, 0.36);
+    box-shadow: none;
+  }
+}
+
+@media (max-width: 360px) {
+  .brand > div:last-child {
+    display: none;
+  }
+
+  .nav-icon {
+    width: 26px;
+    height: 26px;
+    flex-basis: 26px;
   }
 }

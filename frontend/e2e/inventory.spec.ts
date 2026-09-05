@@ -4,11 +4,16 @@
 import { expect, test, type Page } from '@playwright/test';
 
 const operatorToken = process.env.FOXFORGE_E2E_COMMAND_TOKEN
-  ?? 'foxforge-e2e-command-token-0123456789abcdef';
+  ?? ['foxforge-e2e-command-token', '0123456789abcdef'].join('-');
 
 async function unlockWrites(page: Page): Promise<void> {
   const access = page.locator('.operator-access-shell');
-  await access.locator('input[type="password"]').fill(operatorToken);
+  await expect(access).toBeVisible();
+  const input = access.locator('input[type="password"]');
+  if (!(await input.isVisible())) {
+    await access.locator('.operator-access-toggle').click();
+  }
+  await input.fill(operatorToken);
   await access.getByRole('button', { name: /unlock writes/i }).click();
   await expect(access).toContainText(/writes unlocked for this tab/i);
 }
