@@ -15,6 +15,7 @@ import ipaddress
 import re
 import socket
 from collections.abc import Awaitable, Callable
+from contextlib import suppress
 from dataclasses import dataclass
 
 BAMBU_MQTT_PORT = 8883
@@ -22,7 +23,7 @@ BAMBU_FTPS_PORT = 990
 BAMBU_SSDP_PORT = 2021
 BAMBU_SSDP_TARGET = "urn:bambulab-com:device:3dprinter:1"
 
-_MAX_DISCOVERY_HOSTS = 1022  # /22 minus network/broadcast for IPv4
+_MAX_DISCOVERY_HOSTS = 1022
 _DEFAULT_CONCURRENCY = 32
 _DEFAULT_TIMEOUT_SECONDS = 0.35
 _RFC1918_NETWORKS = (
@@ -47,21 +48,16 @@ DescribeHost = Callable[[str, float], Awaitable[tuple[str | None, str | None, st
 
 def parse_bambu_ssdp_response(payload: str) -> tuple[str | None, str | None, str | None]:
     """Extract Bambu serial/name/model from one SSDP response without trusting it."""
-
     if BAMBU_SSDP_TARGET not in payload and "bambulab" not in payload.lower():
         return None, None, None
-
     serial = _header_value(payload, "USN")
     if serial is not None:
         serial = re.sub(r"^uuid:", "", serial, flags=re.IGNORECASE).strip().upper() or None
-    name = _header_value(payload, "DevName.bambu.com")
-    model = _header_value(payload, "DevModel.bambu.com")
-    return serial, name, model
+    return serial, _header_value(payload, "DevName.bambu.com"), _header_value(payload, "DevModel.bambu.com")
 
 
 def discovery_network(subnet: str) -> ipaddress.IPv4Network:
     """Validate a user-selected LAN subnet before any active probing occurs."""
-
     try:
         network = ipaddress.ip_network(subnet, strict=False)
     except ValueError as error:
@@ -85,30 +81,21 @@ async def scan_bambu_subnet(
     port_probe: Callable[[str, int, float], Awaitable[bool]] | None = None,
     describe_host: DescribeHost | None = None,
 ) -> tuple[BambuDiscoveryCandidate, ...]:
-    """Find conservative Bambu candidates by requiring both LAN service ports.
-
-    The scan is intentionally bounded and only accepts RFC1918 IPv4 CIDRs. Open
-    ports are a discovery hint, not proof of printer identity; callers must run
-    the authenticated Bambu setup preflight before persisting anything.
-    """
-
+    """Find candidates by requiring both Bambu LAN service ports."""
     network = discovery_network(subnet)
     if timeout_seconds <= 0:
         raise ValueError("timeout_seconds must be positive")
     if concurrency <= 0 or concurrency > 128:
         raise ValueError("concurrency must be between 1 and 128")
-
     probe = port_probe or _tcp_port_open
     describe = describe_host or _query_bambu_ssdp
     semaphore = asyncio.Semaphore(concurrency)
 
     async def inspect(host: str) -> BambuDiscoveryCandidate | None:
         async with semaphore:
-            ftps_open = await probe(host, BAMBU_FTPS_PORT, timeout_seconds)
-            if not ftps_open:
+            if not await probe(host, BAMBU_FTPS_PORT, timeout_seconds):
                 return None
-            mqtt_open = await probe(host, BAMBU_MQTT_PORT, timeout_seconds)
-            if not mqtt_open:
+            if not await probe(host, BAMBU_MQTT_PORT, timeout_seconds):
                 return None
             serial, name, model = await describe(host, timeout_seconds)
             return BambuDiscoveryCandidate(
@@ -125,20 +112,15 @@ async def scan_bambu_subnet(
 async def _tcp_port_open(host: str, port: int, timeout_seconds: float) -> bool:
     writer: asyncio.StreamWriter | None = None
     try:
-        _reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port),
-            timeout=timeout_seconds,
-        )
+        _reader, writer = await asyncio.wait_for(asyncio.open_connection(host, port), timeout=timeout_seconds)
         return True
     except (TimeoutError, ConnectionRefusedError, OSError):
         return False
     finally:
         if writer is not None:
             writer.close()
-            try:
+            with suppress(OSError):
                 await writer.wait_closed()
-            except OSError:
-                pass
 
 
 async def _query_bambu_ssdp(host: str, timeout_seconds: float) -> tuple[str | None, str | None, str | None]:
@@ -151,10 +133,8 @@ def _query_bambu_ssdp_sync(host: str, timeout_seconds: float) -> tuple[str | Non
         f"HOST: {host}:{BAMBU_SSDP_PORT}\r\n"
         'MAN: "ssdp:discover"\r\n'
         "MX: 1\r\n"
-        f"ST: {BAMBU_SSDP_TARGET}\r\n"
-        "\r\n"
+        f"ST: {BAMBU_SSDP_TARGET}\r\n\r\n"
     ).encode("ascii")
-
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
     try:
         sock.settimeout(timeout_seconds)
