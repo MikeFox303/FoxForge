@@ -50,11 +50,12 @@ export function OperatorAccess() {
     clearOperatorCommandToken();
     setToken('');
     setUnlocked(false);
+    setPanelOpen(false);
     setError(null);
   };
 
   return (
-    <div className={`operator-access-frame ${panelOpen ? 'is-open' : 'is-collapsed'}`}>
+    <div className={`operator-access-frame ${panelOpen ? 'is-open' : 'is-collapsed'} ${unlocked ? 'is-unlocked' : ''}`}>
       <button
         className="operator-access-toggle"
         type="button"
