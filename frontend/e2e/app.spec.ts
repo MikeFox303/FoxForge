@@ -89,6 +89,8 @@ test('printer diagnostics expose normalized reconnect context without raw transp
             lastErrorRetryable: false,
             nextRetryAt: '2026-09-05T00:00:30Z',
             recoveredAt: null,
+            message: 'private-raw-transport-detail',
+            vendorCode: 'private-vendor-code',
           },
         ],
       }),
@@ -108,7 +110,8 @@ test('printer diagnostics expose normalized reconnect context without raw transp
   await expect(reconnect).toContainText('2');
   await expect(reconnect).toContainText('Adapter marked retryable');
   await expect(reconnect).toContainText('No');
-  await expect(reconnect).not.toContainText('raw transport');
+  await expect(reconnect).not.toContainText('private-raw-transport-detail');
+  await expect(reconnect).not.toContainText('private-vendor-code');
 });
 
 test('operator write access is explicit and memory-only for the active tab', async ({ page }) => {
