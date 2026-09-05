@@ -1,49 +1,133 @@
 # FoxForge
 
-**FoxForge is an open-source, self-hosted platform for managing mixed fleets of 3D printers without sacrificing deep vendor-specific functionality.**
+[![Release](https://img.shields.io/badge/pre--release-v0.1.0--alpha.4.3-orange)](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)
+[![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+[![Platforms](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-lightgrey)](deployment/README.md)
 
-FoxForge combines a vendor-independent printer/application core with deep Bambu Lab support, Moonraker/Klipper support, durable print queues, filament/spool inventory, material-system integration, farm workflows and Docker/Umbrel deployment.
+**FoxForge is an open-source, self-hosted platform for managing 3D printers through a vendor-independent core without reducing deep vendor-specific capabilities to a lowest-common-denominator interface.**
 
-> **Published pre-release:** `v0.1.0-alpha.4.2`  
-> **Published release commit:** `fe5b3437f1e342548df74ded78557c771ef40710`  
-> **Published image:** `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2`  
-> **Multi-arch digest:** `sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`  
-> **Umbrel package:** `my3d-foxforge` `0.1.0-alpha.4.2`, merged to Store `main` via PR #28 (`e842c411e26689609e9bbba4681df903f3624bbd`)  
-> **Maturity:** runnable/installable alpha, **not production-ready**. Representative physical Bambu X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel validation is still required.
+The project is being built for mixed printer fleets, with **Bambu Lab as the current primary integration target**, followed by Moonraker/Klipper and broader farm-management workflows.
 
-## What FoxForge currently implements
+> [!WARNING]
+> FoxForge is early alpha software. The current release is suitable for development and controlled self-hosted testing, but it is **not production-ready**. Real-device validation of printer connectivity, job delivery and control is still in progress.
 
-`v0.1.0-alpha.4.2` and its frozen release source include:
+## Current release
 
-- FoxForge-owned `PrinterAdapter` contracts with typed capability discovery;
-- Bambu Lab and Moonraker/Klipper adapters behind a vendor-neutral application boundary;
-- `FleetService`, durable SQLite queueing and restart-safe per-printer reconnect supervision;
-- typed common `foxforge.job_control` v1 with exact vendor-job identity guards for Pause/Resume/Cancel;
-- Bambu MQTT/TLS and project-storage foundations with optional independent MQTT/FTPS SHA-256 certificate pins;
-- Moonraker HTTP/WebSocket transport with explicit endpoint/address/redirect security policy;
-- authenticated/idempotent printer, queue, inventory and job-control command APIs with append-only audit;
-- a `SecretStore` boundary separating printer credentials from ordinary runtime configuration;
-- versioned config/SQLite persistence migrations with backups and validation;
-- content-addressed `.gcode`/`.3mf` artifact staging with quota, free-space reserve and safe garbage collection;
-- durable filament/spool inventory with exact `Decimal` accounting and opaque physical slot assignments;
-- complete normal inventory operator workflow: create, correct mass, edit empty-spool mass, assign/move/unassign, archive and inspect history;
-- FoxForge-owned SSE application events with replay/resync semantics and TanStack Query invalidation;
-- React + TypeScript + Vite UI with EN/RU/UK localization;
-- production-container browser acceptance across phone, tablet, 16:9 desktop and 32:9 ultra-wide layouts;
-- dedicated Add Printer modal, Operator Access, browser-runtime and CSS token regression coverage;
-- Docker and Linux `amd64`/`arm64` guarded release publication with SBOM/provenance;
-- frozen frontend/backend dependency graphs, dependency audits, final-image vulnerability scanning and measured backend branch-coverage governance.
+The latest published pre-release is **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**.
 
-Automatic filament accounting is **not** part of `alpha.4.2`. The partial P3 work remains frozen in draft PR #58 behind the physical/deployment validation gate.
+Alpha 4.3 is a browser compatibility hotfix for command flows on iOS Safari/WebKit when FoxForge is opened over a plain HTTP LAN address. It adds a cryptographically secure UUIDv4 fallback when `crypto.randomUUID()` is unavailable, restoring affected write operations such as printer setup, queue changes, inventory mutations and Pause/Resume/Cancel.
 
-## Core architecture
+This hotfix does **not** change printer transports or persistence schemas. Existing Alpha 4.2 `/data` remains compatible.
+
+Published container image:
+
+```text
+ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3
+```
+
+The matching Umbrel Community App package is **`my3d-foxforge` `0.1.0-alpha.4.3`** and uses the same immutable Linux `amd64`/`arm64` image.
+
+See the full [Alpha 4.3 release notes](release/v0.1.0-alpha.4.3.md).
+
+## What FoxForge provides today
+
+### Printer and fleet foundation
+
+- FoxForge-owned `PrinterAdapter` abstraction with typed capabilities;
+- Bambu Lab LAN integration foundation using MQTT/TLS and project-storage strategies;
+- Moonraker/Klipper integration foundation using HTTP/WebSocket transport;
+- normalized fleet state and per-printer reconnect supervision;
+- common Pause, Resume and Cancel command model with exact job-identity checks;
+- vendor-specific behavior kept behind typed capabilities instead of leaking into the common domain.
+
+### Queue and print artifacts
+
+- durable SQLite-backed print queue;
+- lifecycle, retry and reconciliation foundations;
+- explicit handling of ambiguous/indeterminate command outcomes;
+- content-addressed `.gcode` and `.3mf` staging;
+- quota, free-space reserve and safe artifact cleanup;
+- authenticated and idempotent command APIs with audit records.
+
+### Filament and spool inventory
+
+- durable spool inventory;
+- exact mass accounting using decimal values;
+- create/edit/correct/archive workflows;
+- spool assignment, move and unassign operations;
+- inventory history;
+- opaque physical slot identifiers suitable for AMS/CFS-style material systems.
+
+**Automatic filament consumption is not included in Alpha 4.3.** It remains future work until physical printer/deployment validation is complete.
+
+### Web interface
+
+- React + TypeScript + Vite frontend;
+- English, Russian and Ukrainian localization;
+- responsive phone, tablet, desktop and ultra-wide layouts;
+- printer setup, queue, inventory and common job-control flows;
+- Server-Sent Events for realtime invalidation with canonical HTTP state snapshots;
+- protected write operations through Operator Access.
+
+### Deployment
+
+- unified production container serving both the web UI and `/api/v1`;
+- Linux `amd64` and `arm64` images;
+- persistent application state under `/data`;
+- Docker/Compose deployment;
+- Umbrel Community App deployment;
+- printer credentials separated from ordinary runtime configuration through `SecretStore`.
+
+## Support status
+
+| Area | Alpha 4.3 status |
+| --- | --- |
+| Common printer architecture | Implemented |
+| Bambu Lab adapter | Alpha foundation implemented; physical X2D validation in progress |
+| Moonraker/Klipper adapter | Alpha foundation implemented; physical validation pending |
+| Fleet management | Implemented foundation |
+| Durable print queue | Implemented foundation |
+| Pause / Resume / Cancel | Implemented; physical validation pending |
+| Artifact staging | Implemented |
+| Filament/spool inventory | Implemented operator workflow |
+| AMS/CFS depth | Partial foundation; deeper integration planned |
+| Automatic filament accounting | Not released |
+| Persistent farm scheduler | Not implemented yet |
+| Docker `amd64` / `arm64` | Published |
+| Umbrel | Alpha 4.3 package published |
+
+## Installation
+
+### Umbrel
+
+FoxForge is available from the [MikeFox303 3D Printing Community App Store](https://github.com/MikeFox303/umbrel-3d-printing-store) as `my3d-foxforge`.
+
+The Umbrel package maps its unique app password to `FOXFORGE_COMMAND_TOKEN`. Use the same app password in **Operator Access** when protected write operations need to be unlocked in the browser.
+
+See [Umbrel deployment documentation](deployment/umbrel/README.md) for package and validation details.
+
+### Docker
+
+Docker and Compose deployment files are maintained under [`deployment/docker/`](deployment/docker/).
+
+For the current release image:
+
+```bash
+docker pull ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3
+```
+
+Standalone write-enabled deployments require a strong `FOXFORGE_COMMAND_TOKEN`. If the token is omitted, FoxForge remains readable while protected commands fail closed.
+
+Back up the complete `/data` directory before upgrading between alpha releases.
+
+## Architecture
 
 FoxForge follows a ports-and-adapters design:
 
 ```text
                  Web UI / API / automation
                           |
-                 application services
+                 Application services
           +---------------+----------------+
           |               |                |
      FleetService    QueueService    InventoryService
@@ -58,120 +142,31 @@ FoxForge follows a ports-and-adapters design:
  storage strategies          transport
 ```
 
-The governing rule is:
+The core rule is simple:
 
 > **Normalize what is genuinely common; preserve what is genuinely vendor-specific.**
 
-Common application/domain code must not import Bambu or Moonraker transport types. Deep Bambu features remain first-class typed capabilities instead of being flattened into a lowest-common-denominator interface.
+FoxForge studies existing open-source projects as specialized references:
 
-FoxForge uses upstream projects as specialized references:
+- **Bambuddy** for deep Bambu protocol and product behavior;
+- **PrintBuddy** for multi-vendor/provider isolation patterns;
+- **PrintOps** for farm and operations concepts.
 
-- **Bambuddy** — Bambu protocol/product-behavior reference;
-- **PrintBuddy** — multi-vendor/provider-isolation reference;
-- **PrintOps** — farm/operations/scheduling reference;
-- **FoxForge** — owner of the common contracts, API/frontend boundaries, queue, inventory and deployment behavior.
+FoxForge owns its common contracts, application services, API/frontend boundaries, queue, inventory and deployment behavior. Copied or derived upstream code must retain the required copyright and license notices.
 
-See [ADR 0001](docs/adr/0001-printer-adapter-architecture.md), [ADR 0003](docs/adr/0003-upstream-architecture-synthesis.md) and the [Upstream adoption map](docs/design/upstream-adoption-map.md).
-
-## Safety model
-
-FoxForge treats uncertain printer side effects conservatively:
-
-- remote writes use authentication, authorization, validation, durable idempotency, normalized errors and audit;
-- queue `dispatch_id`, job-control `controlId` and HTTP `Idempotency-Key` remain distinct identities;
-- an `INDETERMINATE` print-start/control outcome is never blindly retried;
-- receipt-bearing jobs are never redispatched;
-- browser code cannot weaken backend retry/reconciliation semantics;
-- realtime events are invalidations only; HTTP snapshots remain canonical;
-- durable queue/inventory events publish only after successful persistence;
-- printer credentials are hydrated only at runtime boundaries through `SecretStore`;
-- Moonraker destinations fail closed outside the configured LAN/override policy;
-- optional Bambu certificate pins fail closed on mismatch without exposing fingerprints.
-
-See [ADR 0004](docs/adr/0004-command-api-security.md), [ADR 0005](docs/adr/0005-browser-command-authentication.md), [Queue dispatch](docs/design/queue-dispatch.md), [Realtime events](docs/design/realtime-events.md), [Moonraker transport](docs/design/moonraker-http-transport.md) and [Bambu certificate trust](docs/design/bambu-certificate-trust.md).
-
-## Web interface
-
-The `alpha.4.2` UI supports live fleet/queue/inventory reads, printer setup, browser artifact hashing/staging, durable enqueue/dispatch/reconciliation, capability-gated Pause/Resume/Cancel and the complete normal inventory operator workflow.
-
-Production-container Playwright acceptance covers phone 390×844, tablet 900×1024, desktop 1920×1080 and ultra-wide 5120×1440 layouts, routing, Add Printer modal ownership/stacking/keyboard behavior, memory-only Operator Access, browser file staging/enqueue, realtime `resync_required` refetch and representative inventory create/correct/assignment/history/archive behavior. Periodic polling remains an alpha fallback.
-
-## Runtime and persistence
-
-The unified `aiohttp` runtime serves the API and compiled SPA. Persistent `/data` contains app-owned configuration, `foxforge.sqlite3`, printer secrets and staged artifacts.
-
-Current persistence ownership is explicit:
-
-- `config.json` schema version: **2**;
-- SQLite `PRAGMA user_version`: **1**;
-- `secrets.json` SecretStore format version: **1**.
-
-Configuration and SQLite migrations are versioned and backed up before migration. `/data` must be treated as sensitive deployment data.
-
-## Current status
-
-| Area | `v0.1.0-alpha.4.2` / current release source |
-| --- | --- |
-| Common printer domain | Implemented |
-| Bambu adapter | LAN/control foundation implemented; optional cert pinning implemented; physical X2D validation pending |
-| Moonraker adapter | HTTP/WebSocket/control foundation implemented; endpoint policy implemented; physical OpenKE validation pending |
-| Fleet management | Implemented |
-| Durable queue | Implemented foundation with lifecycle/retry/reconciliation |
-| Artifact staging | Implemented with capacity/GC controls |
-| Filament inventory | Durable SQLite foundation + full normal operator workflow implemented |
-| Command auth/idempotency/audit | Implemented foundation |
-| Secret storage boundary | Implemented |
-| Pause/Resume/Cancel | Implemented and released; physical printer validation pending |
-| Realtime application events | Implemented and released through SSE replay/resync + query invalidation |
-| Browser acceptance | Production-container phone/tablet/16:9/32:9 matrix implemented with modal/operator/runtime regression coverage |
-| Backend coverage governance | ~76% measured baseline; 75% branch-aware CI floor |
-| Automatic filament accounting | **Frozen draft in PR #58; not merged** |
-| Farm scheduler | Not implemented |
-| Docker/ARM64 | `alpha.4.2` published for `amd64` + `arm64`; representative hardware validation pending |
-| Umbrel | `my3d-foxforge` `0.1.0-alpha.4.2` is merged in Store `main`, pinned to the immutable release digest and configured with `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN`; physical Raspberry Pi/Umbrel evidence remains pending |
-
-## Independent audit and development order
-
-The independent audit snapshot is [`docs/audits/2026-09-04-independent-project-audit.md`](docs/audits/2026-09-04-independent-project-audit.md). Active remediation status is tracked separately in [`docs/audits/2026-09-04-remediation-tracker.md`](docs/audits/2026-09-04-remediation-tracker.md).
-
-All software-only findings have repository remediation evidence. The remaining unresolved audit findings are validation-bound:
-
-- **AUD-003** — representative Raspberry Pi/Umbrel package/deployment evidence;
-- **AUD-013** — real Bambu X2D MQTT/FTPS certificate observations.
-
-P3 automatic filament accounting is preserved in draft PR #58 and remains frozen. The detailed resume contract is [`docs/status/p3-frozen-state-2026-09-04.md`](docs/status/p3-frozen-state-2026-09-04.md).
-
-### Current development priorities
-
-1. Record representative **Bambu X2D**, **Moonraker/OpenKE** and **Raspberry Pi 5/Umbrel** evidence against the exact Alpha 4.2 package required by AUD-003/AUD-013 and the P3 resume gate.
-2. Keep deployment/package documentation aligned with what was actually validated; do not convert CI/QEMU evidence into physical support claims.
-3. Resume **P3 automatic filament accounting** only after the physical/deployment gate passes, synchronize draft PR #58 with then-current `main`, preserve all stabilization changes and rerun exact-head backend/frontend/container/security/browser gates.
-4. After P3 is safely integrated, continue persistent farm scheduling and deeper Bambu capabilities behind typed vendor interfaces.
-
-The inventory operator workflow is complete and is no longer an outstanding prerequisite.
-
-## Hardware validation still required
-
-FoxForge must not yet claim production-ready printer support. Required real-device/deployment evidence includes:
-
-1. **Bambu X2D / Bambu LAN** — connection/reconnect, state synchronization, certificate observations, project delivery, print-start acknowledgement, pause/resume/cancel, lifecycle and ambiguous-outcome reconciliation.
-2. **Moonraker/OpenKE** — HTTP/WebSocket connectivity, endpoint policy against the real printer address, upload/start, pause/resume/cancel and lifecycle completion/failure behavior.
-3. **Raspberry Pi 5 / UmbrelOS** — install/restart/persistence of the exact Alpha 4.2 package, printer reachability from the actual Umbrel network, authenticated proxy/write behavior, upgrade behavior and representative SSE reconnect/resync behavior.
-
-Automated CI, QEMU and browser tests are required but do not replace these physical matrices.
+See [ADR 0001 — PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md), [ADR 0003 — upstream architecture synthesis](docs/adr/0003-upstream-architecture-synthesis.md) and the [upstream adoption map](docs/design/upstream-adoption-map.md).
 
 ## Repository layout
 
 ```text
 FoxForge/
-├── backend/       Python 3.12+ domain, adapters, services, API and runtime
-├── frontend/      TypeScript/React/Vite web application
-├── deployment/    Docker and Umbrel deployment contracts/documentation
-├── docs/          ADRs, design specifications, audit and project status
-└── integrations/  isolated migration/provenance material
+├── backend/       Python domain, adapters, services, API and runtime
+├── frontend/      React / TypeScript / Vite web application
+├── deployment/    Docker and Umbrel deployment material
+├── docs/          Architecture, design, testing and project status
+├── integrations/  Isolated migration/provenance material
+└── release/       Release identity and release notes
 ```
-
-Repository guardrails live in [`AGENTS.md`](AGENTS.md).
 
 ## Development
 
@@ -198,34 +193,29 @@ npm test
 npm run build
 ```
 
-Coverage policy is documented in [`docs/testing/coverage-policy.md`](docs/testing/coverage-policy.md). Container/Compose documentation is under [`deployment/docker/`](deployment/docker/).
+Repository guardrails are documented in [`AGENTS.md`](AGENTS.md).
 
 ## Documentation
 
-Important current documents:
+Start with:
 
-- [Project status](docs/project-status.md)
 - [Documentation index](docs/README.md)
-- [Alpha 4.2 release evidence](docs/status/alpha4-fix2-release-evidence-2026-09-05.md)
+- [Project status](docs/project-status.md)
 - [Physical validation runbook](docs/testing/physical-validation-runbook.md)
-- [Independent audit](docs/audits/2026-09-04-independent-project-audit.md)
-- [Audit remediation tracker](docs/audits/2026-09-04-remediation-tracker.md)
-- [P3 frozen state and resume gate](docs/status/p3-frozen-state-2026-09-04.md)
 - [PrinterAdapter architecture](docs/adr/0001-printer-adapter-architecture.md)
-- [Browser command authentication/deployment trust](docs/adr/0005-browser-command-authentication.md)
 - [Bambu LAN transport](docs/design/bambu-lan-transport.md)
 - [Moonraker transport](docs/design/moonraker-http-transport.md)
 - [Secret storage](docs/design/secret-storage.md)
-- [Persistent migrations](docs/design/persistence-migrations.md)
-- [Release notes: v0.1.0-alpha.4.2](release/v0.1.0-alpha.4.2.md)
+- [Realtime application events](docs/design/realtime-events.md)
+- [Release notes — v0.1.0-alpha.4.3](release/v0.1.0-alpha.4.3.md)
 
-## ❤️ Support FoxForge
+## Support FoxForge
 
-FoxForge is free and open-source. If you find the project useful and would like to support continued development, test hardware and infrastructure, you can make a voluntary contribution on Ko-fi.
+FoxForge is free and open source. If you find the project useful and want to support continued development, test hardware and infrastructure, you can make a voluntary contribution on Ko-fi.
 
 [☕ Support FoxForge on Ko-fi](https://ko-fi.com/mikefox303)
 
-Support is completely optional and does not affect access to FoxForge or its source code.
+Support is optional and does not affect access to FoxForge or its source code.
 
 ## License
 
