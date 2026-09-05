@@ -17,7 +17,7 @@ from foxforge.application.printer_management import (
     PrinterSetupOutcome,
 )
 from foxforge.application.secrets import SecretStore
-from foxforge.domain.printers import PrinterAdapterError, PrinterIdentity
+from foxforge.domain.printers import PrinterAdapterError, PrinterErrorCode, PrinterIdentity
 from foxforge.infrastructure.printers import AdapterRegistry
 
 from .config import PrinterRuntimeConfig, RuntimeConfig, save_runtime_config
@@ -72,9 +72,17 @@ class RuntimePrinterManager:
             await adapter.connect()
         except PrinterAdapterError as error:
             connection_error = error
+        except Exception as error:
+            connection_error = _normalize_unexpected_connection_error(error)
         snapshot = adapter.snapshot()
-        with suppress(PrinterAdapterError):
+        try:
             await adapter.disconnect()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # Setup diagnostics must preserve the original connection result.
+            # A best-effort teardown failure is internal-only and must not mask it.
+            pass
         return PrinterSetupOutcome(
             configuration=configuration,
             snapshot=snapshot,
@@ -87,25 +95,34 @@ class RuntimePrinterManager:
             if self._find(printer_id) is not None:
                 raise PrinterConfigurationConflictError(f"printer is already configured: {printer_id}")
 
+            # Bambuddy-style safety invariant: credentials and reachability are
+            # validated before FoxForge creates any durable printer state.
+            preflight = await self.test_connection(configuration)
+            if preflight.connection_error is not None:
+                return preflight
+
             adapter = self._registry.create(configuration.identity, configuration.settings)
+            await self._fleet.add_adapter(adapter)
+            connected = await self._connect(configuration)
+            if connected.connection_error is not None:
+                with suppress(Exception):
+                    await self._fleet.remove_adapter(printer_id)
+                return connected
+
             previous = self._config
             try:
                 runtime = _runtime_configuration(configuration, self._secret_store)
                 updated = replace(previous, printers=(*previous.printers, runtime))
                 save_runtime_config(self._config_path, updated)
             except Exception:
+                with suppress(Exception):
+                    await self._fleet.remove_adapter(printer_id)
                 delete_printer_secrets(configuration.identity, self._secret_store)
                 raise
-            try:
-                await self._fleet.add_adapter(adapter)
-            except Exception:
-                save_runtime_config(self._config_path, previous)
-                delete_printer_secrets(configuration.identity, self._secret_store)
-                raise
+
             self._config = updated
             self._publish_configuration_change(printer_id, "printer_added")
-
-        return await self._connect(configuration)
+            return connected
 
     async def update(self, printer_id: str, configuration: PrinterConfiguration) -> PrinterSetupOutcome:
         if configuration.identity.printer_id != printer_id:
@@ -196,6 +213,8 @@ class RuntimePrinterManager:
             await self._fleet.connect(printer_id)
         except PrinterAdapterError as error:
             connection_error = error
+        except Exception as error:
+            connection_error = _normalize_unexpected_connection_error(error)
         return PrinterSetupOutcome(
             configuration=configuration,
             snapshot=self._fleet.snapshot(printer_id),
@@ -210,6 +229,16 @@ class RuntimePrinterManager:
             change,
             resource_id=printer_id,
         )
+
+
+def _normalize_unexpected_connection_error(error: Exception) -> PrinterAdapterError:
+    """Keep implementation exceptions out of operator-facing setup responses."""
+    return PrinterAdapterError(
+        code=PrinterErrorCode.INTERNAL_ADAPTER_ERROR,
+        message="Printer adapter failed while establishing the connection.",
+        retryable=False,
+        vendor_code=type(error).__name__,
+    )
 
 
 def _application_configuration(runtime: PrinterRuntimeConfig, store: SecretStore) -> PrinterConfiguration:
