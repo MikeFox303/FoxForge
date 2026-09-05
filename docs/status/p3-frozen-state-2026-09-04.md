@@ -60,7 +60,7 @@ At the freeze point:
 
 The independent audit changed the development sequence. P3 resumes only after the stabilization gate is completed sufficiently to make automatic accounting safe to merge.
 
-The software blockers identified at freeze have now been addressed in current `main`/stabilization work:
+The software blockers identified at freeze have now been addressed in current `main`:
 
 - **AUD-001 / AUD-002:** release publication integrity — resolved;
 - **AUD-004 / AUD-007:** browser/deployment trust boundary and matching ADR — resolved;
@@ -68,7 +68,7 @@ The software blockers identified at freeze have now been addressed in current `m
 - **AUD-006:** reproducible dependency graphs — resolved;
 - **AUD-008:** persistent configuration/database migration foundation — resolved;
 - **AUD-010:** atomic inventory mutation contract and concurrency coverage — resolved;
-- normal inventory operator workflow — implemented with create/correct/empty-spool-mass/move/assign/unassign/archive/history UI and production-browser acceptance.
+- normal inventory operator workflow — completed by PR #91 and merged as `58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`, with create/correct/empty-spool-mass/move/assign/unassign/archive/history UI and production-browser acceptance.
 
 The remaining audit-specific validation blockers are:
 
@@ -84,7 +84,7 @@ P3 may return to active implementation only when all of the following are true:
 - applicable stabilization findings are marked resolved with repository evidence, or their remaining validation requirements are completed and recorded;
 - inventory mutations use the stabilized atomic persistence contract and concurrency tests remain green;
 - migration/version ownership exists for persistent SQLite/config state used by P3;
-- the normal UI supports the spool operations needed for planning and reconciliation — **satisfied by the inventory operator workflow merged from PR #91 once that merge reaches `main`**;
+- the normal UI supports the spool operations needed for planning and reconciliation — **satisfied in current `main` by PR #91**;
 - representative X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel validation has been recorded where required;
 - PR #58 is synchronized with the then-current `main` without discarding remediation changes;
 - Ruff, Python 3.12/3.13 tests, measured coverage floor, frontend typecheck/Vitest/build, production-container browser acceptance, unified-container smoke and security gates are green on the exact final P3 head;
