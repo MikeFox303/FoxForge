@@ -1,0 +1,40 @@
+name: Release lock sync (temporary)
+
+on:
+  push:
+    branches:
+      - release/v0.1.0-alpha.4
+    paths:
+      - '.github/workflows/release-lock-sync.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: release/v0.1.0-alpha.4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Regenerate frontend lock identity
+        working-directory: frontend
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
+      - name: Commit generated lock
+        shell: bash
+        run: |
+          if git diff --quiet -- frontend/package-lock.json; then
+            echo 'package-lock.json already synchronized'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/package-lock.json
+          git commit -m 'release: sync frontend lock for alpha.4'
+          git push origin HEAD:release/v0.1.0-alpha.4
