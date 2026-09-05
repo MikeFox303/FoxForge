@@ -157,7 +157,6 @@ export function ReconnectDiagnosticsPanel({ printerId }: { printerId: string }) 
     queryKey: ['diagnostics', 'reconnect'],
     queryFn: loadReconnectDiagnostics,
     enabled: !demo,
-    placeholderData: [],
     refetchInterval: demo ? false : 5_000,
   });
 
