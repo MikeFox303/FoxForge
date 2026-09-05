@@ -90,6 +90,19 @@ class ReconnectDiagnostics:
         current = self._statuses.get(printer_id, ReconnectPrinterStatus(printer_id=printer_id))
         self._statuses[printer_id] = replace(current, last_attempt_at=utc_now())
 
+    def record_disconnect_error(self, printer_id: str, error: PrinterAdapterError) -> None:
+        """Retain a normalized transport-disconnect reason without raw error text."""
+
+        current = self._statuses.get(printer_id, ReconnectPrinterStatus(printer_id=printer_id))
+        self._statuses[printer_id] = replace(
+            current,
+            last_failure_at=utc_now(),
+            last_error_code=error.code,
+            last_error_retryable=error.retryable,
+            next_retry_at=None,
+            recovered_at=None,
+        )
+
     def record_failure(
         self,
         printer_id: str,
