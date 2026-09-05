@@ -1,19 +1,22 @@
 # Umbrel deployment
 
-FoxForge `v0.1.0-alpha.4` is packaged as `my3d-foxforge` in the companion Community App Store:
+FoxForge `v0.1.0-alpha.4.2` is packaged as `my3d-foxforge` in the companion Community App Store:
 
 - Store repository: `MikeFox303/umbrel-3d-printing-store`
 - Store app ID: `my3d-foxforge`
+- package version: `0.1.0-alpha.4.2`
+- Store package commit: `e842c411e26689609e9bbba4681df903f3624bbd`
 - Umbrel app port: `8283`
 - FoxForge server port inside the app network: `8000`
-- release image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4`
-- immutable multi-architecture digest: `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`
+- release commit: `fe5b3437f1e342548df74ded78557c771ef40710`
+- release image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2`
+- immutable multi-architecture digest: `sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`
 
 The package reuses the exact guarded FoxForge release image rather than maintaining an Umbrel-specific application fork.
 
 ## Authentication model
 
-The `alpha.4` package is configured as **write-enabled** while preserving the FoxForge ADR 0005 trust model.
+The Alpha 4.2 package is configured as **write-enabled** while preserving the FoxForge ADR 0005 trust model.
 
 Umbrel provides a unique per-app `APP_PASSWORD`. The package passes it to FoxForge as:
 
@@ -52,7 +55,7 @@ The Umbrel package keeps the deployment small and conservative:
 - `${APP_DATA_DIR}/data` is mounted as `/data`;
 - `/healthz` is used for the container health check;
 - first start creates current schema state under `/data`;
-- the exact immutable `alpha.4` multi-architecture digest is pinned.
+- the exact immutable Alpha 4.2 multi-architecture digest is pinned.
 
 Printer discovery, Bambu Virtual Printer and features that may require different LAN/network behavior remain deferred until their contracts and physical validation are complete.
 
@@ -70,16 +73,19 @@ The companion Store package gate validates:
 - first-start `config.json` schema **2** with an empty printer set;
 - creation of `foxforge.sqlite3` and expected mounted-data ownership.
 
+Store PR #28 passed its final Upstream version audit, FoxForge package gate and Store Release Gate before merge. Post-merge `main` also passed FoxForge Umbrel Package run `33980306219` and Store Release Gate run `33980306217`.
+
 This proves the package definition and release image are consistent and runnable on the published architectures. It does **not** prove Raspberry Pi 5 hardware behavior, the real Umbrel proxy/write path, physical printer-network reachability or production readiness.
 
 ## Installing for controlled alpha testing
 
 1. Add `https://github.com/MikeFox303/umbrel-3d-printing-store` as a Community App Store in UmbrelOS if needed.
-2. Install or update **FoxForge** to `0.1.0-alpha.4`.
-3. Open FoxForge and verify the UI/read paths load.
-4. For protected commands, choose **Unlock writes** and enter the app password shown by Umbrel.
-5. Add a printer through the UI only when you are prepared to validate actual network reachability and printer behavior.
-6. Keep a complete backup of FoxForge `/data` before early-alpha upgrades.
+2. Install or update **FoxForge** to `0.1.0-alpha.4.2`.
+3. Verify the package resolves to `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6` before collecting canonical physical evidence.
+4. Open FoxForge and verify the UI/read paths load.
+5. For protected commands, choose **Unlock writes** and enter the app password shown by Umbrel.
+6. Add a printer through the UI only when you are prepared to validate actual network reachability and printer behavior.
+7. Keep a complete backup of FoxForge `/data` before early-alpha upgrades.
 
 Do not treat a successful install or CI smoke as evidence that X2D/OpenKE print/control workflows are production-ready.
 
@@ -102,7 +108,7 @@ Current source includes explicit migration/version ownership, backups and schema
 
 ## AUD-003 remains validation-required
 
-Publishing a correctly configured package does not by itself close AUD-003. Before that finding can become `RESOLVED`, representative evidence must be recorded against the actual package/deployment for:
+Publishing a correctly configured package does not by itself close AUD-003. Before that finding can become `RESOLVED`, representative evidence must be recorded against the actual Alpha 4.2 package/deployment for:
 
 1. physical Raspberry Pi 5/UmbrelOS install, restart and persistence;
 2. the real Umbrel browser/App Proxy path with successful authenticated protected writes;
@@ -117,6 +123,8 @@ Publishing a correctly configured package does not by itself close AUD-003. Befo
 
 AUD-004 remains resolved for the explicit-token trust model. AUD-013 separately remains validation-required for real X2D certificate observations.
 
+Use the [physical validation runbook](../../docs/testing/physical-validation-runbook.md) for the exact Alpha 4.2 identity and evidence procedure.
+
 ## Versioning note
 
-The current Umbrel package is pinned to the immutable `v0.1.0-alpha.4` multi-architecture digest. Changes merged to FoxForge `main` are not delivered through a floating semantic release tag; they require a new guarded FoxForge release and a corresponding Store package update.
+The current Umbrel package is pinned to the immutable `v0.1.0-alpha.4.2` multi-architecture OCI digest. Changes merged to FoxForge `main` are not delivered through a floating semantic release tag; they require a new guarded FoxForge release and a corresponding Store package update.

@@ -11,19 +11,24 @@ AUD-004 is already resolved by the repository's representative reverse-proxy con
 
 Physical evidence must always identify the **exact published build actually installed**. Never record evidence against a branch, floating image tag or a planned release identity.
 
-The currently published Umbrel baseline is:
+The current canonical physical-validation baseline is:
 
 - Store app: `my3d-foxforge`
-- package version: `0.1.0-alpha.4.1`
-- FoxForge release commit: `bec3ffec7c5a3b9f73275ae639f372c4ed8596ea`
-- image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.1`
-- multi-architecture digest: `sha256:e3ae1dba2c5d65cc577bdd52bd0eb4ef4980ca1231e7f45cea96a03493769a59`
-- Umbrel Store package merge: `7805471a356f0b01a3168874c9f3ccfcb1c3be43`
+- package version: `0.1.0-alpha.4.2`
+- FoxForge release: `v0.1.0-alpha.4.2`
+- FoxForge release commit: `fe5b3437f1e342548df74ded78557c771ef40710`
+- image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2`
+- multi-architecture digest: `sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`
+- exact deployable image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`
+- published platforms: `linux/amd64`, `linux/arm64`
+- Umbrel Store package merge: `e842c411e26689609e9bbba4681df903f3624bbd`
 - application write credential: Umbrel `APP_PASSWORD` mapped by the package to `FOXFORGE_COMMAND_TOKEN`.
 
-For `v0.1.0-alpha.4.2`, do not start canonical physical evidence until all of the following exist and agree: the FoxForge release commit, Git tag/GitHub prerelease, immutable multi-architecture GHCR digest, and matching Umbrel Store package. The `packageIdentity` in the evidence manifest must contain those exact alpha.4.2 identities. Evidence produced with alpha.4 or alpha.4.1 remains useful historical evidence but must not be relabeled as alpha.4.2 evidence.
+The release, immutable GHCR index and matching Store package now exist and agree, so canonical Alpha 4.2 physical evidence may begin. Evidence produced with Alpha 4 or Alpha 4.1 remains useful historical evidence but must not be relabeled as Alpha 4.2 evidence.
 
-Before publishing a release candidate, the exact release commit must pass backend lint/format/tests, frontend type/unit/build checks, the production-container browser acceptance matrix, deployment-authentication checks, dependency/image security gates, source-map absence, and release-image smoke. Browser acceptance evidence should be retained as a workflow artifact for review rather than inferred from DOM assertions alone.
+For Alpha 4.2, the evidence manifest should use release commit `fe5b3437f1e342548df74ded78557c771ef40710` as `sourceCommit` and identify the exact semantic-version-plus-digest image above in `packageIdentity`; include Store commit `e842c411e26689609e9bbba4681df903f3624bbd` in that identity string or adjacent private run notes so the installed package source is unambiguous.
+
+The exact release commit passed backend lint/format/tests, frontend type/unit/build checks, the production-container browser acceptance matrix, deployment-authentication checks, dependency/image security gates, source-map absence and release-image smoke before the guarded release workflow created the tag and published the multi-architecture image. Browser evidence is retained separately from the OCI image identity.
 
 Store CI proves package/Compose consistency plus anonymous `amd64`/`arm64` pull/start. The steps below collect the still-missing real hardware/deployment evidence.
 
@@ -145,6 +150,12 @@ The raw probe proves only prerequisite reachability/certificate/auth behavior. O
 
 `packageIdentity` must identify the exact installed `my3d-foxforge` package, FoxForge release commit and immutable image digest used for the run rather than a branch or floating tag.
 
+For the current Alpha 4.2 baseline, a suitable non-secret identity string is:
+
+```text
+my3d-foxforge 0.1.0-alpha.4.2 | FoxForge fe5b3437f1e342548df74ded78557c771ef40710 | ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6 | Store e842c411e26689609e9bbba4681df903f3624bbd
+```
+
 After the real-device run, verify it with:
 
 ```bash
@@ -168,7 +179,7 @@ The JSON probe is only the prerequisite/evidence collector. The following behavi
 
 | Area | Minimum evidence |
 | --- | --- |
-| Raspberry Pi 5 / Umbrel | install/update of the exact target package, restart, persistence, browser/proxy write path, direct-backend fail-closed behavior, migration/upgrade behavior, X2D/OpenKE reachability, SSE reconnect/resync |
+| Raspberry Pi 5 / Umbrel | install/update of the exact Alpha 4.2 package, restart, persistence, browser/proxy write path, direct-backend fail-closed behavior, migration/upgrade behavior, X2D/OpenKE reachability, SSE reconnect/resync |
 | Bambu X2D | connect/reconnect, normalized state, project upload/storage, print-start acknowledgement, pause, resume, cancel, completion, ambiguous outcome handling |
 | Moonraker/OpenKE | HTTP/WebSocket connect/reconnect, upload/checksum/start, pause, resume, cancel, completion/failure, ambiguous outcome handling |
 | Browser auth | Add Printer and at least one other protected workflow through the exact packaged deployment; missing/invalid credential stays fail-closed; reload clears memory-only credential |
@@ -180,7 +191,7 @@ When adding evidence under `docs/testing/evidence/` or linking it from the remed
 
 - do not commit access codes, API keys, command tokens, app passwords, session tokens or cookies;
 - target IPs/URLs should remain redacted in repository evidence;
-- include FoxForge commit SHA, exact package/image/digest identity and validation date in the evidence manifest;
+- include FoxForge release commit SHA, exact package/image/digest identity, Store package commit and validation date in the evidence manifest/run notes;
 - distinguish automated prerequisite output from operator-observed printer behavior;
 - record failures as well as successes; do not discard evidence that changes the trust/deployment design conclusion;
 - run `physical_evidence` successfully before proposing an audit-status change.

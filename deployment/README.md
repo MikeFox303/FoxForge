@@ -15,16 +15,18 @@ FoxForge deployment is a runnable/installable alpha implementation:
 - staged print artifacts are persisted under `/data/artifacts`;
 - the container prepares mounted-data permissions before dropping to a non-root steady-state user;
 - CI builds and starts the production image and validates health, browser behavior, persistence and deployment authentication contracts;
-- `v0.1.0-alpha.4` is published as an immutable Linux `amd64` + `arm64` image with SBOM/provenance metadata;
-- the companion Umbrel Community App update pins the exact `alpha.4` multi-architecture digest.
+- `v0.1.0-alpha.4.2` is published as an immutable Linux `amd64` + `arm64` image with SBOM/provenance metadata;
+- the companion Umbrel Community App package pins the exact Alpha 4.2 multi-architecture OCI digest.
 
-Published `alpha.4` image:
+Published Alpha 4.2 image:
 
 ```text
-ghcr.io/mikefox303/foxforge:0.1.0-alpha.4@sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4
+ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6
 ```
 
-Representative Raspberry Pi 5 hardware validation, physical printer-network validation and stable release-to-release deployment evidence are still pending.
+Release commit: `fe5b3437f1e342548df74ded78557c771ef40710`. The matching Umbrel Store package is merged at `e842c411e26689609e9bbba4681df903f3624bbd`.
+
+Representative Raspberry Pi 5 hardware validation, physical printer-network validation and release-to-release deployment evidence are still pending.
 
 ## Browser/API write authentication
 
@@ -46,7 +48,7 @@ The production-container contract is executable in `.github/workflows/deployment
 
 ## Umbrel authentication status
 
-The `v0.1.0-alpha.4` Umbrel package is configured as **write-enabled** without treating Umbrel App Proxy as a FoxForge principal.
+The `v0.1.0-alpha.4.2` Umbrel package is configured as **write-enabled** without treating Umbrel App Proxy as a FoxForge principal.
 
 The package maps Umbrel's per-app `APP_PASSWORD` to:
 
@@ -63,7 +65,7 @@ This preserves two independent boundaries:
 
 Direct tokenless backend access remains fail-closed. Tokenless `/api/v1/operator-session` remains disabled, and `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` remains unsupported.
 
-The companion Store package contract verifies the exact image/digest, the `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN` mapping, Compose rendering, anonymous image pull and runtime startup on Linux `amd64` and `arm64`.
+The companion Store package contract verifies the exact Alpha 4.2 image/digest, the `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN` mapping, Compose rendering and anonymous image pull/runtime startup on Linux `amd64` and `arm64`. Store PR #28 and its post-merge package/release gates completed successfully.
 
 That software/package evidence does **not** by itself resolve AUD-003. Real Raspberry Pi 5/Umbrel installation, proxy/write behavior, direct-backend fail-closed behavior, printer-network reachability, upgrade and SSE reconnect/resync evidence are still required.
 
@@ -72,13 +74,13 @@ See [`umbrel/README.md`](umbrel/README.md) for the package-specific contract and
 ## Deployment families
 
 - [`docker/`](docker/) — implemented alpha container image and local/self-hosted Compose runtime; explicit-token writes and tokenless read-only mode are covered by production-container CI.
-- [`umbrel/`](umbrel/) — Community App packaging built on the same release image/runtime; `alpha.4` is configured with an explicit FoxForge application credential path using Umbrel `APP_PASSWORD`.
+- [`umbrel/`](umbrel/) — Community App packaging built on the same release image/runtime; Alpha 4.2 is configured with an explicit FoxForge application credential path using Umbrel `APP_PASSWORD`.
 
 Deployment code must not become a second FoxForge implementation. Docker and Umbrel package the same backend, API and compiled frontend behavior. Vendor/network behavior belongs in FoxForge runtime/adapters, not in platform-specific forks.
 
 ## Current release contract
 
-The published deployment line is `v0.1.0-alpha.4`.
+The published deployment line is `v0.1.0-alpha.4.2`.
 
 Release publication is guarded by:
 
@@ -87,9 +89,11 @@ Release publication is guarded by:
 - backend lint/tests;
 - frontend typecheck/tests/build;
 - unified image build and live health/SPA/persistence smoke;
-- immutable tag uniqueness checks;
+- exact-commit production Browser Acceptance before publication;
+- production source-map absence;
+- immutable tag uniqueness/revalidation checks;
 - Linux `amd64` + `arm64` publication with SBOM/provenance;
-- GitHub pre-release creation only after the preceding gates succeed.
+- GitHub pre-release creation after the immutable tag and multi-architecture image publication.
 
 Changes merged after a release are not delivered through floating semantic tags; they require another guarded FoxForge release and, for Umbrel, a corresponding Store package update.
 
@@ -99,10 +103,12 @@ Persistent `/data` contains runtime configuration, SQLite state, secrets and sta
 
 Before calling deployment production-ready, FoxForge still needs:
 
-1. representative Raspberry Pi 5 / physical ARM64 install, restart and persistence validation;
+1. representative Raspberry Pi 5 / physical ARM64 install, restart and persistence validation of the exact Alpha 4.2 package;
 2. real Umbrel App Proxy/browser write-path evidence using the published package plus direct-backend fail-closed verification;
 3. real Bambu X2D and Moonraker/OpenKE reachability from Docker/Umbrel network environments;
 4. end-to-end physical upload/start/control/lifecycle/reconciliation validation;
-5. validation of upgrade behavior between published FoxForge/Umbrel package versions;
+5. validation of upgrade behavior between relevant published FoxForge/Umbrel package versions;
 6. representative SSE reconnect/resync behavior through the deployed proxy path;
 7. separate network design and testing before enabling discovery, Virtual Printer or features requiring broader LAN access.
+
+The exact package/image identities and secret-safe evidence procedure are maintained in [`../docs/testing/physical-validation-runbook.md`](../docs/testing/physical-validation-runbook.md).
