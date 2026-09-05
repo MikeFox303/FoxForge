@@ -1,0 +1,35 @@
+name: Diagnose Alpha 4.3 GHCR
+
+on:
+  push:
+    branches:
+      - diagnostic/alpha4-3-ghcr
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Anonymous inspect
+        run: |
+          set +e
+          docker buildx imagetools inspect ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3
+          echo "anonymous_tag_status=$?"
+          docker buildx imagetools inspect ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3@sha256:8278ef4d7d4df7ae3bdcb916090d159604350595169511717add220532464dee
+          echo "anonymous_digest_status=$?"
+          exit 0
+      - name: Authenticate to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Authenticated inspect
+        run: |
+          docker buildx imagetools inspect ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3
+          docker buildx imagetools inspect ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3@sha256:8278ef4d7d4df7ae3bdcb916090d159604350595169511717add220532464dee
