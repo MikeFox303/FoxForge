@@ -43,9 +43,9 @@ _JSON_HANDLER = Callable[[web.Request], Awaitable[web.StreamResponse]]
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _PRINTER_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
-_REQUEST_ID_KEY = web.AppKey("foxforge_request_id", str)
+_REQUEST_ID_KEY = web.RequestKey("foxforge_request_id", str)
 _COMMAND_SECURITY_KEY = web.AppKey("foxforge_command_security", BearerCommandSecurity)
-_COMMAND_PRINCIPAL_KEY = web.AppKey("foxforge_command_principal", CommandPrincipal)
+_COMMAND_PRINCIPAL_KEY = web.RequestKey("foxforge_command_principal", CommandPrincipal)
 _COMMAND_IDEMPOTENCY_KEY = web.AppKey("foxforge_command_idempotency", CommandIdempotencyStore)
 
 
