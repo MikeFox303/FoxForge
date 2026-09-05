@@ -7,19 +7,25 @@ Automated CI proves code contracts, but it cannot prove that a physical Bambu X2
 
 AUD-004 is already resolved by the repository's representative reverse-proxy contract. The real Umbrel proxy path remains part of the broader deployment/P3 validation matrix and AUD-003 package evidence, but it does not reopen AUD-004.
 
-## Current package target
+## Physical-test target policy
 
-For current Umbrel evidence, validate the actually published package rather than a hypothetical future package:
+Physical evidence must always identify the **exact published build actually installed**. Never record evidence against a branch, floating image tag or a planned release identity.
+
+The currently published Umbrel baseline is:
 
 - Store app: `my3d-foxforge`
-- package version: `0.1.0-alpha.4`
-- FoxForge release commit: `457f8f3f044147772b1ecf13df90b38a35268cda`
-- image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4`
-- multi-architecture digest: `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`
-- Store `main` package commit: `de430fe63d79843b0a646851e8f03b05e37f624d`
+- package version: `0.1.0-alpha.4.1`
+- FoxForge release commit: `bec3ffec7c5a3b9f73275ae639f372c4ed8596ea`
+- image: `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.1`
+- multi-architecture digest: `sha256:e3ae1dba2c5d65cc577bdd52bd0eb4ef4980ca1231e7f45cea96a03493769a59`
+- Umbrel Store package merge: `7805471a356f0b01a3168874c9f3ccfcb1c3be43`
 - application write credential: Umbrel `APP_PASSWORD` mapped by the package to `FOXFORGE_COMMAND_TOKEN`.
 
-Store CI already proves package/Compose consistency plus anonymous `amd64`/`arm64` pull/start. The steps below collect the still-missing real hardware/deployment evidence.
+For `v0.1.0-alpha.4.2`, do not start canonical physical evidence until all of the following exist and agree: the FoxForge release commit, Git tag/GitHub prerelease, immutable multi-architecture GHCR digest, and matching Umbrel Store package. The `packageIdentity` in the evidence manifest must contain those exact alpha.4.2 identities. Evidence produced with alpha.4 or alpha.4.1 remains useful historical evidence but must not be relabeled as alpha.4.2 evidence.
+
+Before publishing a release candidate, the exact release commit must pass backend lint/format/tests, frontend type/unit/build checks, the production-container browser acceptance matrix, deployment-authentication checks, dependency/image security gates, source-map absence, and release-image smoke. Browser acceptance evidence should be retained as a workflow artifact for review rather than inferred from DOM assertions alone.
+
+Store CI proves package/Compose consistency plus anonymous `amd64`/`arm64` pull/start. The steps below collect the still-missing real hardware/deployment evidence.
 
 ## Validation probe
 
@@ -44,7 +50,7 @@ export FOXFORGE_VALIDATION_MOONRAKER_API_KEY='...'
 
 The generated JSON contains `"secretValuesIncluded": false` and must never contain the actual token/API key. Do not place Bambu LAN access codes in the probe command or evidence file.
 
-For the current Umbrel `alpha.4` package, `FOXFORGE_VALIDATION_COMMAND_TOKEN` should contain the FoxForge app password shown by Umbrel. Do not commit or paste that real password into repository evidence.
+For an Umbrel package, `FOXFORGE_VALIDATION_COMMAND_TOKEN` should contain the FoxForge app password shown by Umbrel. Do not commit or paste that real password into repository evidence.
 
 ## 1. Bambu X2D TLS certificate evidence — AUD-013
 
@@ -93,7 +99,7 @@ This is a reachability/authentication prerequisite only. Full printer validation
 
 ## 3. FoxForge deployment/auth boundary — AUD-003
 
-Run through the **same browser-facing URL/proxy path** used by the operator. For the current Umbrel package, export the app password only in the shell environment:
+Run through the **same browser-facing URL/proxy path** used by the operator. Export the app password only in the shell environment:
 
 ```bash
 export FOXFORGE_VALIDATION_COMMAND_TOKEN='...'
@@ -110,7 +116,7 @@ The probe:
 - without a token, accepts only truthful fail-closed 401/503 behavior;
 - never submits a valid inventory object, so the auth-boundary check creates no spool.
 
-For `my3d-foxforge` `0.1.0-alpha.4`, run this through the actual Umbrel App Proxy/browser-facing path and separately confirm that the direct backend path does not become an anonymous credential source. This is AUD-003 package evidence; the generic proxy-security design itself is already covered by resolved AUD-004.
+Run this through the actual Umbrel App Proxy/browser-facing path and separately confirm that the direct backend path does not become an anonymous credential source. This is AUD-003 package evidence; the generic proxy-security design itself is already covered by resolved AUD-004.
 
 Also perform at least one real protected UI command after **Unlock writes** using the app password, then reload the page and confirm FoxForge asks for the credential again rather than persisting it in browser storage.
 
@@ -137,7 +143,7 @@ The raw probe proves only prerequisite reachability/certificate/auth behavior. O
 
 `docs/testing/evidence/physical-validation-manifest.example.json`
 
-For current Umbrel validation, `packageIdentity` should identify the exact `my3d-foxforge` `0.1.0-alpha.4` package/image/digest used for the run rather than a branch or floating tag.
+`packageIdentity` must identify the exact installed `my3d-foxforge` package, FoxForge release commit and immutable image digest used for the run rather than a branch or floating tag.
 
 After the real-device run, verify it with:
 
@@ -162,7 +168,7 @@ The JSON probe is only the prerequisite/evidence collector. The following behavi
 
 | Area | Minimum evidence |
 | --- | --- |
-| Raspberry Pi 5 / Umbrel | install/update of exact `alpha.4` package, restart, persistence, browser/proxy write path, direct-backend fail-closed behavior, migration/upgrade behavior, X2D/OpenKE reachability, SSE reconnect/resync |
+| Raspberry Pi 5 / Umbrel | install/update of the exact target package, restart, persistence, browser/proxy write path, direct-backend fail-closed behavior, migration/upgrade behavior, X2D/OpenKE reachability, SSE reconnect/resync |
 | Bambu X2D | connect/reconnect, normalized state, project upload/storage, print-start acknowledgement, pause, resume, cancel, completion, ambiguous outcome handling |
 | Moonraker/OpenKE | HTTP/WebSocket connect/reconnect, upload/checksum/start, pause, resume, cancel, completion/failure, ambiguous outcome handling |
 | Browser auth | Add Printer and at least one other protected workflow through the exact packaged deployment; missing/invalid credential stays fail-closed; reload clears memory-only credential |
