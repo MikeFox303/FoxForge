@@ -14,6 +14,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 
 
+_ALPHA_VERSION_RE = re.compile(r"\d+\.\d+\.\d+-alpha\.\d+(?:\.\d+)?")
+
+
 @dataclass(frozen=True, slots=True)
 class ReleaseIdentity:
     version: str
@@ -34,7 +37,7 @@ def load_and_validate_manifest(root: pathlib.Path) -> ReleaseIdentity:
     title = manifest["title"]
     notes = manifest["notes"]
 
-    if not re.fullmatch(r"\d+\.\d+\.\d+-alpha\.\d+", version):
+    if not _ALPHA_VERSION_RE.fullmatch(version):
         raise ValueError(f"Unsupported alpha release version: {version}")
     if tag != f"v{version}":
         raise ValueError(f"Tag {tag!r} does not match version {version!r}")
