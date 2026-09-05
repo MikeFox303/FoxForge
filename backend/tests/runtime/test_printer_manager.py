@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from foxforge.application.events import ApplicationEventJournal, ApplicationEventTopic, ApplicationStreamItemKind
 from foxforge.application.fleet import FleetService
-from foxforge.application.printer_management import PrinterConfiguration
+from foxforge.application.printer_management import PrinterConfiguration, PrinterConnectionValidationError
 from foxforge.application.secrets import InMemorySecretStore
 from foxforge.domain.printers import ConnectionState, PrinterAdapterError, PrinterErrorCode, PrinterIdentity
 from foxforge.infrastructure.printers import AdapterRegistry
@@ -88,10 +90,11 @@ def test_add_does_not_persist_or_join_fleet_when_preflight_fails(tmp_path) -> No
             secret_store=InMemorySecretStore(),
         )
         try:
-            outcome = await manager.add(_configuration(adapter_kind="fake-unavailable"))
+            with pytest.raises(PrinterConnectionValidationError) as captured:
+                await manager.add(_configuration(adapter_kind="fake-unavailable"))
 
-            assert outcome.connection_error is not None
-            assert outcome.connection_error.code == PrinterErrorCode.CONNECTION_UNAVAILABLE
+            assert captured.value.error.code == PrinterErrorCode.CONNECTION_UNAVAILABLE
+            assert captured.value.error.retryable is True
             assert fleet.printer_ids == ()
             assert manager.configurations() == ()
             assert not config_path.exists()
