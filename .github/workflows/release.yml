@@ -22,7 +22,7 @@ jobs:
     env:
       FOXFORGE_RELEASE_COMMAND_TOKEN: foxforge-release-browser-token-0123456789abcdef
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
