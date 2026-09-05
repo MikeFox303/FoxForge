@@ -43,6 +43,7 @@ from .security import (
 _JSON_HANDLER = Callable[[web.Request], Awaitable[web.StreamResponse]]
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._:-]{1,128}$")
 _PRINTER_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
+_CONNECTION_FAILURE_OUTCOME = "printer_connection_failed"
 
 _REQUEST_ID_KEY = web.RequestKey("foxforge_request_id", str)
 _COMMAND_SECURITY_KEY = web.AppKey("foxforge_command_security", BearerCommandSecurity)
@@ -231,6 +232,9 @@ def _register_printer_management_routes(app: web.Application, manager: PrinterMa
             return command_error(request, status=400, code="invalid_request", message=str(error))
 
         if not reservation.created:
+            failure_replay = _replay_connection_failure(request, reservation.record)
+            if failure_replay is not None:
+                return failure_replay
             replay = _replay_existing_configuration(request, manager, configuration, reservation.record.state)
             if replay is not None:
                 return replay
@@ -247,6 +251,13 @@ def _register_printer_management_routes(app: web.Application, manager: PrinterMa
             return command_error(request, status=409, code="printer_exists", message=str(error))
         except PrinterConnectionValidationError as error:
             code, message = _public_connection_error(error.error)
+            _complete_connection_failure(
+                request,
+                "printer.add",
+                payload,
+                code=code,
+                retryable=error.error.retryable,
+            )
             return command_error(
                 request,
                 status=422,
@@ -272,6 +283,9 @@ def _register_printer_management_routes(app: web.Application, manager: PrinterMa
             return command_error(request, status=400, code="invalid_request", message=str(error))
 
         if not reservation.created:
+            failure_replay = _replay_connection_failure(request, reservation.record)
+            if failure_replay is not None:
+                return failure_replay
             replay = _replay_existing_configuration(request, manager, configuration, reservation.record.state)
             if replay is not None:
                 return replay
@@ -286,6 +300,22 @@ def _register_printer_management_routes(app: web.Application, manager: PrinterMa
             outcome = await manager.update(printer_id, configuration)
         except PrinterConfigurationNotFoundError:
             return command_error(request, status=404, code="printer_not_found", message="Printer is not configured.")
+        except PrinterConnectionValidationError as error:
+            code, message = _public_connection_error(error.error)
+            _complete_connection_failure(
+                request,
+                "printer.update",
+                payload,
+                code=code,
+                retryable=error.error.retryable,
+            )
+            return command_error(
+                request,
+                status=422,
+                code=code,
+                message=message,
+                retryable=error.error.retryable,
+            )
         except (ValueError, TypeError) as error:
             return command_error(request, status=400, code="invalid_request", message=str(error))
 
@@ -395,6 +425,52 @@ def _complete(request: web.Request, operation: str, payload: object, *, result_r
         request_fingerprint=command_request_fingerprint(payload),
         outcome_code="completed",
         result_ref=result_ref,
+    )
+
+
+def _complete_connection_failure(
+    request: web.Request,
+    operation: str,
+    payload: object,
+    *,
+    code: str,
+    retryable: bool,
+) -> None:
+    key = request.headers.get("Idempotency-Key", "")
+    principal = command_principal(request)
+    command_idempotency_store(request).complete(
+        principal_id=principal.principal_id,
+        operation=operation,
+        idempotency_key=key,
+        request_fingerprint=command_request_fingerprint(payload),
+        outcome_code=_CONNECTION_FAILURE_OUTCOME,
+        result_ref=f"{code}|{1 if retryable else 0}",
+    )
+
+
+def _replay_connection_failure(
+    request: web.Request,
+    record: CommandIdempotencyRecord,
+) -> web.Response | None:
+    if record.state != CommandIdempotencyState.COMPLETED:
+        return None
+    if record.outcome_code != _CONNECTION_FAILURE_OUTCOME or record.result_ref is None:
+        return None
+    try:
+        code, retryable_raw = record.result_ref.rsplit("|", 1)
+    except ValueError:
+        return None
+    if retryable_raw not in {"0", "1"}:
+        return None
+    message = _public_connection_message(code)
+    if message is None:
+        return None
+    return command_error(
+        request,
+        status=422,
+        code=code,
+        message=message,
+        retryable=retryable_raw == "1",
     )
 
 
@@ -560,6 +636,23 @@ def _public_connection_error(error: PrinterAdapterError) -> tuple[str, str]:
         f"printer_connection_{error.code.value}",
         "Printer connection validation failed.",
     )
+
+
+def _public_connection_message(code: str) -> str | None:
+    messages = {
+        "printer_connection_unavailable": "FoxForge could not reach the printer on the configured LAN address.",
+        "printer_connection_authentication_failed": "The printer rejected the configured LAN credentials.",
+        "printer_initial_state_timeout": (
+            "MQTT connected, but FoxForge did not receive initial state. Verify the Bambu serial number and LAN mode."
+        ),
+        "printer_connection_timeout": (
+            "The printer connection timed out before FoxForge received a valid initial state."
+        ),
+        "printer_connection_internal_adapter_error": (
+            "The printer adapter failed while establishing the connection."
+        ),
+    }
+    return messages.get(code)
 
 
 def _required_text(mapping: dict[str, object], field_name: str) -> str:
