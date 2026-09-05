@@ -48,8 +48,23 @@
   line-height: 1;
 }
 
-.operator-access-frame.is-collapsed .operator-access {
+.operator-access-frame.is-collapsed:not(.is-unlocked) .operator-access {
   display: none;
+}
+
+.operator-access-frame.is-collapsed.is-unlocked .operator-access-toggle {
+  display: none;
+}
+
+.operator-access-frame.is-collapsed.is-unlocked .operator-access {
+  width: auto;
+  min-height: 42px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised, var(--surface));
+  box-shadow: 0 0.45rem 1.4rem rgb(0 0 0 / 24%);
+  font-size: 0.78rem;
 }
 
 .operator-access-frame.is-open {
