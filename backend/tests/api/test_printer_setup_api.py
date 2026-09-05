@@ -13,9 +13,19 @@ from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions
 from foxforge.application.commands import InMemoryCommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InMemoryInventoryStore, InventoryService
-from foxforge.application.printer_management import PrinterConfiguration, PrinterSetupOutcome
+from foxforge.application.printer_management import (
+    PrinterConfiguration,
+    PrinterConnectionValidationError,
+    PrinterSetupOutcome,
+)
 from foxforge.application.queue import InMemoryQueueStore, QueueService
-from foxforge.domain.printers import ConnectionState, OperationalState, PrinterSnapshot
+from foxforge.domain.printers import (
+    ConnectionState,
+    OperationalState,
+    PrinterAdapterError,
+    PrinterErrorCode,
+    PrinterSnapshot,
+)
 
 _TOKEN = "foxforge-printer-setup-token-0123456789"
 
@@ -23,6 +33,7 @@ _TOKEN = "foxforge-printer-setup-token-0123456789"
 @dataclass
 class _Manager:
     saved: PrinterConfiguration | None = None
+    add_error: PrinterAdapterError | None = None
 
     def configurations(self) -> tuple[PrinterConfiguration, ...]:
         return () if self.saved is None else (self.saved,)
@@ -35,6 +46,8 @@ class _Manager:
         return _outcome(configuration)
 
     async def add(self, configuration: PrinterConfiguration) -> PrinterSetupOutcome:
+        if self.add_error is not None:
+            raise PrinterConnectionValidationError(self.add_error)
         self.saved = configuration
         return _outcome(configuration)
 
@@ -109,6 +122,47 @@ def test_bambu_add_is_real_authenticated_command_and_never_echoes_access_code() 
             assert "12345678" not in str(body)
             assert manager.saved is not None
             assert manager.saved.settings["access_code"] == "12345678"
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_bambu_add_connection_failure_is_not_reported_as_created() -> None:
+    async def scenario() -> None:
+        manager = _Manager(
+            add_error=PrinterAdapterError(
+                code=PrinterErrorCode.CONNECTION_UNAVAILABLE,
+                message="Bambu printer is unreachable from the FoxForge server.",
+                retryable=True,
+            )
+        )
+        client = TestClient(TestServer(_app(manager)))
+        await client.start_server()
+        try:
+            response = await client.post(
+                "/api/v1/printers",
+                json={
+                    "printerId": "x2d-main",
+                    "displayName": "Bambu X2D",
+                    "kind": "bambu",
+                    "model": "X2D",
+                    "serialNumber": "SERIAL123",
+                    "connection": {"host": "192.0.2.10", "accessCode": "12345678"},
+                },
+                headers={
+                    "Authorization": f"Bearer {_TOKEN}",
+                    "Idempotency-Key": "printer-add-unreachable-001",
+                },
+            )
+
+            assert response.status == 400
+            body = await response.json()
+            assert body["error"]["code"] == "invalid_request"
+            assert body["error"]["message"] == "Bambu printer is unreachable from the FoxForge server."
+            assert body["error"]["retryable"] is False
+            assert manager.saved is None
+            assert "12345678" not in str(body)
         finally:
             await client.close()
 
