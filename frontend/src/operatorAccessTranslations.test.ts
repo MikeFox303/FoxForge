@@ -14,4 +14,13 @@ describe('operator access translations', () => {
     expect(keys(operatorAccessTranslations.ru)).toEqual(keys(operatorAccessTranslations.en));
     expect(keys(operatorAccessTranslations.uk)).toEqual(keys(operatorAccessTranslations.en));
   });
+
+  it('explains the Umbrel app-password credential source without embedding a secret', () => {
+    for (const language of ['en', 'ru', 'uk'] as const) {
+      const help = operatorAccessTranslations[language].credentialHelp;
+      expect(help).toContain('Umbrel');
+      expect(help).toContain('FOXFORGE_COMMAND_TOKEN');
+      expect(help).not.toMatch(/[A-Fa-f0-9]{32,}/);
+    }
+  });
 });
