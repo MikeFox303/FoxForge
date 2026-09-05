@@ -26,7 +26,7 @@ The current canonical physical-validation baseline is:
 
 The release, immutable GHCR index and matching Store package now exist and agree, so canonical Alpha 4.2 physical evidence may begin. Evidence produced with Alpha 4 or Alpha 4.1 remains useful historical evidence but must not be relabeled as Alpha 4.2 evidence.
 
-For Alpha 4.2, the evidence manifest should use release commit `fe5b3437f1e342548df74ded78557c771ef40710` as `sourceCommit` and identify the exact semantic-version-plus-digest image above in `packageIdentity`; include Store commit `e842c411e26689609e9bbba4681df903f3624bbd` in that identity string or adjacent private run notes so the installed package source is unambiguous.
+For Alpha 4.2, the evidence manifest must use release commit `fe5b3437f1e342548df74ded78557c771ef40710` as `sourceCommit` and the exact semantic-version-plus-digest image above as `packageIdentity`. Record Store commit `e842c411e26689609e9bbba4681df903f3624bbd` in the evidence directory README/run notes rather than appending it to `packageIdentity`, so the package identity remains machine-comparable.
 
 The exact release commit passed backend lint/format/tests, frontend type/unit/build checks, the production-container browser acceptance matrix, deployment-authentication checks, dependency/image security gates, source-map absence and release-image smoke before the guarded release workflow created the tag and published the multi-architecture image. Browser evidence is retained separately from the OCI image identity.
 
@@ -144,34 +144,60 @@ Exit code is zero only when every requested probe passes.
 
 ## 5. Evidence manifest and verifier
 
-The raw probe proves only prerequisite reachability/certificate/auth behavior. Operator-observed lifecycle evidence is captured in a strict manifest based on:
+The raw probe proves only prerequisite reachability/certificate/auth behavior. Operator-observed lifecycle evidence is captured in a strict manifest.
+
+For the current Alpha 4.2 run, start from:
+
+`docs/testing/evidence/alpha4.2-manifest.template.json`
+
+The generic schema example remains available at:
 
 `docs/testing/evidence/physical-validation-manifest.example.json`
 
-`packageIdentity` must identify the exact installed `my3d-foxforge` package, FoxForge release commit and immutable image digest used for the run rather than a branch or floating tag.
+The Alpha 4.2 template already contains the correct non-secret identities but all operator observations are `false`. Copy it into a new evidence directory and change values only when the corresponding real behavior has been observed.
 
-For the current Alpha 4.2 baseline, a suitable non-secret identity string is:
+Canonical Alpha 4.2 manifest identity:
 
 ```text
-my3d-foxforge 0.1.0-alpha.4.2 | FoxForge fe5b3437f1e342548df74ded78557c771ef40710 | ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6 | Store e842c411e26689609e9bbba4681df903f3624bbd
+sourceCommit = fe5b3437f1e342548df74ded78557c771ef40710
+packageIdentity = ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6
+Store commit (run notes) = e842c411e26689609e9bbba4681df903f3624bbd
 ```
 
-After the real-device run, verify it with:
+After the real-device run, bind verification to those exact release identities:
 
 ```bash
+SOURCE_COMMIT=fe5b3437f1e342548df74ded78557c771ef40710
+PACKAGE_IDENTITY='ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6'
+
 python -m foxforge.testing.physical_evidence \
-  docs/testing/evidence/<validation>/manifest.json
+  docs/testing/evidence/<validation>/manifest.json \
+  --expected-source-commit "$SOURCE_COMMIT" \
+  --expected-package-identity "$PACKAGE_IDENTITY"
 ```
 
-To require a specific gate:
+To require a specific gate, keep the same expected identity arguments:
 
 ```bash
-python -m foxforge.testing.physical_evidence <manifest> --require aud003
-python -m foxforge.testing.physical_evidence <manifest> --require aud013
-python -m foxforge.testing.physical_evidence <manifest> --require p3
+python -m foxforge.testing.physical_evidence <manifest> \
+  --expected-source-commit "$SOURCE_COMMIT" \
+  --expected-package-identity "$PACKAGE_IDENTITY" \
+  --require aud003
+
+python -m foxforge.testing.physical_evidence <manifest> \
+  --expected-source-commit "$SOURCE_COMMIT" \
+  --expected-package-identity "$PACKAGE_IDENTITY" \
+  --require aud013
+
+python -m foxforge.testing.physical_evidence <manifest> \
+  --expected-source-commit "$SOURCE_COMMIT" \
+  --expected-package-identity "$PACKAGE_IDENTITY" \
+  --require p3
 ```
 
-The verifier rejects missing observations, unknown fields, failed probes, evidence that is not marked secret-safe, and non-redacted targets by default. See `docs/testing/physical-evidence-gate.md` for the complete contract.
+An identity mismatch is rejected with verifier exit code `2`; it cannot produce a passing AUD-003, AUD-013 or P3 result for the intended release. The expected-identity flags remain generic, so historical/future evidence can be checked against its own exact identities.
+
+The verifier also rejects missing observations, unknown fields, failed probes, evidence that is not marked secret-safe, and non-redacted targets by default. See `docs/testing/physical-evidence-gate.md` for the complete contract.
 
 ## Required full physical matrix before P3 resumes
 
@@ -194,12 +220,12 @@ When adding evidence under `docs/testing/evidence/` or linking it from the remed
 - include FoxForge release commit SHA, exact package/image/digest identity, Store package commit and validation date in the evidence manifest/run notes;
 - distinguish automated prerequisite output from operator-observed printer behavior;
 - record failures as well as successes; do not discard evidence that changes the trust/deployment design conclusion;
-- run `physical_evidence` successfully before proposing an audit-status change.
+- run `physical_evidence` with the exact expected release/package identity before proposing an audit-status change.
 
 ## Closure rules
 
-- **AUD-003**: may move from `VALIDATION REQUIRED` to `RESOLVED` only after the exact published `my3d-foxforge` package demonstrates the configured write-enabled behavior end to end on representative Raspberry Pi/Umbrel and the corresponding evidence manifest passes `--require aud003`.
-- **AUD-013**: requires physical X2D certificate stability/pinning evidence and a manifest passing `--require aud013` before any default TLS trust behavior is changed or the finding is resolved.
-- **P3**: physical/deployment readiness additionally requires the complete Bambu + Moonraker/OpenKE lifecycle matrix and a manifest passing `--require p3`.
+- **AUD-003**: may move from `VALIDATION REQUIRED` to `RESOLVED` only after the exact published `my3d-foxforge` package demonstrates the configured write-enabled behavior end to end on representative Raspberry Pi/Umbrel and the corresponding evidence manifest passes `--require aud003` with the expected Alpha 4.2 identities.
+- **AUD-013**: requires physical X2D certificate stability/pinning evidence and a manifest passing `--require aud013` with the expected Alpha 4.2 identities before any default TLS trust behavior is changed or the finding is resolved.
+- **P3**: physical/deployment readiness additionally requires the complete Bambu + Moonraker/OpenKE lifecycle matrix and a manifest passing `--require p3` with the exact intended release/package identity.
 
 A successful Store CI run or network probe alone is not sufficient to close either remaining finding or to resume P3.
