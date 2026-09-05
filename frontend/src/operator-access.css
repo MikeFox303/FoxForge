@@ -2,23 +2,68 @@
 
 .operator-access-shell {
   position: fixed;
-  right: 1rem;
-  bottom: 1rem;
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
   z-index: 50;
   max-width: min(34rem, calc(100vw - 2rem));
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--border-subtle);
-  border-radius: 0.8rem;
-  background: var(--surface-raised, var(--surface));
-  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 18%);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .operator-access-frame {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
 }
 
 .operator-access-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 42px;
+  padding: 0.55rem 0.75rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: var(--surface-raised, var(--surface));
+  color: var(--text);
+  box-shadow: 0 0.45rem 1.4rem rgb(0 0 0 / 24%);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.operator-access-toggle .status-dot {
+  flex: 0 0 auto;
+}
+
+.operator-access-toggle-icon {
+  min-width: 0.9rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.operator-access-frame.is-collapsed .operator-access {
   display: none;
+}
+
+.operator-access-frame.is-open {
+  width: min(34rem, calc(100vw - 2rem));
+  padding: 0.7rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: 0.9rem;
+  background: var(--surface-raised, var(--surface));
+  box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 28%);
+}
+
+.operator-access-frame.is-open .operator-access-toggle {
+  margin-bottom: 0.65rem;
+  box-shadow: none;
 }
 
 .operator-access {
@@ -26,6 +71,8 @@
   align-items: center;
   gap: 0.45rem;
   min-width: 0;
+  width: 100%;
+  flex-wrap: wrap;
 }
 
 .operator-access label {
@@ -33,23 +80,16 @@
 }
 
 .operator-access input {
-  width: 10.5rem;
-  max-width: 30vw;
+  width: 14rem;
+  max-width: min(42vw, 20rem);
 }
 
 .operator-access small {
-  max-width: 16rem;
+  max-width: 18rem;
 }
 
 .operator-access-unlocked {
   padding: 0.15rem 0.25rem;
-}
-
-@media (max-width: 900px) {
-  .operator-access input {
-    width: 8rem;
-    max-width: 24vw;
-  }
 }
 
 @media (max-width: 620px) {
@@ -57,68 +97,10 @@
     right: max(0.65rem, env(safe-area-inset-right));
     bottom: max(0.65rem, env(safe-area-inset-bottom));
     max-width: calc(100vw - 1.3rem);
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
-  }
-
-  .operator-access-frame {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-  }
-
-  .operator-access-toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
-    min-height: 42px;
-    padding: 0.55rem 0.75rem;
-    border: 1px solid var(--border-subtle);
-    border-radius: 999px;
-    background: var(--surface-raised, var(--surface));
-    color: var(--text);
-    box-shadow: 0 0.45rem 1.4rem rgb(0 0 0 / 24%);
-    font: inherit;
-    font-size: 0.78rem;
-    font-weight: 700;
-    cursor: pointer;
-  }
-
-  .operator-access-toggle .status-dot {
-    flex: 0 0 auto;
-  }
-
-  .operator-access-toggle-icon {
-    min-width: 0.9rem;
-    text-align: center;
-    color: var(--muted);
-    font-size: 1rem;
-    line-height: 1;
-  }
-
-  .operator-access-frame.is-collapsed .operator-access {
-    display: none;
   }
 
   .operator-access-frame.is-open {
     width: min(34rem, calc(100vw - 1.3rem));
-    padding: 0.7rem;
-    border: 1px solid var(--border-subtle);
-    border-radius: 0.9rem;
-    background: var(--surface-raised, var(--surface));
-    box-shadow: 0 0.5rem 1.5rem rgb(0 0 0 / 28%);
-  }
-
-  .operator-access-frame.is-open .operator-access-toggle {
-    margin-bottom: 0.65rem;
-    box-shadow: none;
-  }
-
-  .operator-access {
-    width: 100%;
-    flex-wrap: wrap;
   }
 
   .operator-access label,
