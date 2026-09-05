@@ -24,11 +24,12 @@ from foxforge.application.printer_management import (
     PrinterConfiguration,
     PrinterConfigurationConflictError,
     PrinterConfigurationNotFoundError,
+    PrinterConnectionValidationError,
     PrinterManagementService,
     PrinterSetupOutcome,
 )
 from foxforge.application.queue import QueueService
-from foxforge.domain.printers import PrinterIdentity
+from foxforge.domain.printers import PrinterAdapterError, PrinterErrorCode, PrinterIdentity
 
 from .read_models import API_VERSION, fleet_read_model, inventory_read_model, queue_read_model
 from .security import (
@@ -244,6 +245,15 @@ def _register_printer_management_routes(app: web.Application, manager: PrinterMa
             outcome = await manager.add(configuration)
         except PrinterConfigurationConflictError as error:
             return command_error(request, status=409, code="printer_exists", message=str(error))
+        except PrinterConnectionValidationError as error:
+            code, message = _public_connection_error(error.error)
+            return command_error(
+                request,
+                status=422,
+                code=code,
+                message=message,
+                retryable=error.error.retryable,
+            )
         except (ValueError, TypeError) as error:
             return command_error(request, status=400, code="invalid_request", message=str(error))
 
@@ -500,6 +510,7 @@ def _configuration_read_model(configuration: PrinterConfiguration) -> dict[str, 
 
 def _setup_outcome(outcome: PrinterSetupOutcome) -> dict[str, object]:
     error = outcome.connection_error
+    public_message = _public_connection_error(error)[1] if error is not None else None
     return {
         "configuration": _configuration_read_model(outcome.configuration),
         "connection": outcome.snapshot.connection.value,
@@ -511,12 +522,44 @@ def _setup_outcome(outcome: PrinterSetupOutcome) -> dict[str, object]:
             if error is None
             else {
                 "code": error.code.value,
-                "message": error.message,
+                "message": public_message,
                 "retryable": error.retryable,
                 "vendorCode": error.vendor_code,
             }
         ),
     }
+
+
+def _public_connection_error(error: PrinterAdapterError) -> tuple[str, str]:
+    if error.code == PrinterErrorCode.CONNECTION_UNAVAILABLE:
+        return (
+            "printer_connection_unavailable",
+            "FoxForge could not reach the printer on the configured LAN address.",
+        )
+    if error.code == PrinterErrorCode.AUTHENTICATION_FAILED:
+        return (
+            "printer_connection_authentication_failed",
+            "The printer rejected the configured LAN credentials.",
+        )
+    if error.code == PrinterErrorCode.TIMEOUT and error.vendor_code == "initial_state_timeout":
+        return (
+            "printer_initial_state_timeout",
+            "MQTT connected, but FoxForge did not receive initial state. Verify the Bambu serial number and LAN mode.",
+        )
+    if error.code == PrinterErrorCode.TIMEOUT:
+        return (
+            "printer_connection_timeout",
+            "The printer connection timed out before FoxForge received a valid initial state.",
+        )
+    if error.code == PrinterErrorCode.INTERNAL_ADAPTER_ERROR:
+        return (
+            "printer_connection_internal_adapter_error",
+            "The printer adapter failed while establishing the connection.",
+        )
+    return (
+        f"printer_connection_{error.code.value}",
+        "Printer connection validation failed.",
+    )
 
 
 def _required_text(mapping: dict[str, object], field_name: str) -> str:

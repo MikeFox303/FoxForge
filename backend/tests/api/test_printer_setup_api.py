@@ -7,6 +7,7 @@ import asyncio
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.api.v1 import BearerCommandSecurity, TrustedBrowserCommandSessions, create_api_v1_app
@@ -28,12 +29,14 @@ from foxforge.domain.printers import (
 )
 
 _TOKEN = "foxforge-printer-setup-token-0123456789"
+_ACCESS_CODE = "12345678"
 
 
 @dataclass
 class _Manager:
     saved: PrinterConfiguration | None = None
     add_error: PrinterAdapterError | None = None
+    test_error: PrinterAdapterError | None = None
 
     def configurations(self) -> tuple[PrinterConfiguration, ...]:
         return () if self.saved is None else (self.saved,)
@@ -43,7 +46,7 @@ class _Manager:
         return self.saved
 
     async def test_connection(self, configuration: PrinterConfiguration) -> PrinterSetupOutcome:
-        return _outcome(configuration)
+        return _outcome(configuration, self.test_error)
 
     async def add(self, configuration: PrinterConfiguration) -> PrinterSetupOutcome:
         if self.add_error is not None:
@@ -63,17 +66,21 @@ class _Manager:
         return _outcome(self.saved)
 
 
-def _outcome(configuration: PrinterConfiguration) -> PrinterSetupOutcome:
+def _outcome(
+    configuration: PrinterConfiguration,
+    connection_error: PrinterAdapterError | None = None,
+) -> PrinterSetupOutcome:
     return PrinterSetupOutcome(
         configuration=configuration,
         snapshot=PrinterSnapshot(
             printer_id=configuration.identity.printer_id,
-            connection=ConnectionState.CONNECTED,
-            operational_state=OperationalState.IDLE,
+            connection=ConnectionState.CONNECTED if connection_error is None else ConnectionState.DISCONNECTED,
+            operational_state=OperationalState.IDLE if connection_error is None else OperationalState.UNKNOWN,
             active_job=None,
             observed_at=datetime.now(UTC),
             stale=False,
         ),
+        connection_error=connection_error,
     )
 
 
@@ -90,23 +97,26 @@ def _app(manager: _Manager, *, browser_sessions: bool = False):
     )
 
 
+def _bambu_payload() -> dict[str, object]:
+    return {
+        "printerId": "x2d-main",
+        "displayName": "Bambu X2D",
+        "kind": "bambu",
+        "model": "X2D",
+        "serialNumber": "SERIAL123",
+        "connection": {"host": "192.0.2.10", "accessCode": _ACCESS_CODE},
+    }
+
+
 def test_bambu_add_is_real_authenticated_command_and_never_echoes_access_code() -> None:
     async def scenario() -> None:
         manager = _Manager()
         client = TestClient(TestServer(_app(manager)))
         await client.start_server()
         try:
-            payload = {
-                "printerId": "x2d-main",
-                "displayName": "Bambu X2D",
-                "kind": "bambu",
-                "model": "X2D",
-                "serialNumber": "SERIAL123",
-                "connection": {"host": "192.0.2.10", "accessCode": "12345678"},
-            }
             response = await client.post(
                 "/api/v1/printers",
-                json=payload,
+                json=_bambu_payload(),
                 headers={
                     "Authorization": f"Bearer {_TOKEN}",
                     "Idempotency-Key": "printer-add-001",
@@ -119,50 +129,129 @@ def test_bambu_add_is_real_authenticated_command_and_never_echoes_access_code() 
                 "host": "192.0.2.10",
                 "accessCodeConfigured": True,
             }
-            assert "12345678" not in str(body)
+            assert _ACCESS_CODE not in str(body)
             assert manager.saved is not None
-            assert manager.saved.settings["access_code"] == "12345678"
+            assert manager.saved.settings["access_code"] == _ACCESS_CODE
         finally:
             await client.close()
 
     asyncio.run(scenario())
 
 
-def test_bambu_add_connection_failure_is_not_reported_as_created() -> None:
+@pytest.mark.parametrize(
+    ("adapter_error", "expected_code", "expected_message", "retryable"),
+    [
+        (
+            PrinterAdapterError(
+                code=PrinterErrorCode.CONNECTION_UNAVAILABLE,
+                message="raw network detail that must not escape",
+                retryable=True,
+            ),
+            "printer_connection_unavailable",
+            "FoxForge could not reach the printer on the configured LAN address.",
+            True,
+        ),
+        (
+            PrinterAdapterError(
+                code=PrinterErrorCode.AUTHENTICATION_FAILED,
+                message="raw broker rejection that must not escape",
+                retryable=False,
+                vendor_code="5",
+            ),
+            "printer_connection_authentication_failed",
+            "The printer rejected the configured LAN credentials.",
+            False,
+        ),
+        (
+            PrinterAdapterError(
+                code=PrinterErrorCode.TIMEOUT,
+                message="raw timeout detail that must not escape",
+                retryable=True,
+                vendor_code="initial_state_timeout",
+            ),
+            "printer_initial_state_timeout",
+            "MQTT connected, but FoxForge did not receive initial state. Verify the Bambu serial number and LAN mode.",
+            True,
+        ),
+        (
+            PrinterAdapterError(
+                code=PrinterErrorCode.INTERNAL_ADAPTER_ERROR,
+                message="object NoneType can't be used in 'await' expression",
+                retryable=False,
+                vendor_code="TypeError",
+            ),
+            "printer_connection_internal_adapter_error",
+            "The printer adapter failed while establishing the connection.",
+            False,
+        ),
+    ],
+)
+def test_bambu_add_connection_failure_is_structured_sanitized_and_not_created(
+    adapter_error: PrinterAdapterError,
+    expected_code: str,
+    expected_message: str,
+    retryable: bool,
+) -> None:
+    async def scenario() -> None:
+        manager = _Manager(add_error=adapter_error)
+        client = TestClient(TestServer(_app(manager)))
+        await client.start_server()
+        try:
+            response = await client.post(
+                "/api/v1/printers",
+                json=_bambu_payload(),
+                headers={
+                    "Authorization": f"Bearer {_TOKEN}",
+                    "Idempotency-Key": f"printer-add-{expected_code}",
+                },
+            )
+
+            assert response.status == 422
+            body = await response.json()
+            assert body["error"]["code"] == expected_code
+            assert body["error"]["message"] == expected_message
+            assert body["error"]["retryable"] is retryable
+            assert manager.saved is None
+            assert _ACCESS_CODE not in str(body)
+            assert adapter_error.message not in str(body)
+        finally:
+            await client.close()
+
+    asyncio.run(scenario())
+
+
+def test_bambu_test_connection_sanitizes_adapter_error_but_preserves_stage_code() -> None:
     async def scenario() -> None:
         manager = _Manager(
-            add_error=PrinterAdapterError(
-                code=PrinterErrorCode.CONNECTION_UNAVAILABLE,
-                message="Bambu printer is unreachable from the FoxForge server.",
+            test_error=PrinterAdapterError(
+                code=PrinterErrorCode.TIMEOUT,
+                message="vendor-specific raw timeout",
                 retryable=True,
+                vendor_code="initial_state_timeout",
             )
         )
         client = TestClient(TestServer(_app(manager)))
         await client.start_server()
         try:
             response = await client.post(
-                "/api/v1/printers",
-                json={
-                    "printerId": "x2d-main",
-                    "displayName": "Bambu X2D",
-                    "kind": "bambu",
-                    "model": "X2D",
-                    "serialNumber": "SERIAL123",
-                    "connection": {"host": "192.0.2.10", "accessCode": "12345678"},
-                },
-                headers={
-                    "Authorization": f"Bearer {_TOKEN}",
-                    "Idempotency-Key": "printer-add-unreachable-001",
-                },
+                "/api/v1/printers/test-connection",
+                json=_bambu_payload(),
+                headers={"Authorization": f"Bearer {_TOKEN}"},
             )
-
-            assert response.status == 400
+            assert response.status == 200
             body = await response.json()
-            assert body["error"]["code"] == "invalid_request"
-            assert body["error"]["message"] == "Bambu printer is unreachable from the FoxForge server."
-            assert body["error"]["retryable"] is False
-            assert manager.saved is None
-            assert "12345678" not in str(body)
+            assert body["reachable"] is False
+            assert body["connectionError"] == {
+                "code": "timeout",
+                "message": (
+                    "MQTT connected, but FoxForge did not receive initial state. "
+                    "Verify the Bambu serial number and LAN mode."
+                ),
+                "retryable": True,
+                "vendorCode": "initial_state_timeout",
+            }
+            assert "vendor-specific raw timeout" not in str(body)
+            assert _ACCESS_CODE not in str(body)
         finally:
             await client.close()
 

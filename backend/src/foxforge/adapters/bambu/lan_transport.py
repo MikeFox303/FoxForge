@@ -84,6 +84,7 @@ class BambuLanTransport:
             raise BambuTransportError(
                 BambuTransportErrorKind.TIMEOUT,
                 "Bambu MQTT connected but no initial push_status was received",
+                vendor_code="initial_state_timeout",
             ) from error
         except BambuTransportError:
             await self.disconnect()
