@@ -8,6 +8,7 @@ import { AppProviders } from './app/providers';
 import { OperatorAccess } from './features/security/OperatorAccess';
 import { FoxForgeApp } from './FoxForgeApp';
 import './jobControlTranslations';
+import './inventoryOperatorTranslations';
 import './operatorAccessTranslations';
 import './styles.css';
 import './refinements.css';

@@ -27,3 +27,18 @@ export interface InventoryData {
   spools: SpoolInventoryView[];
   observedAt: string;
 }
+
+export type SpoolAdjustmentKind = 'consumption' | 'correction' | 'return' | 'waste';
+
+export interface SpoolAdjustmentView {
+  adjustmentId: string;
+  kind: SpoolAdjustmentKind;
+  deltaFilamentMassG: string;
+  createdAt: string;
+  note?: string;
+}
+
+export interface SpoolHistoryData {
+  spoolId: string;
+  adjustments: SpoolAdjustmentView[];
+}

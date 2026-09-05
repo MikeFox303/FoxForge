@@ -41,7 +41,7 @@ This file tracks active remediation. The independent audit remains the immutable
 
 The detailed frozen P3 implementation state is recorded in `docs/status/p3-frozen-state-2026-09-04.md`.
 
-P3 is not discarded. The draft already contains reservation/reconciliation semantics, exact Decimal accounting, full material-plan enforcement, restart/idempotency protections and UI work. It remains intentionally unmerged until the audit blockers and P3 resume criteria are satisfied.
+P3 is not discarded. The draft already contains reservation/reconciliation semantics, exact Decimal accounting, full material-plan enforcement, restart/idempotency protections and UI work. PR #91 completes the normal inventory operator prerequisite with create/correct/empty-spool-mass/assign-move/unassign/archive/history workflows and production-container browser acceptance. P3 nevertheless remains intentionally unmerged until the remaining physical/deployment validation gate is satisfied.
 
 ## Execution order
 
@@ -58,8 +58,8 @@ P3 is not discarded. The draft already contains reservation/reconciliation seman
 11. **Bambu certificate-trust foundation:** AUD-013 software work is complete in PR #82 and validation tooling in PR #89; physical X2D validation remains before any trust-default change.
 12. **Public-project governance:** AUD-019 — resolved through PR #62/#84 with security policy, dependency/update scanning and measured coverage governance.
 13. **Representative physical/deployment validation:** X2D and Raspberry Pi 5/Umbrel remain, covering AUD-013 certificate evidence and AUD-003 future package behavior. Moonraker/OpenKE reachability/lifecycle evidence remains part of the broader P3 resume gate even though no audit finding is still open for Moonraker endpoint security.
-14. **Inventory operator workflow:** complete normal create/correct/move/assign/unassign/archive/history UX before automatic accounting is resumed.
-15. **Resume P3:** synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
+14. **Inventory operator workflow:** completed in PR #91 with authenticated create/correct/empty-spool-mass/assign-move/unassign/archive/history UX, opaque slot identity preservation, stable idempotency on retry and production-container desktop/tablet/phone acceptance.
+15. **Resume P3:** only after step 13 is recorded, synchronize PR #58 with current `main`, rerun all exact-head gates, finish docs, then merge only if all resume criteria pass.
 
 ## Resolution rule
 

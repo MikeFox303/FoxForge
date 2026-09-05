@@ -5,9 +5,9 @@ import { useQuery } from '@tanstack/react-query';
 
 import { demoModeEnabled, fetchJson } from '../../data/apiClient';
 import { inventoryData } from './mockInventory';
-import type { InventoryData, SpoolInventoryView } from './types';
+import type { InventoryData, SpoolHistoryData, SpoolInventoryView } from './types';
 
-const inventoryQueryKey = ['inventory', 'spools'] as const;
+export const inventoryQueryKey = ['inventory', 'spools'] as const;
 const emptyInventory: InventoryData = { spools: [], observedAt: new Date(0).toISOString() };
 
 export type InventoryRuntimePhase = 'loading' | 'ready' | 'error';
@@ -63,6 +63,11 @@ async function loadInventory(): Promise<InventoryData> {
   };
 }
 
+async function loadSpoolHistory(spoolId: string): Promise<SpoolHistoryData> {
+  if (demoModeEnabled()) return { spoolId, adjustments: [] };
+  return fetchJson<SpoolHistoryData>(`/api/v1/inventory/spools/${encodeURIComponent(spoolId)}/history`);
+}
+
 export function useInventoryData(): InventoryRuntimeState {
   const demo = demoModeEnabled();
   const query = useQuery({
@@ -80,6 +85,14 @@ export function useInventoryData(): InventoryRuntimeState {
     isRefreshing: phase === 'ready' && query.isFetching,
     retry: () => void query.refetch(),
   };
+}
+
+export function useSpoolHistory(spoolId: string | null) {
+  return useQuery({
+    queryKey: ['inventory', 'history', spoolId],
+    queryFn: () => loadSpoolHistory(spoolId!),
+    enabled: spoolId !== null,
+  });
 }
 
 function mapSpool(spool: ApiInventoryResponse['spools'][number]): SpoolInventoryView {
