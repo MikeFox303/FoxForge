@@ -1,8 +1,8 @@
 {
-  "version": "0.1.0-alpha.4.2",
-  "pythonVersion": "0.1.0a4.post2",
-  "tag": "v0.1.0-alpha.4.2",
-  "title": "FoxForge v0.1.0-alpha.4.2",
+  "version": "0.1.0-alpha.4.3",
+  "pythonVersion": "0.1.0a4.post3",
+  "tag": "v0.1.0-alpha.4.3",
+  "title": "FoxForge v0.1.0-alpha.4.3",
   "prerelease": true,
-  "notes": "release/v0.1.0-alpha.4.2.md"
+  "notes": "release/v0.1.0-alpha.4.3.md"
 }
