@@ -42,6 +42,12 @@ def _identity():
     )
 
 
+def test_alpha_hotfix_version_format_is_supported() -> None:
+    assert release_identity._ALPHA_VERSION_RE.fullmatch("0.1.0-alpha.4")
+    assert release_identity._ALPHA_VERSION_RE.fullmatch("0.1.0-alpha.4.1")
+    assert not release_identity._ALPHA_VERSION_RE.fullmatch("0.1.0-alpha.4.1.2")
+
+
 def test_existing_tag_on_different_commit_is_rejected_before_release_or_image_checks() -> None:
     runner = FakeRunner(
         {
