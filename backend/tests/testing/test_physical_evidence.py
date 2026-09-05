@@ -31,8 +31,7 @@ def _observation_group(names: tuple[str, ...], value: bool = True) -> dict[str, 
 
 def _write_manifest(path: Path, *, bambu_value: bool = True, moonraker_value: bool = True) -> None:
     observations = {
-        group: _observation_group(names)
-        for group, names in physical_evidence._REQUIRED_OBSERVATIONS.items()
+        group: _observation_group(names) for group, names in physical_evidence._REQUIRED_OBSERVATIONS.items()
     }
     if not bambu_value:
         observations["bambu"]["correctPinsSucceed"] = False
