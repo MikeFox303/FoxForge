@@ -61,6 +61,8 @@ It must never store:
 - vendor error payloads or MQTT/HTTP bodies;
 - vendor codes whose contents have not been explicitly normalized as safe.
 
+The runtime event relay also captures adapter-originated disconnect errors only after the adapter has normalized them to `PrinterAdapterError`. Bambu and Moonraker transports currently surface these as `SNAPSHOT_RECONCILED` events carrying the normalized common error object. The relay stores only the common error code and retryable flag; it deliberately discards the raw message and vendor code. This means a spontaneous transport drop still leaves useful context even if the first automatic reconnect succeeds.
+
 The last normalized failure context is retained after recovery so operators can understand a recent disconnect. `consecutiveFailures` returns to zero and `nextRetryAt` is cleared when the printer recovers.
 
 Diagnostics for printers removed from the active fleet are discarded.
@@ -121,6 +123,7 @@ Automated coverage must prove:
 3. a slow printer does not block another printer;
 4. a repeatedly failing printer can later recover without restarting the supervisor;
 5. dynamically added printers get workers and removed printers lose workers/diagnostics;
-6. diagnostic state stores only normalized common fields;
-7. recovery resets consecutive failures but preserves the last failure category;
-8. runtime/API/container/security/browser gates remain green.
+6. spontaneous adapter disconnect errors are reduced to normalized common fields before diagnostics storage;
+7. the diagnostics HTTP read model cannot expose raw messages or vendor codes;
+8. recovery resets consecutive failures but preserves the last failure category;
+9. runtime/API/container/security/browser gates remain green.
