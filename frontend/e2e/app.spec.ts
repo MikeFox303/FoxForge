@@ -66,6 +66,54 @@ test('SPA routes and the single Add Printer entry point remain usable', async ({
   await expect(page.getByRole('dialog')).toBeHidden();
 });
 
+test('printer diagnostics expose normalized reconnect context without raw transport detail', async ({ page }) => {
+  await page.route('**/api/v1/fleet', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(fleetResponse()) });
+  });
+  await page.route('**/api/v1/queue', async (route) => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ apiVersion: '1', entries: [] }) });
+  });
+  await page.route('**/api/v1/diagnostics/reconnect', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        apiVersion: '1',
+        printers: [
+          {
+            printerId: 'browser-printer',
+            consecutiveFailures: 2,
+            lastAttemptAt: '2026-09-05T00:00:15Z',
+            lastFailureAt: '2026-09-05T00:00:15Z',
+            lastErrorCode: 'authentication_failed',
+            lastErrorRetryable: false,
+            nextRetryAt: '2026-09-05T00:00:30Z',
+            recoveredAt: null,
+            message: 'private-raw-transport-detail',
+            vendorCode: 'private-vendor-code',
+          },
+        ],
+      }),
+    });
+  });
+
+  await page.goto('/printers/browser-printer');
+  await page.getByRole('button', { name: /^diagnostics$/i }).click();
+
+  const reconnect = page.locator('.reconnect-diagnostics-panel');
+  await expect(reconnect).toBeVisible();
+  await expect(reconnect).toContainText('Reconnect history');
+  await expect(reconnect).toContainText('Retrying connection');
+  await expect(reconnect).toContainText('Authentication failed');
+  await expect(reconnect).toContainText('authentication_failed');
+  await expect(reconnect).toContainText('Consecutive failures');
+  await expect(reconnect).toContainText('2');
+  await expect(reconnect).toContainText('Adapter marked retryable');
+  await expect(reconnect).toContainText('No');
+  await expect(reconnect).not.toContainText('private-raw-transport-detail');
+  await expect(reconnect).not.toContainText('private-vendor-code');
+});
+
 test('operator write access is explicit and memory-only for the active tab', async ({ page }) => {
   await page.goto('/');
   await unlockWrites(page);
