@@ -4,6 +4,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
+import { CommandAuthenticationRequiredError } from '../../data/commandClient';
 import {
   addPrinter,
   loadPrinterConfigurations,
@@ -57,6 +58,9 @@ const copy = {
     configuredSecret: 'credential saved',
     removeConfirm: 'Delete this printer from FoxForge? The physical printer is not modified.',
     deploymentError: 'Printer management is not enabled for this deployment. On Umbrel, update to a FoxForge package with trusted App Proxy sessions enabled.',
+    writesLocked: 'FoxForge write controls are locked. Open Operator access and enter the operator token.',
+    saveError: 'Unable to save printer.',
+    deleteError: 'Unable to delete printer.',
   },
   ru: {
     title: 'Подключение принтеров',
@@ -92,6 +96,9 @@ const copy = {
     configuredSecret: 'учётные данные сохранены',
     removeConfirm: 'Удалить этот принтер из FoxForge? Настройки физического принтера не изменятся.',
     deploymentError: 'Управление принтерами не включено в этой установке. Для Umbrel обновите FoxForge до пакета с trusted App Proxy sessions.',
+    writesLocked: 'Управление FoxForge заблокировано. Откройте «Токен оператора» и введите токен оператора.',
+    saveError: 'Не удалось сохранить принтер.',
+    deleteError: 'Не удалось удалить принтер.',
   },
   uk: {
     title: 'Підключення принтерів',
@@ -127,6 +134,9 @@ const copy = {
     configuredSecret: 'облікові дані збережені',
     removeConfirm: 'Видалити цей принтер із FoxForge? Налаштування фізичного принтера не зміняться.',
     deploymentError: 'Керування принтерами не ввімкнене в цій інсталяції. Для Umbrel оновіть FoxForge до пакета з trusted App Proxy sessions.',
+    writesLocked: 'Керування FoxForge заблоковано. Відкрийте «Токен оператора» та введіть токен оператора.',
+    saveError: 'Не вдалося зберегти принтер.',
+    deleteError: 'Не вдалося видалити принтер.',
   },
 } as const;
 
@@ -154,6 +164,11 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  const errorMessage = (cause: unknown, fallback: string): string => {
+    if (cause instanceof CommandAuthenticationRequiredError) return c.writesLocked;
+    return cause instanceof Error ? cause.message : fallback;
+  };
+
   const payload = useMemo<PrinterSetupPayload>(() => ({
     printerId: printerId.trim(),
     displayName: displayName.trim(),
@@ -172,7 +187,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
     try {
       setConfigurations(await loadPrinterConfigurations());
     } catch (cause) {
-      const message = cause instanceof Error ? cause.message : c.deploymentError;
+      const message = errorMessage(cause, c.deploymentError);
       setError(message.includes('Trusted browser') || message.includes('not enabled') ? c.deploymentError : message);
     } finally {
       setLoading(false);
@@ -203,7 +218,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
     try {
       setOutcome(await testPrinterConnection(payload));
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : c.unreachable);
+      setError(errorMessage(cause, c.unreachable));
     } finally {
       setTesting(false);
     }
@@ -227,7 +242,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       setAccessCode('');
       setApiKey('');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to save printer.');
+      setError(errorMessage(cause, c.saveError));
     } finally {
       setSaving(false);
     }
@@ -240,7 +255,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       setOutcome(await reconnectPrinter(id));
       onChanged();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : c.unreachable);
+      setError(errorMessage(cause, c.unreachable));
     } finally {
       setBusyPrinter(null);
     }
@@ -255,7 +270,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       await refresh();
       onChanged();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Unable to delete printer.');
+      setError(errorMessage(cause, c.deleteError));
     } finally {
       setBusyPrinter(null);
     }

@@ -60,16 +60,17 @@ export function OperatorAccess() {
         className="operator-access-toggle"
         type="button"
         aria-expanded={panelOpen}
+        aria-label={t('operatorAccess.token')}
         onClick={() => setPanelOpen((open) => !open)}
       >
         <span className={`status-dot ${unlocked ? 'good' : ''}`} aria-hidden="true" />
-        <span>{t('operatorAccess.token')}</span>
+        <span className="operator-access-toggle-label">{t('operatorAccess.token')}</span>
         <span className="operator-access-toggle-icon" aria-hidden="true">{panelOpen ? '×' : '⌃'}</span>
       </button>
 
       {unlocked ? (
         <div className="operator-access operator-access-unlocked" role="status">
-          <span>{t('operatorAccess.unlocked')}</span>
+          <span className="operator-access-unlocked-label">{t('operatorAccess.unlocked')}</span>
           <button className="text-button" type="button" onClick={lock}>{t('operatorAccess.lock')}</button>
         </div>
       ) : (

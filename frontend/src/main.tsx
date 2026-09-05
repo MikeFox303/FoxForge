@@ -5,7 +5,6 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { AppProviders } from './app/providers';
-import { OperatorAccess } from './features/security/OperatorAccess';
 import { FoxForgeApp } from './FoxForgeApp';
 import './jobControlTranslations';
 import './inventoryOperatorTranslations';
@@ -24,9 +23,6 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProviders>
       <FoxForgeApp />
-      <div className="operator-access-shell">
-        <OperatorAccess />
-      </div>
     </AppProviders>
   </StrictMode>,
 );

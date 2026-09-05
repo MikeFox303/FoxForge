@@ -17,7 +17,10 @@
   .nav-item > span:last-child { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
   .nav-icon { width: 30px; height: 30px; font-size: 9px; }
   .sidebar-footer { display: none; margin-top: 0; }
-  .topbar { min-height: 64px; padding: 11px 14px; gap: 10px; position: static; }
+  /* Keep the topbar non-sticky on phones, but preserve a positioned stacking
+     context so its Operator Access dropdown paints and receives pointer events
+     above the following route content. */
+  .topbar { min-height: 64px; padding: 11px 14px; gap: 10px; position: relative; z-index: 10; }
   .topbar h1 { font-size: 20px; }
   .topbar .eyebrow { font-size: 9px; }
   .topbar-actions { gap: 6px; flex-wrap: nowrap; justify-content: flex-end; }

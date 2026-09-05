@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 MikeFox303
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { demoModeEnabled } from '../../data/apiClient';
@@ -18,6 +19,17 @@ export function PrinterSetupLauncher() {
     void queryClient.invalidateQueries({ queryKey: ['fleet'] });
   };
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   if (demo) return null;
 
   return (
@@ -29,7 +41,10 @@ export function PrinterSetupLauncher() {
       >
         {t('alpha.shell.addPrinter')}
       </button>
-      <PrinterSetupDialog open={open} onClose={() => setOpen(false)} onChanged={changed} />
+      {open && createPortal(
+        <PrinterSetupDialog open onClose={() => setOpen(false)} onChanged={changed} />,
+        document.body,
+      )}
     </>
   );
 }

@@ -4,22 +4,25 @@
 .setup-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 90;
+  z-index: 200;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(2, 6, 23, 0.78);
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: rgba(2, 6, 23, 0.88);
   backdrop-filter: blur(10px);
 }
 
 .setup-dialog {
   width: min(1080px, 100%);
   max-height: min(880px, calc(100vh - 48px));
+  max-height: min(880px, calc(100dvh - 48px));
   overflow: auto;
   padding: 24px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-soft);
   border-radius: 22px;
-  background: var(--panel);
+  background: var(--surface);
   box-shadow: 0 28px 80px rgba(0, 0, 0, 0.45);
 }
 
@@ -64,7 +67,7 @@
 
 .setup-section {
   padding: 18px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-soft);
   border-radius: 18px;
   background: rgba(15, 23, 42, 0.45);
 }
@@ -78,7 +81,7 @@
 .configured-printer {
   align-items: flex-start;
   padding: 14px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-soft);
   border-radius: 14px;
   background: rgba(15, 23, 42, 0.65);
 }
@@ -101,7 +104,7 @@
 .setup-placeholder {
   margin-top: 12px;
   padding: 20px;
-  border: 1px dashed var(--line);
+  border: 1px dashed var(--border-soft);
   border-radius: 14px;
   color: var(--muted);
   text-align: center;
@@ -121,7 +124,7 @@
   min-height: 42px;
   box-sizing: border-box;
   padding: 0 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border);
   border-radius: 11px;
   background: rgba(2, 6, 23, 0.66);
   color: var(--text);
@@ -152,7 +155,7 @@
   margin-bottom: 16px;
   padding: 12px 14px;
   border-radius: 12px;
-  border: 1px solid var(--line);
+  border: 1px solid var(--border-soft);
 }
 
 .setup-message.error {
@@ -194,9 +197,11 @@
   .setup-dialog {
     width: 100%;
     max-height: 100vh;
+    max-height: 100dvh;
     min-height: 100vh;
+    min-height: 100dvh;
     border-radius: 0;
-    padding: 18px;
+    padding: max(18px, env(safe-area-inset-top)) 18px max(18px, env(safe-area-inset-bottom));
   }
 
   .setup-grid,
