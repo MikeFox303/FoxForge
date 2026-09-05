@@ -94,7 +94,7 @@ def test_disconnect_event_context_is_normalized_and_redacted() -> None:
     diagnostics.record_disconnect_error(
         "x2d-main",
         PrinterAdapterError(
-            code=PrinterErrorCode.UNAVAILABLE,
+            code=PrinterErrorCode.CONNECTION_UNAVAILABLE,
             message="raw transport detail that must stay private",
             retryable=True,
             vendor_code="raw-vendor-detail",
@@ -103,7 +103,7 @@ def test_disconnect_event_context_is_normalized_and_redacted() -> None:
 
     status = diagnostics.statuses()[0]
     assert status.consecutive_failures == 0
-    assert status.last_error_code == PrinterErrorCode.UNAVAILABLE
+    assert status.last_error_code == PrinterErrorCode.CONNECTION_UNAVAILABLE
     assert status.last_error_retryable is True
     assert status.last_failure_at is not None
     assert status.next_retry_at is None
