@@ -13,7 +13,8 @@ async function unlockWrites(page: Page): Promise<void> {
   await expect(access).toContainText(/writes unlocked for this tab/i);
 }
 
-test('inventory operator can create, correct, inspect history and archive through the production API', async ({ page }) => {
+test('inventory operator can create, correct, inspect history and archive through the production API', async ({ page }, testInfo) => {
+  const productName = `Operator spool ${testInfo.project.name} retry-${testInfo.retry}`;
   await page.goto('/inventory');
   await unlockWrites(page);
 
@@ -21,21 +22,21 @@ test('inventory operator can create, correct, inspect history and archive throug
   const create = page.getByRole('dialog', { name: /add spool/i });
   await create.getByLabel('Material').fill('PETG');
   await create.getByLabel('Manufacturer').fill('FoxForge E2E');
-  await create.getByLabel('Product').fill('Operator spool');
+  await create.getByLabel('Product').fill(productName);
   await create.getByLabel('Initial filament mass (g)').fill('1000.000');
   await create.getByLabel('Empty spool mass (g)').fill('180.50');
   await create.getByRole('button', { name: /^add spool$/i }).click();
 
-  const card = page.locator('.spool-card').filter({ hasText: 'Operator spool' });
+  const card = page.locator('.spool-card').filter({ hasText: productName });
   await expect(card).toBeVisible();
-  await expect(card).toContainText('1000 g');
+  await expect(card).toContainText('1 kg');
 
   await card.getByRole('button', { name: /correct mass/i }).click();
   const correction = page.getByRole('dialog', { name: /correct remaining mass/i });
   await correction.getByLabel('Remaining filament mass (g)').fill('735.5');
   await correction.getByLabel('Note').fill('browser scale correction');
   await correction.getByRole('button', { name: /^save$/i }).click();
-  await expect(card).toContainText('735.5 g');
+  await expect(card).toContainText('736 g');
 
   await card.getByRole('button', { name: /^history$/i }).click();
   const history = page.getByRole('dialog', { name: /spool history/i });
@@ -49,11 +50,14 @@ test('inventory operator can create, correct, inspect history and archive throug
   await expect(card).toBeHidden();
 
   await page.getByText('Show archived').click();
-  await expect(page.locator('.spool-card').filter({ hasText: 'Operator spool' })).toContainText('Archived');
+  await expect(page.locator('.spool-card').filter({ hasText: productName })).toContainText('Archived');
 });
 
-test('inventory assignment UI preserves the opaque physical slot identity', async ({ page }) => {
+test('inventory assignment UI preserves the opaque physical slot identity and can unassign it', async ({ page }) => {
   let assignmentBody: unknown = null;
+  let unassigned = false;
+  let assignment: { printerId: string; slotId: string; assignedAt: string } | null = null;
+
   await page.route('**/api/v1/fleet', async (route) => {
     await route.fulfill({
       status: 200,
@@ -94,14 +98,29 @@ test('inventory assignment UI preserves the opaque physical slot identity', asyn
           spoolId: '20fdc5cb-7af3-4c3d-8f50-a97ff26c02f5', materialFamily: 'PETG', manufacturer: 'SUNLU',
           productName: 'PETG', rgbaHex: '#FF6600', initialFilamentMassG: '1000', remainingFilamentMassG: '800',
           usedFilamentMassG: '200', usedFraction: '0.2', emptySpoolMassG: '180', purchaseDate: null, archived: false,
-          assignment: null,
+          assignment,
         }],
       }),
     });
   });
   await page.route('**/api/v1/inventory/spools/*/assignment', async (route) => {
-    assignmentBody = route.request().postDataJSON();
-    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+    if (route.request().method() === 'PUT') {
+      assignmentBody = route.request().postDataJSON();
+      assignment = {
+        printerId: 'x2d-main',
+        slotId: 'bambu:unit:0:tray:3',
+        assignedAt: '2026-09-05T00:00:00Z',
+      };
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    if (route.request().method() === 'DELETE') {
+      assignment = null;
+      unassigned = true;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      return;
+    }
+    await route.continue();
   });
 
   await page.goto('/inventory');
@@ -113,4 +132,10 @@ test('inventory assignment UI preserves the opaque physical slot identity', asyn
   await move.getByRole('button', { name: /^save$/i }).click();
 
   await expect.poll(() => assignmentBody).toEqual({ printerId: 'x2d-main', slotId: 'bambu:unit:0:tray:3' });
+  await expect(card.getByRole('button', { name: /^unassign$/i })).toBeVisible();
+
+  page.once('dialog', (dialog) => void dialog.accept());
+  await card.getByRole('button', { name: /^unassign$/i }).click();
+  await expect.poll(() => unassigned).toBe(true);
+  await expect(card.getByRole('button', { name: /^unassign$/i })).toBeHidden();
 });
