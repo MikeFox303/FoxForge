@@ -18,6 +18,7 @@ import {
   type PrinterSetupOutcome,
   type PrinterSetupPayload,
 } from '../../data/printerSetupClient';
+import { bambuModelGroups, isKnownBambuModel } from './bambuModels';
 import { normalizeBambuSerial, stableBambuPrinterId } from './printerSetupIdentity';
 
 type Props = {
@@ -48,6 +49,9 @@ const copy = {
     useCandidate: 'Use this printer',
     displayName: 'Display name',
     model: 'Model',
+    modelPlaceholder: 'Select a model…',
+    modelOther: 'Other / future model',
+    modelCustom: 'Model name',
     vendor: 'Vendor',
     serial: 'Serial number',
     host: 'Printer IP / hostname',
@@ -94,6 +98,9 @@ const copy = {
     useCandidate: 'Выбрать принтер',
     displayName: 'Название',
     model: 'Модель',
+    modelPlaceholder: 'Выберите модель…',
+    modelOther: 'Другая / будущая модель',
+    modelCustom: 'Название модели',
     vendor: 'Производитель',
     serial: 'Серийный номер',
     host: 'IP / имя хоста принтера',
@@ -140,6 +147,9 @@ const copy = {
     useCandidate: 'Вибрати принтер',
     displayName: 'Назва',
     model: 'Модель',
+    modelPlaceholder: 'Виберіть модель…',
+    modelOther: 'Інша / майбутня модель',
+    modelCustom: 'Назва моделі',
     vendor: 'Виробник',
     serial: 'Серійний номер',
     host: 'IP / ім’я хоста принтера',
@@ -183,6 +193,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [vendor, setVendor] = useState('');
   const [model, setModel] = useState('');
+  const [customBambuModel, setCustomBambuModel] = useState(false);
   const [serialNumber, setSerialNumber] = useState('');
   const [host, setHost] = useState('');
   const [accessCode, setAccessCode] = useState('');
@@ -262,7 +273,10 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
     setHost(candidate.host);
     if (candidate.serialNumber) setSerialNumber(candidate.serialNumber.toUpperCase());
     if (candidate.displayName) setDisplayName(candidate.displayName);
-    if (candidate.model) setModel(candidate.model);
+    if (candidate.model) {
+      setModel(candidate.model);
+      setCustomBambuModel(!isKnownBambuModel(candidate.model));
+    }
     setOutcome(null);
     setError(null);
   };
@@ -294,6 +308,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       setDisplayName('');
       setVendor('');
       setModel('');
+      setCustomBambuModel(false);
       setSerialNumber('');
       setHost('');
       setAccessCode('');
@@ -397,7 +412,33 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
                   ))}
                 </div>}
               </div>
-              <div className="setup-form-row"><label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="X2D" /></label></div>
+              <div className="setup-form-row">
+                <label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label>
+                <label>
+                  <span>{c.model}</span>
+                  <select
+                    value={customBambuModel ? '__custom__' : model}
+                    onChange={(event) => {
+                      if (event.target.value === '__custom__') {
+                        setCustomBambuModel(true);
+                        setModel('');
+                      } else {
+                        setCustomBambuModel(false);
+                        setModel(event.target.value);
+                      }
+                    }}
+                  >
+                    <option value="">{c.modelPlaceholder}</option>
+                    {bambuModelGroups.map((group) => (
+                      <optgroup key={group.series} label={group.series}>
+                        {group.models.map((bambuModel) => <option key={bambuModel} value={bambuModel}>{bambuModel}</option>)}
+                      </optgroup>
+                    ))}
+                    <option value="__custom__">{c.modelOther}</option>
+                  </select>
+                  {customBambuModel && <input value={model} onChange={(event) => setModel(event.target.value)} placeholder={c.modelCustom} />}
+                </label>
+              </div>
               <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value.toUpperCase())} required /><small>{c.bambuIdentityHint}</small></label>
               <div className="setup-form-row"><label><span>{c.host}</span><input value={host} onChange={(event) => setHost(event.target.value)} required placeholder="192.168.1.50" /></label><label><span>{c.accessCode}</span><input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} required type="password" autoComplete="off" /></label></div>
             </> : <>
