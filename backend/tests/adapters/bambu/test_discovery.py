@@ -99,11 +99,14 @@ def test_scan_does_not_describe_hosts_that_fail_port_gate() -> None:
             described.append(host)
             return None, None, None
 
-        assert await scan_bambu_subnet(
-            "10.20.30.0/30",
-            port_probe=probe,
-            describe_host=describe,
-        ) == ()
+        assert (
+            await scan_bambu_subnet(
+                "10.20.30.0/30",
+                port_probe=probe,
+                describe_host=describe,
+            )
+            == ()
+        )
         assert described == []
 
     asyncio.run(scenario())
