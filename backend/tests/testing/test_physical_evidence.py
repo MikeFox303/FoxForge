@@ -10,6 +10,9 @@ import pytest
 
 from foxforge.testing import physical_evidence
 
+_SOURCE_COMMIT = "a" * 40
+_PACKAGE_IDENTITY = "ghcr.io/mikefox303/foxforge@sha256:" + "b" * 64
+
 
 def _probe(kind: str, *, target: str = "redacted", ok: bool = True) -> dict[str, object]:
     base: dict[str, object] = {"kind": kind, "target": target, "ok": ok}
@@ -54,7 +57,14 @@ def _observation_group(names: tuple[str, ...], value: bool = True) -> dict[str, 
     return {name: value for name in names}
 
 
-def _write_manifest(path: Path, *, bambu_value: bool = True, moonraker_value: bool = True) -> None:
+def _write_manifest(
+    path: Path,
+    *,
+    bambu_value: bool = True,
+    moonraker_value: bool = True,
+    source_commit: str = _SOURCE_COMMIT,
+    package_identity: str = _PACKAGE_IDENTITY,
+) -> None:
     observations = {
         group: _observation_group(names) for group, names in physical_evidence._REQUIRED_OBSERVATIONS.items()
     }
@@ -66,8 +76,8 @@ def _write_manifest(path: Path, *, bambu_value: bool = True, moonraker_value: bo
         json.dumps(
             {
                 "schemaVersion": 1,
-                "sourceCommit": "a" * 40,
-                "packageIdentity": "ghcr.io/mikefox303/foxforge@sha256:" + "b" * 64,
+                "sourceCommit": source_commit,
+                "packageIdentity": package_identity,
                 "validationDate": "2026-09-05",
                 "probeFiles": ["probes.json"],
                 "observations": observations,
@@ -87,6 +97,57 @@ def test_complete_manifest_satisfies_all_gates(tmp_path: Path) -> None:
     assert result["aud003Ready"] is True
     assert result["aud013Ready"] is True
     assert result["p3PhysicalGateReady"] is True
+
+
+def test_expected_release_identity_match_passes(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+
+    result = physical_evidence.validate_manifest(
+        manifest,
+        expected_source_commit=_SOURCE_COMMIT,
+        expected_package_identity=_PACKAGE_IDENTITY,
+    )
+
+    assert result["sourceCommit"] == _SOURCE_COMMIT
+    assert result["packageIdentity"] == _PACKAGE_IDENTITY
+    assert result["p3PhysicalGateReady"] is True
+
+
+def test_expected_source_commit_mismatch_is_rejected(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+
+    with pytest.raises(ValueError, match="sourceCommit .* does not match expected"):
+        physical_evidence.validate_manifest(
+            manifest,
+            expected_source_commit="c" * 40,
+            expected_package_identity=_PACKAGE_IDENTITY,
+        )
+
+
+def test_expected_package_identity_mismatch_is_rejected(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+
+    with pytest.raises(ValueError, match="packageIdentity .* does not match expected"):
+        physical_evidence.validate_manifest(
+            manifest,
+            expected_source_commit=_SOURCE_COMMIT,
+            expected_package_identity="ghcr.io/mikefox303/foxforge@sha256:" + "c" * 64,
+        )
+
+
+def test_invalid_expected_source_commit_is_rejected(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest)
+
+    with pytest.raises(ValueError, match="expected source commit must be"):
+        physical_evidence.validate_manifest(manifest, expected_source_commit="main")
 
 
 def test_aud013_can_be_incomplete_without_hiding_other_evidence(tmp_path: Path) -> None:
