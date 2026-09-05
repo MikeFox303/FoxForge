@@ -12,13 +12,15 @@ The verifier is intentionally strict:
 
 - the manifest schema is closed; unknown top-level fields and unknown observation names are rejected;
 - every required observation must be present and boolean;
+- `probeFiles` entries must be unique, relative paths contained inside the evidence directory;
 - probe files must use schema version 1, contain at least one successful probe and declare `secretValuesIncluded: false`;
 - probe targets must remain `redacted` unless the verifier is explicitly run with `--allow-targets`;
 - the evidence is tied to an exact source commit, package/image identity and validation date;
 - callers can require an expected release commit and package identity; a mismatch is rejected before a gate can pass;
+- AUD-013 additionally requires at least two distinct successful Bambu TLS probe files whose MQTT fingerprints agree with each other and whose FTPS fingerprints agree with each other;
 - successful network probes alone are never enough to satisfy the full P3 physical gate.
 
-The generic example manifest is `docs/testing/evidence/physical-validation-manifest.example.json`. For the current release, prefer `docs/testing/evidence/alpha4.2-manifest.template.json`, which is prefilled with the exact non-secret Alpha 4.2 release identities but deliberately contains no successful physical observations.
+The generic example manifest is `docs/testing/evidence/physical-validation-manifest.example.json`. For the current release, prefer `docs/testing/evidence/alpha4.2-manifest.template.json`, which is prefilled with the exact non-secret Alpha 4.2 release identities and the expected before/after TLS evidence filenames but deliberately contains no successful physical observations.
 
 ## Current exact validation target
 
@@ -39,10 +41,10 @@ For repository evidence, keep `packageIdentity` machine-comparable: use the exac
 ## Workflow
 
 1. Install/update the exact `my3d-foxforge` `0.1.0-alpha.4.2` package identified above and verify the installed image still resolves to the recorded immutable digest.
-2. From the real FoxForge deployment network namespace, collect the prerequisite probes described in `physical-validation-runbook.md`.
+2. From the real FoxForge deployment network namespace, collect the prerequisite probes described in `physical-validation-runbook.md`, including one Bambu TLS sample before and one after a normal X2D restart.
 3. Copy `docs/testing/evidence/alpha4.2-manifest.template.json` next to the redacted probe JSON files.
-4. Keep the prefilled Alpha 4.2 `sourceCommit` and `packageIdentity` unchanged; replace `validationDate` and `probeFiles` as needed for the actual run.
-5. Change an observation to `true` only after that behavior has actually been observed on the real device/deployment.
+4. Keep the prefilled Alpha 4.2 `sourceCommit` and `packageIdentity` unchanged; replace `validationDate` and probe filenames only when the actual evidence uses different safe local names.
+5. Change an observation to `true` only after that behavior has actually been observed on the real device/deployment. In particular, set `fingerprintsStableAcrossRestart=true` only after the second TLS probe was taken after a real normal X2D restart.
 6. Run the verifier with the expected Alpha 4.2 identities before committing evidence.
 
 ```bash
@@ -54,6 +56,8 @@ python -m foxforge.testing.physical_evidence \
   --expected-source-commit "$SOURCE_COMMIT" \
   --expected-package-identity "$PACKAGE_IDENTITY"
 ```
+
+A successful validation result now reports `bambuTlsSampleFiles` and `bambuTlsStableAcrossSamples`. For AUD-013, `bambuTlsStableAcrossSamples` must be `true`; manually setting `fingerprintsStableAcrossRestart=true` cannot override missing or mismatched certificate evidence.
 
 To require a particular audit gate, keep the same expected-identity arguments:
 
@@ -98,9 +102,18 @@ This remains package-specific. Source-only Docker success, Store CI, QEMU `arm64
 
 ## AUD-013 evidence
 
-`AUD-013 ready` requires a successful real Bambu TLS probe plus operator evidence that:
+`AUD-013 ready` requires both machine-checked TLS evidence and operator-observed pin behavior.
 
-- MQTT and FTPS fingerprints are stable across a normal X2D restart;
+The machine-checked part requires:
+
+- at least two distinct referenced probe files containing successful `bambu_tls` samples;
+- the MQTT SHA-256 fingerprint to remain identical across all referenced TLS samples;
+- the FTPS SHA-256 fingerprint to remain identical across all referenced TLS samples.
+
+For the canonical sequence, the first sample is collected before a normal X2D restart and the second sample after that restart. The verifier can prove the certificate values match, but it cannot prove that the printer was actually restarted between files; `fingerprintsStableAcrossRestart=true` remains the operator attestation for that real-world sequence. If the samples disagree, `aud013Ready` remains false even when that observation is manually set true.
+
+Operator evidence must additionally show that:
+
 - the observed correct pins allow their corresponding services to work;
 - an intentionally wrong MQTT pin fails closed;
 - an intentionally wrong FTPS pin fails closed;
@@ -114,7 +127,7 @@ A firmware-update observation is strongly preferred before changing the default 
 
 The gate covers the minimum behaviors already required by the P3 frozen-state document: connect/reconnect, state synchronization, upload/start, common controls, completion/failure and ambiguous-outcome handling.
 
-For the canonical Alpha 4.2 resume decision, a `p3PhysicalGateReady=true` result is acceptable only when the verifier was also invoked with the exact Alpha 4.2 `--expected-source-commit` and `--expected-package-identity` values above.
+For the canonical Alpha 4.2 resume decision, a `p3PhysicalGateReady=true` result is acceptable only when the verifier was also invoked with the exact Alpha 4.2 `--expected-source-commit` and `--expected-package-identity` values above. Because P3 includes AUD-013, two stable Bambu TLS evidence files are also mandatory.
 
 ## Evidence hygiene
 
