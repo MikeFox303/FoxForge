@@ -56,32 +56,38 @@ At the freeze point:
 - no physical X2D/OpenKE/Raspberry Pi validation exists for P3;
 - P3 has not been rebased/merged onto the audit-remediation work.
 
-## Audit blockers that must be resolved before P3 resumes
+## Audit blockers and prerequisite progress
 
-The independent audit changes the development sequence. P3 resumes only after the stabilization gate is completed sufficiently to make automatic accounting safe to merge.
+The independent audit changed the development sequence. P3 resumes only after the stabilization gate is completed sufficiently to make automatic accounting safe to merge.
 
-Hard blockers include:
+The software blockers identified at freeze have now been addressed in current `main`/stabilization work:
 
-- **AUD-001 / AUD-002:** release publication integrity;
-- **AUD-003 / AUD-004 / AUD-007:** browser/deployment authentication boundary and matching ADR;
-- **AUD-005 / AUD-018:** duplicate launcher/UI regression coverage;
-- **AUD-006:** reproducible dependency graphs;
-- **AUD-008:** persistent configuration/database migration foundation;
-- **AUD-010:** atomic/revisioned inventory mutation contract required for concurrent automatic accounting.
+- **AUD-001 / AUD-002:** release publication integrity — resolved;
+- **AUD-004 / AUD-007:** browser/deployment trust boundary and matching ADR — resolved;
+- **AUD-005 / AUD-018:** duplicate launcher/UI browser regression coverage — resolved;
+- **AUD-006:** reproducible dependency graphs — resolved;
+- **AUD-008:** persistent configuration/database migration foundation — resolved;
+- **AUD-010:** atomic inventory mutation contract and concurrency coverage — resolved;
+- normal inventory operator workflow — implemented with create/correct/empty-spool-mass/move/assign/unassign/archive/history UI and production-browser acceptance.
 
-The audit also requires representative physical/deployment validation and a usable inventory operator workflow before automatic accounting is treated as the active roadmap priority.
+The remaining audit-specific validation blockers are:
+
+- **AUD-003:** representative future Umbrel/package write/read-only validation;
+- **AUD-013:** physical X2D MQTT/FTPS certificate observations before any Bambu trust-default change.
+
+Broader P3 readiness still requires representative X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel lifecycle validation. Software completion does not substitute for those physical/deployment observations.
 
 ## Resume criteria
 
 P3 may return to active implementation only when all of the following are true:
 
-- applicable stabilization findings are marked resolved with repository evidence;
-- inventory mutations use an atomic/CAS/revisioned persistence contract and concurrency tests pass;
+- applicable stabilization findings are marked resolved with repository evidence, or their remaining validation requirements are completed and recorded;
+- inventory mutations use the stabilized atomic persistence contract and concurrency tests remain green;
 - migration/version ownership exists for persistent SQLite/config state used by P3;
-- the normal UI can create/correct/move/assign/unassign/archive and inspect spool state needed for reconciliation;
+- the normal UI supports the spool operations needed for planning and reconciliation — **satisfied by the inventory operator workflow merged from PR #91 once that merge reaches `main`**;
 - representative X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel validation has been recorded where required;
 - PR #58 is synchronized with the then-current `main` without discarding remediation changes;
-- Ruff, Python 3.12/3.13 tests, frontend typecheck/Vitest/build and unified-container smoke are green on the exact final P3 head;
+- Ruff, Python 3.12/3.13 tests, measured coverage floor, frontend typecheck/Vitest/build, production-container browser acceptance, unified-container smoke and security gates are green on the exact final P3 head;
 - P3 design, project status and changelog documentation are synchronized before merge.
 
 Until these conditions are satisfied, PR #58 is an implementation archive and reviewable draft, not a release candidate.
