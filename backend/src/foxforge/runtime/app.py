@@ -28,7 +28,7 @@ from foxforge.application.events import ApplicationEventJournal
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
-from foxforge.domain.printers import PrinterAdapterError
+from foxforge.domain.printers import PrinterAdapterError, PrinterEventKind
 from foxforge.infrastructure.artifacts import FilesystemArtifactStore
 from foxforge.infrastructure.commands import SQLiteCommandAuditStore, SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
@@ -219,7 +219,12 @@ async def _start_runtime(app: web.Application, reconnect_seconds: float) -> None
     await runtime.queue.start()
     event_relay_ready = asyncio.Event()
     app[_EVENT_RELAY_KEY] = asyncio.create_task(
-        _relay_application_events(runtime.fleet, runtime.events, event_relay_ready),
+        _relay_application_events(
+            runtime.fleet,
+            runtime.events,
+            event_relay_ready,
+            runtime.reconnect_diagnostics,
+        ),
         name="foxforge-application-event-relay",
     )
     await event_relay_ready.wait()
@@ -254,12 +259,15 @@ async def _relay_application_events(
     fleet: FleetService,
     journal: ApplicationEventJournal,
     ready: asyncio.Event,
+    reconnect_diagnostics: ReconnectDiagnostics,
 ) -> None:
     stream = fleet.events()
     ready.set()
     try:
         async for event in stream:
             journal.publish_printer_event(event)
+            if event.kind == PrinterEventKind.SNAPSHOT_RECONCILED and isinstance(event.payload, PrinterAdapterError):
+                reconnect_diagnostics.record_disconnect_error(event.printer_id, event.payload)
     except asyncio.CancelledError:
         raise
     finally:
