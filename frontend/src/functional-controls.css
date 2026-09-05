@@ -19,29 +19,41 @@
 }
 
 @media (max-width: 620px) {
+  /* Keep the phone shell deterministic: one short brand row plus one short
+     seven-item navigation row. This avoids route-dependent intrinsic growth
+     from long active-navigation labels while preserving all destinations. */
   .sidebar {
     display: grid;
-    grid-template-columns: max-content minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 34px 38px;
     align-items: center;
+    min-width: 0;
     min-height: 0;
     height: auto;
-    gap: 8px;
-    padding: 9px 10px;
+    gap: 6px;
+    padding: 8px 10px;
   }
 
   .brand {
     min-width: 0;
+    height: 34px;
     padding: 0;
     gap: 7px;
+    overflow: hidden;
   }
 
   .brand-mark {
     width: 32px;
     height: 32px;
+    flex: 0 0 32px;
   }
 
   .brand-name {
     font-size: 14px;
+  }
+
+  .brand-subtitle {
+    display: none;
   }
 
   .sidebar-nav {
@@ -49,20 +61,28 @@
     grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 3px;
     min-width: 0;
-    overflow: visible;
-    padding-bottom: 0;
+    width: 100%;
+    height: 38px;
+    overflow: hidden;
+    padding: 0;
   }
 
   .nav-item {
     min-width: 0;
     width: 100%;
-    padding: 5px 2px;
+    height: 38px;
+    min-height: 0;
+    justify-content: center;
+    gap: 0;
+    padding: 4px 2px;
+    overflow: hidden;
   }
 
   .nav-icon {
     width: 28px;
     height: 28px;
     font-size: 8px;
+    flex: 0 0 28px;
   }
 
   .printer-setup-launcher {
@@ -81,5 +101,6 @@
   .nav-icon {
     width: 26px;
     height: 26px;
+    flex-basis: 26px;
   }
 }
