@@ -15,6 +15,7 @@ import {
   printerTone,
 } from '../../viewModel';
 import { JobControlActions } from './JobControlActions';
+import { ReconnectDiagnosticsPanel } from './ReconnectDiagnosticsPanel';
 import {
   materialSlots,
   printerByRouteId,
@@ -226,6 +227,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
               <div key={capability.capabilityId}><span>{capability.label}</span><strong>{capability.capabilityId} · v{capability.majorVersion}</strong></div>
             )) : <div><span>{t('printerDetail.diagnostics.capabilities')}</span><strong>{t('printerDetail.diagnostics.noneAdvertised')}</strong></div>}
           </section>
+          <ReconnectDiagnosticsPanel printerId={printer.identity.printerId} />
         </div>
       )}
     </div>
