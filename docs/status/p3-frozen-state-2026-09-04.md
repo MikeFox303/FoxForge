@@ -1,12 +1,12 @@
 # P3 automatic filament accounting — frozen implementation state
 
 **Recorded:** 2026-09-04  
-**Status:** FROZEN / DRAFT — do not merge before audit stabilization gate  
+**Status:** FROZEN / DRAFT — do not merge before audit stabilization/physical validation gate  
 **Working PR:** #58 (`feature/p3-filament-accounting`)  
 **Canonical production branch:** `main`  
-**Reason for freeze:** independent audit remediation takes precedence over roadmap feature progression.
+**Reason for freeze:** independent audit remediation and representative physical/deployment validation take precedence over roadmap feature progression.
 
-This document records the current P3 implementation so work is not lost while FoxForge addresses the findings in `docs/audits/2026-09-04-independent-project-audit.md`.
+This document records the frozen P3 implementation so work is not lost while FoxForge addresses the findings in `docs/audits/2026-09-04-independent-project-audit.md`. The implementation snapshot remains historical; the prerequisite-progress section below is updated when durable blockers are actually cleared.
 
 ## What is already implemented in the P3 draft
 
@@ -54,13 +54,13 @@ At the freeze point:
 - exact final-head CI has therefore **not** been proven green;
 - P3 documentation and release-status synchronization were not complete;
 - no physical X2D/OpenKE/Raspberry Pi validation exists for P3;
-- P3 has not been rebased/merged onto the audit-remediation work.
+- P3 has not been synchronized with the audit-remediation/release work now present on `main`.
 
 ## Audit blockers and prerequisite progress
 
-The independent audit changed the development sequence. P3 resumes only after the stabilization gate is completed sufficiently to make automatic accounting safe to merge.
+The independent audit changed the development sequence. P3 resumes only after the stabilization and physical/deployment gate is completed sufficiently to make automatic accounting safe to merge.
 
-The software blockers identified at freeze have now been addressed in current `main`:
+The software blockers identified at freeze have now been addressed in current `main` and `v0.1.0-alpha.4`:
 
 - **AUD-001 / AUD-002:** release publication integrity — resolved;
 - **AUD-004 / AUD-007:** browser/deployment trust boundary and matching ADR — resolved;
@@ -68,14 +68,16 @@ The software blockers identified at freeze have now been addressed in current `m
 - **AUD-006:** reproducible dependency graphs — resolved;
 - **AUD-008:** persistent configuration/database migration foundation — resolved;
 - **AUD-010:** atomic inventory mutation contract and concurrency coverage — resolved;
-- normal inventory operator workflow — completed by PR #91 and merged as `58eb7ae156208bfc78ef6d763ae5327a0d3c8f7e`, with create/correct/empty-spool-mass/move/assign/unassign/archive/history UI and production-browser acceptance.
+- normal inventory operator workflow — completed by PR #91 and released in `v0.1.0-alpha.4`, with create/correct/empty-spool-mass/move/assign/unassign/archive/history UI and production-browser acceptance;
+- common Pause/Resume/Cancel P1 capability and P2 realtime application events — implemented and released in `v0.1.0-alpha.4`;
+- matching Umbrel package software contract — Store PR #26 merged as `de430fe63d79843b0a646851e8f03b05e37f624d`, pinning the exact `alpha.4` digest and mapping Umbrel `APP_PASSWORD` to `FOXFORGE_COMMAND_TOKEN`; package/Compose and anonymous `amd64`/`arm64` runtime gates passed before merge.
 
-The remaining audit-specific validation blockers are:
+The remaining validation blockers are:
 
-- **AUD-003:** representative future Umbrel/package write/read-only validation;
+- **AUD-003:** real representative Raspberry Pi 5/Umbrel install/restart/persistence, actual proxy write path, direct-backend fail-closed behavior, deployment-network printer reachability, upgrade and SSE reconnect/resync evidence for the published `alpha.4` package;
 - **AUD-013:** physical X2D MQTT/FTPS certificate observations before any Bambu trust-default change.
 
-Broader P3 readiness still requires representative X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel lifecycle validation. Software completion does not substitute for those physical/deployment observations.
+Broader P3 readiness still requires representative X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel lifecycle validation. Software completion, package CI and QEMU do not substitute for those physical/deployment observations.
 
 ## Resume criteria
 
@@ -84,8 +86,9 @@ P3 may return to active implementation only when all of the following are true:
 - applicable stabilization findings are marked resolved with repository evidence, or their remaining validation requirements are completed and recorded;
 - inventory mutations use the stabilized atomic persistence contract and concurrency tests remain green;
 - migration/version ownership exists for persistent SQLite/config state used by P3;
-- the normal UI supports the spool operations needed for planning and reconciliation — **satisfied in current `main` by PR #91**;
-- representative X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel validation has been recorded where required;
+- the normal UI supports the spool operations needed for planning and reconciliation — **satisfied by PR #91 and included in `v0.1.0-alpha.4`**;
+- representative X2D, Moonraker/OpenKE and the published `alpha.4` package on Raspberry Pi/Umbrel have been validated and recorded where required;
+- the repository physical-evidence verifier passes the required AUD-003/AUD-013/P3 subsets;
 - PR #58 is synchronized with the then-current `main` without discarding remediation changes;
 - Ruff, Python 3.12/3.13 tests, measured coverage floor, frontend typecheck/Vitest/build, production-container browser acceptance, unified-container smoke and security gates are green on the exact final P3 head;
 - P3 design, project status and changelog documentation are synchronized before merge.
