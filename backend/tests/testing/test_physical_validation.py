@@ -3,6 +3,9 @@
 
 from __future__ import annotations
 
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
 from foxforge.testing import physical_validation
 
 
@@ -16,6 +19,47 @@ def test_certificate_fingerprint_sha256_is_stable() -> None:
 def test_targets_are_redacted_by_default() -> None:
     assert physical_validation._display_target("192.0.2.42", include_targets=False) == "redacted"
     assert physical_validation._display_target("192.0.2.42", include_targets=True) == "192.0.2.42"
+
+
+def test_http_json_refuses_redirects_before_forwarding_credentials() -> None:
+    class RedirectHandler(BaseHTTPRequestHandler):
+        start_authorization: str | None = None
+        redirected_requests = 0
+
+        def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler contract
+            if self.path == "/start":
+                type(self).start_authorization = self.headers.get("Authorization")
+                self.send_response(302)
+                self.send_header("Location", f"http://127.0.0.1:{self.server.server_port}/redirected")
+                self.end_headers()
+                return
+
+            type(self).redirected_requests += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"status":"redirected"}')
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), RedirectHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, payload = physical_validation._http_json(
+            f"http://127.0.0.1:{server.server_port}/start",
+            headers={"Authorization": "Bearer validation-secret"},
+        )
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+
+    assert status == 302
+    assert payload is None
+    assert RedirectHandler.start_authorization == "Bearer validation-secret"
+    assert RedirectHandler.redirected_requests == 0
 
 
 def test_foxforge_probe_never_returns_command_token(monkeypatch) -> None:
