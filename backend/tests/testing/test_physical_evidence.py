@@ -14,7 +14,14 @@ _SOURCE_COMMIT = "a" * 40
 _PACKAGE_IDENTITY = "ghcr.io/mikefox303/foxforge@sha256:" + "b" * 64
 
 
-def _probe(kind: str, *, target: str = "redacted", ok: bool = True) -> dict[str, object]:
+def _probe(
+    kind: str,
+    *,
+    target: str = "redacted",
+    ok: bool = True,
+    mqtt_fingerprint: str = "a" * 64,
+    ftps_fingerprint: str = "b" * 64,
+) -> dict[str, object]:
     base: dict[str, object] = {"kind": kind, "target": target, "ok": ok}
     if kind == "foxforge":
         base.update(
@@ -29,9 +36,9 @@ def _probe(kind: str, *, target: str = "redacted", ok: bool = True) -> dict[str,
     elif kind == "bambu_tls":
         base.update(
             {
-                "mqttCertificateSha256": "a" * 64,
-                "ftpsCertificateSha256": "b" * 64,
-                "sameCertificate": False,
+                "mqttCertificateSha256": mqtt_fingerprint,
+                "ftpsCertificateSha256": ftps_fingerprint,
+                "sameCertificate": mqtt_fingerprint == ftps_fingerprint,
             }
         )
     elif kind == "moonraker":
@@ -39,14 +46,30 @@ def _probe(kind: str, *, target: str = "redacted", ok: bool = True) -> dict[str,
     return base
 
 
-def _write_probe(path: Path, *kinds: str, target: str = "redacted", ok: bool = True) -> None:
+def _write_probe(
+    path: Path,
+    *kinds: str,
+    target: str = "redacted",
+    ok: bool = True,
+    mqtt_fingerprint: str = "a" * 64,
+    ftps_fingerprint: str = "b" * 64,
+) -> None:
     path.write_text(
         json.dumps(
             {
                 "schemaVersion": 1,
                 "generatedAt": "2026-09-05T00:00:00Z",
                 "secretValuesIncluded": False,
-                "probes": [_probe(kind, target=target, ok=ok) for kind in kinds],
+                "probes": [
+                    _probe(
+                        kind,
+                        target=target,
+                        ok=ok,
+                        mqtt_fingerprint=mqtt_fingerprint,
+                        ftps_fingerprint=ftps_fingerprint,
+                    )
+                    for kind in kinds
+                ],
             }
         ),
         encoding="utf-8",
@@ -64,6 +87,7 @@ def _write_manifest(
     moonraker_value: bool = True,
     source_commit: str = _SOURCE_COMMIT,
     package_identity: str = _PACKAGE_IDENTITY,
+    probe_files: tuple[str, ...] = ("probes.json",),
 ) -> None:
     observations = {
         group: _observation_group(names) for group, names in physical_evidence._REQUIRED_OBSERVATIONS.items()
@@ -79,7 +103,7 @@ def _write_manifest(
                 "sourceCommit": source_commit,
                 "packageIdentity": package_identity,
                 "validationDate": "2026-09-05",
-                "probeFiles": ["probes.json"],
+                "probeFiles": list(probe_files),
                 "observations": observations,
             }
         ),
@@ -87,22 +111,32 @@ def _write_manifest(
     )
 
 
+def _write_stable_tls_pair(tmp_path: Path) -> tuple[str, str]:
+    first = "probes.json"
+    second = "x2d-after-restart.json"
+    _write_probe(tmp_path / first, "foxforge", "bambu_tls", "moonraker")
+    _write_probe(tmp_path / second, "bambu_tls")
+    return first, second
+
+
 def test_complete_manifest_satisfies_all_gates(tmp_path: Path) -> None:
-    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    probe_files = _write_stable_tls_pair(tmp_path)
     manifest = tmp_path / "manifest.json"
-    _write_manifest(manifest)
+    _write_manifest(manifest, probe_files=probe_files)
 
     result = physical_evidence.validate_manifest(manifest)
 
+    assert result["bambuTlsSampleFiles"] == 2
+    assert result["bambuTlsStableAcrossSamples"] is True
     assert result["aud003Ready"] is True
     assert result["aud013Ready"] is True
     assert result["p3PhysicalGateReady"] is True
 
 
 def test_expected_release_identity_match_passes(tmp_path: Path) -> None:
-    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    probe_files = _write_stable_tls_pair(tmp_path)
     manifest = tmp_path / "manifest.json"
-    _write_manifest(manifest)
+    _write_manifest(manifest, probe_files=probe_files)
 
     result = physical_evidence.validate_manifest(
         manifest,
@@ -150,28 +184,66 @@ def test_invalid_expected_source_commit_is_rejected(tmp_path: Path) -> None:
         physical_evidence.validate_manifest(manifest, expected_source_commit="main")
 
 
-def test_aud013_can_be_incomplete_without_hiding_other_evidence(tmp_path: Path) -> None:
+def test_aud013_requires_two_tls_probe_files(tmp_path: Path) -> None:
     _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
     manifest = tmp_path / "manifest.json"
-    _write_manifest(manifest, bambu_value=False)
+    _write_manifest(manifest)
 
     result = physical_evidence.validate_manifest(manifest)
 
+    assert result["bambuTlsSampleFiles"] == 1
+    assert result["bambuTlsStableAcrossSamples"] is False
+    assert result["aud003Ready"] is True
+    assert result["aud013Ready"] is False
+    assert result["p3PhysicalGateReady"] is False
+
+
+def test_aud013_rejects_mismatched_tls_fingerprints_across_samples(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    _write_probe(tmp_path / "x2d-after-restart.json", "bambu_tls", mqtt_fingerprint="c" * 64)
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest, probe_files=("probes.json", "x2d-after-restart.json"))
+
+    result = physical_evidence.validate_manifest(manifest)
+
+    assert result["bambuTlsSampleFiles"] == 2
+    assert result["bambuTlsStableAcrossSamples"] is False
+    assert result["aud013Ready"] is False
+    assert result["p3PhysicalGateReady"] is False
+
+
+def test_aud013_can_be_incomplete_without_hiding_other_evidence(tmp_path: Path) -> None:
+    probe_files = _write_stable_tls_pair(tmp_path)
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest, bambu_value=False, probe_files=probe_files)
+
+    result = physical_evidence.validate_manifest(manifest)
+
+    assert result["bambuTlsStableAcrossSamples"] is True
     assert result["aud003Ready"] is True
     assert result["aud013Ready"] is False
     assert result["p3PhysicalGateReady"] is False
 
 
 def test_p3_gate_requires_moonraker_operator_observations(tmp_path: Path) -> None:
-    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    probe_files = _write_stable_tls_pair(tmp_path)
     manifest = tmp_path / "manifest.json"
-    _write_manifest(manifest, moonraker_value=False)
+    _write_manifest(manifest, moonraker_value=False, probe_files=probe_files)
 
     result = physical_evidence.validate_manifest(manifest)
 
     assert result["aud003Ready"] is True
     assert result["aud013Ready"] is True
     assert result["p3PhysicalGateReady"] is False
+
+
+def test_probe_files_must_be_unique(tmp_path: Path) -> None:
+    _write_probe(tmp_path / "probes.json", "foxforge", "bambu_tls", "moonraker")
+    manifest = tmp_path / "manifest.json"
+    _write_manifest(manifest, probe_files=("probes.json", "probes.json"))
+
+    with pytest.raises(ValueError, match="probeFiles entries must be unique"):
+        physical_evidence.validate_manifest(manifest)
 
 
 def test_probe_targets_must_be_redacted_by_default(tmp_path: Path) -> None:

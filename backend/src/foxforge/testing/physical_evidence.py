@@ -110,7 +110,11 @@ def _validate_probe_entry(probe: dict[str, object], *, path: Path) -> str:
     return kind
 
 
-def _validate_probe(path: Path, *, allow_targets: bool) -> tuple[dict[str, Any], set[str]]:
+def _validate_probe(
+    path: Path,
+    *,
+    allow_targets: bool,
+) -> tuple[dict[str, Any], set[str], list[tuple[str, str]]]:
     raw = _load_json(path)
     if not isinstance(raw, dict) or raw.get("schemaVersion") != 1:
         raise ValueError(f"{path}: unsupported physical-validation report")
@@ -120,13 +124,21 @@ def _validate_probe(path: Path, *, allow_targets: bool) -> tuple[dict[str, Any],
     if not isinstance(probes, list) or not probes:
         raise ValueError(f"{path}: report has no probes")
     kinds: set[str] = set()
+    bambu_tls_samples: list[tuple[str, str]] = []
     for probe in probes:
         if not isinstance(probe, dict):
             raise ValueError(f"{path}: invalid probe entry")
         if not allow_targets and probe.get("target") != "redacted":
             raise ValueError(f"{path}: target must remain redacted")
-        kinds.add(_validate_probe_entry(probe, path=path))
-    return raw, kinds
+        kind = _validate_probe_entry(probe, path=path)
+        kinds.add(kind)
+        if kind == "bambu_tls":
+            mqtt_fingerprint = probe.get("mqttCertificateSha256")
+            ftps_fingerprint = probe.get("ftpsCertificateSha256")
+            assert isinstance(mqtt_fingerprint, str)
+            assert isinstance(ftps_fingerprint, str)
+            bambu_tls_samples.append((mqtt_fingerprint, ftps_fingerprint))
+    return raw, kinds, bambu_tls_samples
 
 
 def validate_manifest(
@@ -176,10 +188,25 @@ def validate_manifest(
     probe_files = raw.get("probeFiles")
     if not isinstance(probe_files, list) or not probe_files or not all(isinstance(item, str) for item in probe_files):
         raise ValueError("probeFiles must be a non-empty string array")
+    if len(set(probe_files)) != len(probe_files):
+        raise ValueError("probeFiles entries must be unique")
+
     probe_kinds: set[str] = set()
+    bambu_tls_samples: list[tuple[str, str]] = []
+    bambu_tls_sample_files = 0
     for item in probe_files:
-        _, kinds = _validate_probe(_resolve_probe_path(path, item), allow_targets=allow_targets)
+        _, kinds, tls_samples = _validate_probe(_resolve_probe_path(path, item), allow_targets=allow_targets)
         probe_kinds.update(kinds)
+        if tls_samples:
+            bambu_tls_sample_files += 1
+            bambu_tls_samples.extend(tls_samples)
+
+    bambu_tls_stable_across_samples = (
+        bambu_tls_sample_files >= 2
+        and len(bambu_tls_samples) >= 2
+        and len({mqtt for mqtt, _ in bambu_tls_samples}) == 1
+        and len({ftps for _, ftps in bambu_tls_samples}) == 1
+    )
 
     observations_raw = raw.get("observations")
     if not isinstance(observations_raw, dict):
@@ -205,6 +232,7 @@ def validate_manifest(
             )
         )
         and "bambu_tls" in probe_kinds
+        and bambu_tls_stable_across_samples
     )
     p3_ready = (
         aud003_ready
@@ -219,6 +247,8 @@ def validate_manifest(
         "packageIdentity": package_identity,
         "validationDate": validation_date,
         "probeKinds": sorted(probe_kinds),
+        "bambuTlsSampleFiles": bambu_tls_sample_files,
+        "bambuTlsStableAcrossSamples": bambu_tls_stable_across_samples,
         "aud003Ready": aud003_ready,
         "aud013Ready": aud013_ready,
         "p3PhysicalGateReady": p3_ready,
