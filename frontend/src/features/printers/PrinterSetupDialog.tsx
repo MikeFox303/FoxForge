@@ -16,6 +16,7 @@ import {
   type PrinterSetupOutcome,
   type PrinterSetupPayload,
 } from '../../data/printerSetupClient';
+import { normalizeBambuSerial, stableBambuPrinterId } from './printerSetupIdentity';
 
 type Props = {
   open: boolean;
@@ -34,7 +35,8 @@ const copy = {
     bambu: 'Bambu Lab (LAN mode)',
     moonraker: 'Klipper / Moonraker',
     printerId: 'Printer ID',
-    printerIdHint: 'Stable local ID, for example x2d-main or ender-ke.',
+    printerIdHint: 'Stable local ID, for example ender-ke.',
+    bambuIdentityHint: 'FoxForge creates the stable local ID automatically from the Bambu serial number.',
     displayName: 'Display name',
     model: 'Model',
     vendor: 'Vendor',
@@ -57,8 +59,8 @@ const copy = {
     refresh: 'Refresh',
     configuredSecret: 'credential saved',
     removeConfirm: 'Delete this printer from FoxForge? The physical printer is not modified.',
-    deploymentError: 'Printer management is not enabled for this deployment. On Umbrel, update to a FoxForge package with trusted App Proxy sessions enabled.',
-    writesLocked: 'FoxForge write controls are locked. Open Operator access and enter the operator token.',
+    deploymentError: 'Printer management is not enabled for this deployment. On Umbrel, update to a write-enabled FoxForge package and use the FoxForge app password in Operator access.',
+    writesLocked: 'FoxForge write controls are locked. Open Operator access; on Umbrel use the FoxForge app password.',
     saveError: 'Unable to save printer.',
     deleteError: 'Unable to delete printer.',
   },
@@ -72,7 +74,8 @@ const copy = {
     bambu: 'Bambu Lab (LAN mode)',
     moonraker: 'Klipper / Moonraker',
     printerId: 'ID принтера',
-    printerIdHint: 'Постоянный локальный ID, например x2d-main или ender-ke.',
+    printerIdHint: 'Постоянный локальный ID, например ender-ke.',
+    bambuIdentityHint: 'FoxForge автоматически создаёт постоянный локальный ID из серийного номера Bambu.',
     displayName: 'Название',
     model: 'Модель',
     vendor: 'Производитель',
@@ -95,8 +98,8 @@ const copy = {
     refresh: 'Обновить',
     configuredSecret: 'учётные данные сохранены',
     removeConfirm: 'Удалить этот принтер из FoxForge? Настройки физического принтера не изменятся.',
-    deploymentError: 'Управление принтерами не включено в этой установке. Для Umbrel обновите FoxForge до пакета с trusted App Proxy sessions.',
-    writesLocked: 'Управление FoxForge заблокировано. Откройте «Токен оператора» и введите токен оператора.',
+    deploymentError: 'Управление принтерами не включено в этой установке. В Umbrel обновите FoxForge до пакета с поддержкой записи и используйте пароль приложения FoxForge в разделе «Токен оператора».',
+    writesLocked: 'Управление FoxForge заблокировано. Откройте «Токен оператора»; в Umbrel используйте пароль приложения FoxForge.',
     saveError: 'Не удалось сохранить принтер.',
     deleteError: 'Не удалось удалить принтер.',
   },
@@ -110,7 +113,8 @@ const copy = {
     bambu: 'Bambu Lab (LAN mode)',
     moonraker: 'Klipper / Moonraker',
     printerId: 'ID принтера',
-    printerIdHint: 'Стабільний локальний ID, наприклад x2d-main або ender-ke.',
+    printerIdHint: 'Стабільний локальний ID, наприклад ender-ke.',
+    bambuIdentityHint: 'FoxForge автоматично створює стабільний локальний ID із серійного номера Bambu.',
     displayName: 'Назва',
     model: 'Модель',
     vendor: 'Виробник',
@@ -133,8 +137,8 @@ const copy = {
     refresh: 'Оновити',
     configuredSecret: 'облікові дані збережені',
     removeConfirm: 'Видалити цей принтер із FoxForge? Налаштування фізичного принтера не зміняться.',
-    deploymentError: 'Керування принтерами не ввімкнене в цій інсталяції. Для Umbrel оновіть FoxForge до пакета з trusted App Proxy sessions.',
-    writesLocked: 'Керування FoxForge заблоковано. Відкрийте «Токен оператора» та введіть токен оператора.',
+    deploymentError: 'Керування принтерами не ввімкнене в цій інсталяції. В Umbrel оновіть FoxForge до пакета з підтримкою запису та використовуйте пароль застосунку FoxForge у розділі «Токен оператора».',
+    writesLocked: 'Керування FoxForge заблоковано. Відкрийте «Токен оператора»; в Umbrel використовуйте пароль застосунку FoxForge.',
     saveError: 'Не вдалося зберегти принтер.',
     deleteError: 'Не вдалося видалити принтер.',
   },
@@ -169,17 +173,18 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
     return cause instanceof Error ? cause.message : fallback;
   };
 
+  const normalizedBambuSerial = normalizeBambuSerial(serialNumber);
   const payload = useMemo<PrinterSetupPayload>(() => ({
-    printerId: printerId.trim(),
+    printerId: kind === 'bambu' ? stableBambuPrinterId(normalizedBambuSerial) : printerId.trim(),
     displayName: displayName.trim(),
     kind,
-    vendor: vendor.trim() || undefined,
+    vendor: kind === 'bambu' ? 'Bambu Lab' : vendor.trim() || undefined,
     model: model.trim() || undefined,
-    serialNumber: serialNumber.trim() || undefined,
+    serialNumber: kind === 'bambu' ? normalizedBambuSerial || undefined : serialNumber.trim() || undefined,
     connection: kind === 'bambu'
       ? { host: host.trim(), accessCode: accessCode.trim() }
       : { baseUrl: baseUrl.trim(), apiKey: apiKey.trim() || undefined },
-  }), [accessCode, apiKey, baseUrl, displayName, host, kind, model, printerId, serialNumber, vendor]);
+  }), [accessCode, apiKey, baseUrl, displayName, host, kind, model, normalizedBambuSerial, printerId, serialNumber, vendor]);
 
   const refresh = async () => {
     setLoading(true);
@@ -236,6 +241,7 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       onChanged();
       setPrinterId('');
       setDisplayName('');
+      setVendor('');
       setModel('');
       setSerialNumber('');
       setHost('');
@@ -316,12 +322,15 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
           <form className="setup-section setup-form" onSubmit={save}>
             <h3>{c.add}</h3>
             <label><span>{c.kind}</span><select value={kind} onChange={(event) => setKind(event.target.value as PrinterSetupKind)}><option value="bambu">{c.bambu}</option><option value="moonraker">{c.moonraker}</option></select></label>
-            <div className="setup-form-row"><label><span>{c.printerId}</span><input value={printerId} onChange={(event) => setPrinterId(event.target.value)} required pattern="[A-Za-z0-9._-]{1,64}" /><small>{c.printerIdHint}</small></label><label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label></div>
-            <div className="setup-form-row"><label><span>{c.vendor}</span><input value={vendor} onChange={(event) => setVendor(event.target.value)} placeholder={kind === 'bambu' ? 'Bambu Lab' : 'Klipper'} /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder={kind === 'bambu' ? 'X2D' : 'Ender-3 V3 KE'} /></label></div>
             {kind === 'bambu' ? <>
-              <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value)} required /></label>
+              <div className="setup-form-row"><label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="X2D" /></label></div>
+              <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value.toUpperCase())} required /><small>{c.bambuIdentityHint}</small></label>
               <div className="setup-form-row"><label><span>{c.host}</span><input value={host} onChange={(event) => setHost(event.target.value)} required placeholder="192.168.1.50" /></label><label><span>{c.accessCode}</span><input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} required type="password" autoComplete="off" /></label></div>
-            </> : <div className="setup-form-row"><label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.100:7125" /></label><label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label></div>}
+            </> : <>
+              <div className="setup-form-row"><label><span>{c.printerId}</span><input value={printerId} onChange={(event) => setPrinterId(event.target.value)} required pattern="[A-Za-z0-9._-]{1,64}" /><small>{c.printerIdHint}</small></label><label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label></div>
+              <div className="setup-form-row"><label><span>{c.vendor}</span><input value={vendor} onChange={(event) => setVendor(event.target.value)} placeholder="Klipper" /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Ender-3 V3 KE" /></label></div>
+              <div className="setup-form-row"><label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.100:7125" /></label><label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label></div>
+            </>}
             <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={testing || saving} onClick={() => void testConnection()}>{testing ? c.testing : c.test}</button><button className="primary-button" type="submit" disabled={testing || saving}>{saving ? c.saving : c.save}</button></div>
           </form>
         </div>
