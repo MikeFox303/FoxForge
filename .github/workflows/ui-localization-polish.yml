@@ -1,0 +1,96 @@
+name: Printer setup localization polish
+
+on:
+  push:
+    branches:
+      - fix/printer-setup-modal-layering
+    paths:
+      - '.github/workflows/ui-localization-polish.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  polish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: fix/printer-setup-modal-layering
+          fetch-depth: 0
+      - name: Localize printer setup authentication and fallback errors
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          dialog = Path('frontend/src/features/printers/PrinterSetupDialog.tsx')
+          text = dialog.read_text(encoding='utf-8')
+
+          replacements = [
+              (
+                  "import { useTranslation } from 'react-i18next';\n\nimport {",
+                  "import { useTranslation } from 'react-i18next';\n\nimport { CommandAuthenticationRequiredError } from '../../data/commandClient';\nimport {",
+              ),
+              (
+                  "    deploymentError: 'Printer management is not enabled for this deployment. On Umbrel, update to a FoxForge package with trusted App Proxy sessions enabled.',\n",
+                  "    deploymentError: 'Printer management is not enabled for this deployment. On Umbrel, update to a FoxForge package with trusted App Proxy sessions enabled.',\n    writesLocked: 'FoxForge write controls are locked. Open Operator access and enter the operator token.',\n    saveError: 'Unable to save printer.',\n    deleteError: 'Unable to delete printer.',\n",
+              ),
+              (
+                  "    deploymentError: 'Управление принтерами не включено в этой установке. Для Umbrel обновите FoxForge до пакета с trusted App Proxy sessions.',\n",
+                  "    deploymentError: 'Управление принтерами не включено в этой установке. Для Umbrel обновите FoxForge до пакета с trusted App Proxy sessions.',\n    writesLocked: 'Управление FoxForge заблокировано. Откройте «Токен оператора» и введите токен оператора.',\n    saveError: 'Не удалось сохранить принтер.',\n    deleteError: 'Не удалось удалить принтер.',\n",
+              ),
+              (
+                  "    deploymentError: 'Керування принтерами не ввімкнене в цій інсталяції. Для Umbrel оновіть FoxForge до пакета з trusted App Proxy sessions.',\n",
+                  "    deploymentError: 'Керування принтерами не ввімкнене в цій інсталяції. Для Umbrel оновіть FoxForge до пакета з trusted App Proxy sessions.',\n    writesLocked: 'Керування FoxForge заблоковано. Відкрийте «Токен оператора» та введіть токен оператора.',\n    saveError: 'Не вдалося зберегти принтер.',\n    deleteError: 'Не вдалося видалити принтер.',\n",
+              ),
+              (
+                  "  const [saving, setSaving] = useState(false);\n\n  const payload",
+                  "  const [saving, setSaving] = useState(false);\n\n  const errorMessage = (cause: unknown, fallback: string): string => {\n    if (cause instanceof CommandAuthenticationRequiredError) return c.writesLocked;\n    return cause instanceof Error ? cause.message : fallback;\n  };\n\n  const payload",
+              ),
+              (
+                  "      const message = cause instanceof Error ? cause.message : c.deploymentError;\n",
+                  "      const message = errorMessage(cause, c.deploymentError);\n",
+              ),
+              (
+                  "      setError(cause instanceof Error ? cause.message : c.unreachable);\n",
+                  "      setError(errorMessage(cause, c.unreachable));\n",
+              ),
+              (
+                  "      setError(cause instanceof Error ? cause.message : 'Unable to save printer.');\n",
+                  "      setError(errorMessage(cause, c.saveError));\n",
+              ),
+              (
+                  "      setError(cause instanceof Error ? cause.message : 'Unable to delete printer.');\n",
+                  "      setError(errorMessage(cause, c.deleteError));\n",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if old == "      setError(cause instanceof Error ? cause.message : c.unreachable);\n":
+                  if count != 2:
+                      raise SystemExit(f'expected two unreachable catches, found {count}')
+                  text = text.replace(old, new)
+                  continue
+              if count != 1:
+                  raise SystemExit(f'expected exactly one occurrence, found {count}: {old!r}')
+              text = text.replace(old, new)
+
+          dialog.write_text(text, encoding='utf-8')
+
+          spec = Path('frontend/e2e/responsive-layout.spec.ts')
+          text = spec.read_text(encoding='utf-8')
+          old = "    const dialog = page.locator('.setup-dialog');\n    await expect(dialog).toBeVisible();\n    await expectNoHorizontalViewportOverflow(page);\n"
+          new = "    const dialog = page.locator('.setup-dialog');\n    await expect(dialog).toBeVisible();\n    const localizedLockedMessage = language === 'ru'\n      ? 'Управление FoxForge заблокировано'\n      : 'Керування FoxForge заблоковано';\n    await expect(page.getByRole('alert')).toContainText(localizedLockedMessage);\n    await expect(page.getByRole('alert')).not.toContainText('write controls are locked');\n    await expectNoHorizontalViewportOverflow(page);\n"
+          if text.count(old) != 1:
+              raise SystemExit('localized modal assertion insertion point changed')
+          spec.write_text(text.replace(old, new), encoding='utf-8')
+          PY
+
+          rm .github/workflows/ui-localization-polish.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add frontend/src/features/printers/PrinterSetupDialog.tsx frontend/e2e/responsive-layout.spec.ts .github/workflows/ui-localization-polish.yml
+          git commit -m 'fix(ui): localize printer setup locked-state errors'
+          git push origin HEAD:fix/printer-setup-modal-layering
