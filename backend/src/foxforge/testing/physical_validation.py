@@ -13,7 +13,26 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+
+class _NoRedirectHandler(HTTPRedirectHandler):
+    """Keep validation credentials bound to the operator-supplied HTTP target."""
+
+    def redirect_request(
+        self,
+        req: Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> None:
+        del req, fp, code, msg, headers, newurl
+        return None
+
+
+_HTTP_OPENER = build_opener(_NoRedirectHandler())
 
 
 def certificate_fingerprint_sha256(der_certificate: bytes) -> str:
@@ -52,7 +71,7 @@ def _http_json(
         request_headers["Content-Type"] = "application/json"
     request = Request(url, data=body, headers=request_headers, method=method)
     try:
-        with urlopen(request, timeout=timeout) as response:  # noqa: S310 - operator supplied validation target
+        with _HTTP_OPENER.open(request, timeout=timeout) as response:  # noqa: S310 - operator supplied validation target
             raw = response.read()
             return response.status, _decode_json(raw)
     except HTTPError as exc:
