@@ -6,7 +6,7 @@
 **Frozen release commit:** `457f8f3f044147772b1ecf13df90b38a35268cda`  
 **Published image:** `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4`  
 **Published multi-arch digest:** `sha256:0b0d96e5243db82ad3349bbc1c96243cbc6288c27eb716ff80512eb925b9fef4`  
-**Umbrel Community App:** companion Store update to `alpha.4` is tracked separately; representative physical Umbrel validation remains pending  
+**Umbrel Community App:** `my3d-foxforge` `0.1.0-alpha.4` merged to Store `main` via PR #26 as `de430fe63d79843b0a646851e8f03b05e37f624d`; representative physical Umbrel validation remains pending  
 **Maturity:** runnable/installable alpha; not production-ready
 
 This file is the concise current-state snapshot. ADRs/design documents remain normative for architecture, `CHANGELOG.md` remains implementation history, `release/` records immutable releases, and the independent audit/remediation tracker records stabilization evidence.
@@ -16,6 +16,8 @@ This file is the concise current-state snapshot. ADRs/design documents remain no
 `v0.1.0-alpha.4` is the current published FoxForge pre-release. Its guarded release workflow froze release identity, ran backend/frontend validation, built and smoke-tested the unified image, published Linux `amd64` + `arm64` with SBOM/provenance and only then created the Git tag and GitHub pre-release.
 
 The release includes P1 common job control, P2 realtime application events, the complete normal inventory operator workflow and the independent-audit software stabilization foundation. These are no longer “post-alpha.3 current-source only” features.
+
+The companion Umbrel package now matches that release: Store PR #26 pins the exact immutable digest and maps Umbrel `APP_PASSWORD` to `FOXFORGE_COMMAND_TOKEN` while keeping App Proxy as a separate defense-in-depth boundary. Its final package/Compose and anonymous `amd64`/`arm64` runtime gates were green before merge.
 
 Documentation-only synchronization after the release does not change the immutable `alpha.4` image. Any future code change requires another guarded release before versioned deployments receive it.
 
@@ -40,7 +42,7 @@ Documentation-only synchronization after the release does not change the immutab
 | Dependency/security governance | Implemented | Frozen dependency graphs, Dependabot, npm/pip audits and final-image HIGH/CRITICAL scanning. |
 | Backend coverage governance | Implemented | Approximately 76% measured branch-aware baseline; CI enforces a 75% floor on Python 3.12 while Python 3.13 runs the suite independently. |
 | Docker/ARM64 | Published alpha foundation | `alpha.4` is published for Linux `amd64` + `arm64`; representative Raspberry Pi 5 validation pending. |
-| Umbrel | Package update in companion Store | `alpha.4` package work pins the exact immutable digest and provides an ADR-0005-compatible application credential path; real Raspberry Pi/Umbrel/proxy/printer-network evidence remains required. |
+| Umbrel | `alpha.4` package merged and CI-validated | Store `main` pins the exact release digest and supplies `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN`; real Raspberry Pi/Umbrel/proxy/printer-network evidence remains required. |
 | Automatic filament accounting | **Frozen draft** | Preserved in PR #58 and explicitly not merged into `main`; see the P3 freeze/resume gate. |
 | Farm scheduler | Not implemented | Deferred until queue/control/inventory/deployment foundations and P3 are stable. |
 
@@ -60,7 +62,7 @@ The immutable finding snapshot is [the 2026-09-04 independent audit](audits/2026
 
 All software-only audit findings have repository remediation evidence. The findings still not `RESOLVED` are validation-bound:
 
-- **AUD-003 — VALIDATION REQUIRED:** representative Raspberry Pi/Umbrel package installation, restart/persistence, actual proxy write path, direct-backend fail-closed behavior, deployment-network printer reachability, upgrade and SSE reconnect/resync evidence are still required;
+- **AUD-003 — VALIDATION REQUIRED:** the `alpha.4` package now has the required application credential/bootstrap software contract, but representative Raspberry Pi/Umbrel package installation, restart/persistence, actual proxy write path, direct-backend fail-closed behavior, deployment-network printer reachability, upgrade and SSE reconnect/resync evidence are still required;
 - **AUD-013 — VALIDATION REQUIRED:** Bambu certificate-pinning software foundation exists, but real X2D MQTT/FTPS certificate observations are required before changing trust defaults.
 
 **AUD-004 remains resolved**: the explicit-token ADR 0005 trust model is backed by production fail-closed and representative reverse-proxy tests. App Proxy/forwarded identity metadata is defense in depth and does not become a FoxForge principal.
@@ -97,7 +99,7 @@ Record real-device evidence for HTTP/WebSocket connectivity, actual endpoint-pol
 
 ### Raspberry Pi 5 / Umbrel
 
-Record installation/restart/persistence, X2D/OpenKE reachability from the actual Umbrel network, authenticated write behavior through the real proxy path, direct-backend fail-closed behavior, upgrades and representative SSE reconnect/resync behavior.
+Record installation/restart/persistence of the published `alpha.4` package, X2D/OpenKE reachability from the actual Umbrel network, authenticated write behavior through the real proxy path, direct-backend fail-closed behavior, upgrades and representative SSE reconnect/resync behavior.
 
 Until these matrices are recorded, documentation must not describe the transports or full deployment as production-validated.
 
@@ -113,7 +115,8 @@ The software prerequisites now satisfied by `alpha.4` include:
 - browser/deployment trust contract and representative proxy acceptance;
 - normal inventory create/correct/empty-mass/move/assign/unassign/archive/history workflow;
 - production-container browser acceptance for representative inventory operations;
-- common job control and realtime application-event foundations.
+- common job control and realtime application-event foundations;
+- an exact immutable `alpha.4` Umbrel package with an ADR-0005-compatible application credential path.
 
 P3 still may not resume until the remaining physical/deployment gate is satisfied. At minimum:
 
@@ -124,7 +127,7 @@ P3 still may not resume until the remaining physical/deployment gate is satisfie
 
 ## Current development order
 
-1. **Physical/deployment validation:** X2D, Moonraker/OpenKE and Raspberry Pi/Umbrel, including remaining AUD-003/AUD-013 evidence.
+1. **Physical/deployment validation:** X2D, Moonraker/OpenKE and the published `alpha.4` package on representative Raspberry Pi/Umbrel, including remaining AUD-003/AUD-013 evidence.
 2. **Audit closure/documentation:** record real-device/package evidence and keep README/status/deployment claims aligned with what was actually tested.
 3. **Resume P3 only after the gate:** synchronize draft PR #58 with current `main`, finish tests/docs and merge only on exact-head green evidence.
 4. **Farm/deep-vendor expansion:** persistent scheduler/farm semantics and deeper Bambu features follow after the preceding foundations are stable.
@@ -146,7 +149,7 @@ Repository changes are protected by the applicable combination of:
 - final-image HIGH/CRITICAL vulnerability scanning;
 - guarded release identity checks and immutable multi-arch release publication.
 
-Physical validation remains a separate requirement wherever a finding or production claim depends on real printer/proxy behavior.
+The companion Store separately validates the exact Umbrel package definition, Compose rendering, application-token bootstrap and anonymous multi-architecture runtime pull/start. Physical validation remains a separate requirement wherever a finding or production claim depends on real printer/proxy behavior.
 
 ## Key documents
 
@@ -167,4 +170,4 @@ Physical validation remains a separate requirement wherever a finding or product
 
 ## Release readiness
 
-FoxForge is suitable for continued alpha development and controlled self-hosted testing. `v0.1.0-alpha.4` is a real published guarded pre-release, but FoxForge is **not production-ready** and must not be represented as physically validated until the remaining printer/deployment matrices are complete.
+FoxForge is suitable for continued alpha development and controlled self-hosted testing. `v0.1.0-alpha.4` is a real published guarded pre-release and the matching Umbrel package is now merged in Store `main`, but FoxForge is **not production-ready** and must not be represented as physically validated until the remaining printer/deployment matrices are complete.
