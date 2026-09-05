@@ -9,11 +9,11 @@ from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.adapters.bambu import BambuDiscoveryCandidate
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
-from foxforge.api.v1.bambu_discovery import register_bambu_discovery_routes
 from foxforge.application.commands import InMemoryCommandIdempotencyStore
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InMemoryInventoryStore, InventoryService
 from foxforge.application.queue import InMemoryQueueStore, QueueService
+from foxforge.runtime.bambu_discovery_routes import register_bambu_discovery_routes
 
 _TOKEN = "test-bambu-discovery-token-0123456789"
 
