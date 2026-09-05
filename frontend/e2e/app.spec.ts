@@ -41,7 +41,11 @@ function fleetResponse(displayName = 'Browser Test Printer') {
 async function unlockWrites(page: Page): Promise<void> {
   const access = page.locator('.operator-access-shell');
   await expect(access).toBeVisible();
-  await access.locator('input[type="password"]').fill(operatorToken);
+  const input = access.locator('input[type="password"]');
+  if (!(await input.isVisible())) {
+    await access.locator('.operator-access-toggle').click();
+  }
+  await input.fill(operatorToken);
   await access.getByRole('button', { name: /unlock writes/i }).click();
   await expect(access).toContainText(/writes unlocked for this tab/i);
 }
@@ -75,7 +79,39 @@ test('operator write access is explicit and memory-only for the active tab', asy
 
   const access = page.locator('.operator-access-shell');
   await access.getByRole('button', { name: /^lock$/i }).click();
+  if (await access.locator('.operator-access-toggle').isVisible()) {
+    await access.locator('.operator-access-toggle').click();
+  }
   await expect(access.locator('input[type="password"]')).toBeVisible();
+});
+
+test('narrow phone shell keeps navigation compact and operator access collapsed', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'phone');
+
+  await page.goto('/materials');
+
+  const sidebar = page.locator('.sidebar');
+  const footer = page.locator('.sidebar-footer');
+  const access = page.locator('.operator-access-shell');
+  const toggle = access.locator('.operator-access-toggle');
+  const input = access.locator('input[type="password"]');
+
+  await expect(sidebar).toBeVisible();
+  await expect(footer).toBeHidden();
+  await expect(toggle).toBeVisible();
+  await expect(input).toBeHidden();
+
+  const sidebarBox = await sidebar.boundingBox();
+  const accessBox = await access.boundingBox();
+  expect(sidebarBox).not.toBeNull();
+  expect(accessBox).not.toBeNull();
+  expect(sidebarBox!.height).toBeLessThan(180);
+  expect(accessBox!.height).toBeLessThan(60);
+
+  await toggle.click();
+  await expect(input).toBeVisible();
+  await toggle.click();
+  await expect(input).toBeHidden();
 });
 
 test('queue workflow truthfully disables enqueue when no capable printer exists', async ({ page }) => {
