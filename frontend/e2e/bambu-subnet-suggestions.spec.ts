@@ -16,6 +16,19 @@ async function unlockWrites(page: Page): Promise<void> {
   await expect(access).toContainText(/writes unlocked for this tab/i);
 }
 
+async function openBambuConnectionStep(page: Page) {
+  await page.goto('/');
+  await unlockWrites(page);
+  await page.locator('.printer-setup-launcher').click();
+
+  const dialog = page.locator('.setup-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.setup-provider-card.active')).toContainText(/Bambu Lab/i);
+  await dialog.getByRole('button', { name: /^Next$/i }).click();
+  await expect(dialog.getByLabel(/subnet to scan/i)).toBeVisible();
+  return dialog;
+}
+
 test('Bambu setup suggests bounded server-visible networks without auto-scanning', async ({ page }) => {
   let scanRequests = 0;
   let scannedSubnet: string | undefined;
@@ -44,12 +57,7 @@ test('Bambu setup suggests bounded server-visible networks without auto-scanning
     });
   });
 
-  await page.goto('/');
-  await unlockWrites(page);
-  await page.locator('.printer-setup-launcher').click();
-
-  const dialog = page.locator('.setup-dialog');
-  await expect(dialog).toBeVisible();
+  const dialog = await openBambuConnectionStep(page);
   const suggestions = dialog.locator('.setup-subnet-buttons button');
   await expect(suggestions).toHaveCount(2);
   await expect(suggestions.nth(0)).toHaveText('10.42.0.0/24');
@@ -83,11 +91,7 @@ test('Bambu setup keeps manual CIDR fallback when the server sees no private net
     });
   });
 
-  await page.goto('/');
-  await unlockWrites(page);
-  await page.locator('.printer-setup-launcher').click();
-
-  const dialog = page.locator('.setup-dialog');
+  const dialog = await openBambuConnectionStep(page);
   await expect(dialog).toContainText(/enter the printer subnet manually/i);
   const subnetInput = dialog.getByLabel(/subnet to scan/i);
   await expect(subnetInput).toHaveValue('');
