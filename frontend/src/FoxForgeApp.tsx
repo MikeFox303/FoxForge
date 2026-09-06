@@ -10,6 +10,7 @@ import { AppShell } from './app/AppShell';
 import { fleetRuntimeTone, type FleetRuntimeState, useFleetData } from './data/fleetGateway';
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from './domain';
 import { InventoryView } from './features/inventory/InventoryView';
+import { PrinterCard } from './features/printers/PrinterCard';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
 import { printerRoute } from './features/printers/printerDetailViewModel';
 import { QueueCommandPanel, QueueEntryActions } from './features/queue/QueueCommandPanel';
@@ -86,7 +87,7 @@ function OverviewView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinte
       <SectionHeader title={t('alpha.overview.fleet')} subtitle={t('alpha.overview.fleetSubtitle')} />
       <div className="printer-grid">
         {availability.hasPrinters
-          ? fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} onOpen={() => onOpenPrinter(printer.identity.printerId)} />)
+          ? fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} queueCount={fleet.queue.filter((entry) => entry.printerId === printer.identity.printerId).length} onOpen={() => onOpenPrinter(printer.identity.printerId)} />)
           : <WorkspaceEmptyState icon="PR" title={t('alpha.empty.noPrintersTitle')} text={t('alpha.empty.noPrintersText')} />}
       </div>
 
@@ -120,7 +121,7 @@ function PrintersView({ fleet, onOpenPrinter }: { fleet: FleetData; onOpenPrinte
       <SectionHeader title={t('alpha.printers.title')} subtitle={t('alpha.printers.subtitle')} />
       <div className="printer-grid">
         {fleet.printers.length > 0
-          ? fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} onOpen={() => onOpenPrinter(printer.identity.printerId)} expanded />)
+          ? fleet.printers.map((printer) => <PrinterCard key={printer.identity.printerId} printer={printer} queueCount={fleet.queue.filter((entry) => entry.printerId === printer.identity.printerId).length} onOpen={() => onOpenPrinter(printer.identity.printerId)} density="detailed" />)
           : <WorkspaceEmptyState icon="PR" title={t('alpha.empty.noPrintersTitle')} text={t('alpha.empty.noPrintersText')} />}
       </div>
     </div>
@@ -210,19 +211,6 @@ function SystemView({ runtime }: { runtime: FleetRuntimeState }) {
   );
 }
 
-function PrinterCard({ printer, onOpen, expanded = false }: { printer: PrinterViewModel; onOpen: () => void; expanded?: boolean }) {
-  const job = printer.snapshot.activeJob;
-  const { t } = useTranslation();
-  return (
-    <article className={`printer-card ${expanded ? 'expanded' : ''}`}>
-      <div className="printer-card-head"><div><div className="vendor-label">{printer.identity.vendor}</div><h3>{printer.identity.displayName}</h3><span>{printer.identity.model ?? printer.identity.adapterKind}</span></div><StatusBadge printer={printer} /></div>
-      {job ? <div className="job-block"><div className="job-title-row"><strong>{job.name ?? t('alpha.printer.activeJob')}</strong><span>{formatPercent(job.progress)}</span></div><Progress value={job.progress} /><div className="job-meta"><span>{formatDuration(job.elapsedSeconds)} {t('alpha.printer.elapsed')}</span><span>{formatDuration(job.remainingSeconds)} {t('alpha.printer.left')}</span><span>{job.currentLayer ?? '—'} / {job.totalLayers ?? '—'} {t('alpha.printer.layers')}</span></div></div> : <div className="idle-surface">{t('alpha.printer.idle')}</div>}
-      <div className="printer-info-strip"><div><span>{t('alpha.printer.connection')}</span><strong>{t(`alpha.status.${printer.snapshot.connection}`)}</strong></div><div><span>{t('alpha.printer.material')}</span><strong>{materialSourceLabel(printer, t)}</strong></div><div><span>{t('alpha.printer.updated')}</span><strong>{relativeTimeLabel(printer.snapshot.observedAt, t)}</strong></div></div>
-      <div className="printer-card-footer"><div className="slot-dots">{slotsFor(printer).map((slot) => <MaterialDot key={slot.slotId} slot={slot} />)}</div><button className="text-button" onClick={onOpen}>{t('alpha.printer.open')}</button></div>
-    </article>
-  );
-}
-
 function QueueRow({ fleet, entry, compact = false }: { fleet: FleetData; entry: QueueViewModel; compact?: boolean }) {
   const printer = fleet.printers.find((candidate) => candidate.identity.printerId === entry.printerId);
   const { i18n, t } = useTranslation();
@@ -297,14 +285,4 @@ function materialSourceLabel(printer: PrinterViewModel, t: TFunction): string {
   const material = (active ?? loaded)?.detectedMaterial;
   if (!material) return t('alpha.materialSource.none');
   return [material.materialFamily, material.vendorName].filter(Boolean).join(' · ') || t('alpha.materialSource.loaded');
-}
-
-function relativeTimeLabel(observedAt: string, t: TFunction, nowMs: number = Date.now()): string {
-  const observedMs = Date.parse(observedAt);
-  if (Number.isNaN(observedMs)) return t('alpha.relative.recently');
-  const deltaMs = Math.max(0, nowMs - observedMs);
-  if (deltaMs < 60_000) return t('alpha.relative.justNow');
-  if (deltaMs < 3_600_000) return t('alpha.relative.minutes', { count: Math.floor(deltaMs / 60_000) });
-  if (deltaMs < 86_400_000) return t('alpha.relative.hours', { count: Math.floor(deltaMs / 3_600_000) });
-  return t('alpha.relative.days', { count: Math.floor(deltaMs / 86_400_000) });
 }
