@@ -58,8 +58,7 @@ def test_bambu_dispatch_translates_compiled_plate_material_and_nozzle_routes(
         native = fake_bambu_transport.submitted[0]
         assert native.plate_number == 1
         assert [
-            (route.material_index, route.ams_id, route.tray_id, route.nozzle_index)
-            for route in native.material_routes
+            (route.material_index, route.ams_id, route.tray_id, route.nozzle_index) for route in native.material_routes
         ] == [
             (0, 0, 0, 0),
             (1, 0, 1, 0),
