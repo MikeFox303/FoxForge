@@ -150,13 +150,23 @@ class BambuLanCodec:
                 touched = True
                 tray_now = _int_value(ams_data.get("tray_now"))
                 exist_bits = _hex_or_int(ams_data.get("tray_exist_bits"))
+                previous_units = units_by_id
                 units_by_id = {
                     ams_id: unit for ams_id, unit in units_by_id.items() if unit.kind == BambuMaterialUnitKind.EXTERNAL
                 }
                 for raw_unit in raw_units:
                     unit = self._parse_ams_unit(raw_unit, tray_now=tray_now, exist_bits=exist_bits)
-                    if unit is not None:
-                        units_by_id[unit.ams_id] = unit
+                    if unit is None:
+                        continue
+                    previous_unit = previous_units.get(unit.ams_id)
+                    if (
+                        isinstance(raw_unit, dict)
+                        and "info" not in raw_unit
+                        and previous_unit is not None
+                        and previous_unit.kind != BambuMaterialUnitKind.EXTERNAL
+                    ):
+                        unit = replace(unit, routed_extruder_id=previous_unit.routed_extruder_id)
+                    units_by_id[unit.ams_id] = unit
 
         if "vt_tray" in print_data:
             raw_external = _external_tray_entries(print_data.get("vt_tray"))
@@ -199,6 +209,7 @@ class BambuLanCodec:
             kind=kind,
             label=_material_unit_label(kind, ams_id),
             trays=tuple(sorted(trays, key=lambda item: item.tray_id)),
+            routed_extruder_id=_ams_routed_extruder(raw_unit.get("info")) if "info" in raw_unit else None,
         )
 
     def _parse_external_tray(
@@ -463,6 +474,14 @@ def _external_tray_entries(value: object) -> list[tuple[dict[str, object], int |
     if isinstance(value, list):
         return [(entry, None) for entry in value if isinstance(entry, dict)]
     return None
+
+
+def _ams_routed_extruder(value: object) -> int | None:
+    info = _hex_or_int(value)
+    if info is None:
+        return None
+    extruder_id = (info >> 8) & 0xF
+    return extruder_id if extruder_id in {0, 1} else None
 
 
 def _material_unit_label(kind: BambuMaterialUnitKind, ams_id: int) -> str | None:
