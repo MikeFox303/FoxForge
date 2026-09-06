@@ -61,4 +61,22 @@ describe('fleet presentation model', () => {
     expect(describeMaterialSource(x2d!)).toBe('PETG · SUNLU');
     expect(describeMaterialSource(ender!)).toBe('PETG · SUNLU');
   });
+
+  it('returns translation-safe stale and material fallback values to callers', () => {
+    const x2d = findPrinter(fleetData, 'bambu-x2d-main');
+    expect(x2d).toBeDefined();
+    const stalePrinter = {
+      ...x2d!,
+      snapshot: { ...x2d!.snapshot, stale: true },
+    };
+    const printerWithoutMaterial = {
+      ...x2d!,
+      materialSystem: undefined,
+    };
+
+    expect(printerStatusLabel(stalePrinter)).toBe('stale');
+    expect(
+      describeMaterialSource(printerWithoutMaterial, 'Материал не загружен', 'Материал загружен'),
+    ).toBe('Материал не загружен');
+  });
 });
