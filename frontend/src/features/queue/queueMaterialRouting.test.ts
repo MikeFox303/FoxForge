@@ -163,6 +163,57 @@ describe('queue material routing helpers', () => {
     })).toBe(true);
   });
 
+  it('keeps a selected ready plate usable when another plate is blocked', () => {
+    const mixedPlan: ArtifactPrintPlan = {
+      ...plan,
+      readyForRouting: false,
+      plates: [
+        plan.plates[0],
+        {
+          plateIndex: 2,
+          readyForRouting: false,
+          materialRequirements: [],
+        },
+      ],
+      issues: [
+        {
+          code: 'material_requirements_unknown',
+          severity: 'blocking',
+          message: 'Plate 2 has no material selection',
+          plateIndex: 2,
+        },
+      ],
+    };
+
+    expect(routingReviewReady({
+      printer,
+      plan: mixedPlan,
+      plateIndex: 1,
+      bindings: [{ materialIndex: 0, slotId: 'slot-petg' }],
+    })).toBe(true);
+  });
+
+  it('blocks selected plate toolhead metadata warnings just like the server compiler', () => {
+    const unsafePlan: ArtifactPrintPlan = {
+      ...plan,
+      issues: [
+        {
+          code: 'toolhead_metadata_invalid',
+          severity: 'warning',
+          message: 'Toolhead intent could not be parsed safely',
+          plateIndex: 1,
+        },
+      ],
+    };
+
+    expect(routingReviewReady({
+      printer,
+      plan: unsafePlan,
+      plateIndex: 1,
+      bindings: [{ materialIndex: 0, slotId: 'slot-petg' }],
+    })).toBe(false);
+  });
+
   it('fails closed when live material or topology evidence is stale', () => {
     const stalePrinter: PrinterViewModel = {
       ...printer,
