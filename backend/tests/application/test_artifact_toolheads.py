@@ -184,6 +184,56 @@ def test_forbidden_xml_declarations_fail_closed_without_using_fallback(tmp_path)
     assert "DTD/entity" in warning.message
 
 
+def test_invalid_physical_extruder_map_is_not_treated_as_absent_toolhead_intent(tmp_path) -> None:
+    artifact = _artifact(
+        tmp_path,
+        [
+            (
+                "Metadata/project_settings.config",
+                _settings(nozzle_map=["0"], physical_map=["invalid", "0"]),
+            ),
+            ("Metadata/plate_1.gcode", "M620 S0A\n"),
+        ],
+    )
+
+    plan = inspect_print_plan(artifact)
+
+    assert plan.plates[0].material_requirements[0].expected_toolhead_position is None
+    warnings = [issue for issue in plan.issues if issue.code == PrintPlanIssueCode.TOOLHEAD_METADATA_INVALID]
+    assert len(warnings) == 1
+    assert warnings[0].plate_index == 0
+    assert "physical_extruder_map" in warnings[0].message
+
+
+def test_invalid_fallback_only_blocks_plates_that_need_the_fallback(tmp_path) -> None:
+    artifact = _artifact(
+        tmp_path,
+        [
+            (
+                "Metadata/project_settings.config",
+                _settings(nozzle_map=["invalid"], physical_map=["1", "0"]),
+            ),
+            (
+                "Metadata/slice_info.config",
+                "<config>"
+                '<plate><metadata key="index" value="1"/><filament id="1" group_id="1"/></plate>'
+                '<plate><metadata key="index" value="2"/><filament id="1"/></plate>'
+                "</config>",
+            ),
+            ("Metadata/plate_1.gcode", "M620 S0A\n"),
+            ("Metadata/plate_2.gcode", "M620 S0A\n"),
+        ],
+    )
+
+    plan = inspect_print_plan(artifact)
+
+    assert plan.plates[0].material_requirements[0].expected_toolhead_position == 0
+    assert plan.plates[1].material_requirements[0].expected_toolhead_position is None
+    warnings = [issue for issue in plan.issues if issue.code == PrintPlanIssueCode.TOOLHEAD_METADATA_INVALID]
+    assert [warning.plate_index for warning in warnings] == [1]
+    assert "filament_nozzle_map" in warnings[0].message
+
+
 def test_single_nozzle_project_does_not_claim_a_toolhead_expectation(tmp_path) -> None:
     artifact = _artifact(
         tmp_path,
