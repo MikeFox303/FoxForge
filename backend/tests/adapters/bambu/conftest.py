@@ -121,6 +121,7 @@ def bambu_idle_state() -> BambuNativeState:
                         active=False,
                     ),
                 ),
+                routed_extruder_id=0,
             ),
         ),
         observed_at=utc_now(),
