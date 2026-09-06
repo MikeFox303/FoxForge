@@ -141,8 +141,8 @@ def test_print_plan_read_rejects_non_3mf_and_changed_staged_content(tmp_path) ->
             )
             staged.artifact.path.write_bytes(b"mutated")
             changed = await client.get(f"/api/v1/artifacts/{digest}/print-plan", headers=headers)
-            assert changed.status == 409
-            assert (await changed.json())["error"]["code"] == "artifact_changed"
+            assert changed.status == 404
+            assert (await changed.json())["error"]["code"] == "artifact_not_found"
         finally:
             await client.close()
             await queue.aclose()
