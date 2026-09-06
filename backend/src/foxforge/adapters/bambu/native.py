@@ -59,10 +59,13 @@ class BambuNativeMaterialUnit:
     kind: BambuMaterialUnitKind
     label: str | None
     trays: tuple[BambuNativeTray, ...]
+    routed_extruder_id: int | None = None
 
     def __post_init__(self) -> None:
         if any(tray.ams_id != self.ams_id for tray in self.trays):
             raise ValueError("every Bambu tray must belong to its containing AMS unit")
+        if self.routed_extruder_id is not None and self.routed_extruder_id < 0:
+            raise ValueError("routed_extruder_id must be non-negative when present")
 
 
 @dataclass(frozen=True, slots=True)
