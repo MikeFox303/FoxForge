@@ -1,0 +1,34 @@
+name: PR130 formatter probe
+
+on:
+  pull_request:
+    paths:
+      - backend/src/foxforge/adapters/bambu/lan_codec.py
+      - backend/tests/adapters/bambu/test_lan_codec_materials.py
+      - .github/workflows/pr130-format-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install pinned Ruff
+        run: python -m pip install "ruff==0.15.20"
+      - name: Format changed Python files
+        run: |
+          ruff format \
+            backend/src/foxforge/adapters/bambu/lan_codec.py \
+            backend/tests/adapters/bambu/test_lan_codec_materials.py
+      - name: Upload formatted files
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr130-formatted-python
+          path: |
+            backend/src/foxforge/adapters/bambu/lan_codec.py
+            backend/tests/adapters/bambu/test_lan_codec_materials.py
