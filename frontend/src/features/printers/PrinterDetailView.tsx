@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 MikeFox303
 
+import type { TFunction } from 'i18next';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -10,7 +11,6 @@ import {
   describeMaterialSource,
   formatDuration,
   formatPercent,
-  formatRelativeTime,
   printerStatusLabel,
   printerTone,
 } from '../../viewModel';
@@ -65,7 +65,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
         </div>
         <div className="printer-detail-hero-status">
           <StatusBadge printer={printer} />
-          <span>{formatRelativeTime(printer.snapshot.observedAt)}</span>
+          <span>{relativeTimeLabel(printer.snapshot.observedAt, t)}</span>
         </div>
       </section>
 
@@ -93,7 +93,14 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
           <section className="printer-detail-kpis">
             <DetailKpi label={t('printerDetail.connection')} value={t(`alpha.status.${printer.snapshot.connection}`)} />
             <DetailKpi label={t('printerDetail.state')} value={t(`alpha.status.${printerStatusLabel(printer)}`)} />
-            <DetailKpi label={t('printerDetail.material')} value={describeMaterialSource(printer)} />
+            <DetailKpi
+              label={t('printerDetail.material')}
+              value={describeMaterialSource(
+                printer,
+                t('printerDetail.noMaterialLoaded'),
+                t('printerDetail.materialLoaded'),
+              )}
+            />
             <DetailKpi label={t('printerDetail.queue')} value={queue.length ? `${queue.length}` : t('printerDetail.clear')} />
           </section>
 
@@ -365,6 +372,16 @@ function MaterialTopologyRoute({
       </div>
     </article>
   );
+}
+
+function relativeTimeLabel(observedAt: string, t: TFunction, nowMs: number = Date.now()): string {
+  const observedMs = Date.parse(observedAt);
+  if (Number.isNaN(observedMs)) return t('alpha.relative.recently');
+  const deltaMs = Math.max(0, nowMs - observedMs);
+  if (deltaMs < 60_000) return t('alpha.relative.justNow');
+  if (deltaMs < 3_600_000) return t('alpha.relative.minutes', { count: Math.floor(deltaMs / 60_000) });
+  if (deltaMs < 86_400_000) return t('alpha.relative.hours', { count: Math.floor(deltaMs / 3_600_000) });
+  return t('alpha.relative.days', { count: Math.floor(deltaMs / 86_400_000) });
 }
 
 function materialUnitKey(kind: string): 'multiSlot' | 'external' | 'toolhead' | 'materialUnit' {

@@ -103,8 +103,6 @@ for (const route of routes) {
 for (const language of ['ru', 'uk'] as const) {
   for (const route of routes) {
     test(`${language} copy stays bounded on ${route}`, async ({ page }, testInfo) => {
-      test.skip(!['phone', 'desktop-16-9'].includes(testInfo.project.name));
-
       await page.addInitScript((selectedLanguage) => {
         window.localStorage.setItem('foxforge.language', selectedLanguage);
       }, language);
@@ -208,8 +206,6 @@ test('printer setup modal owns the viewport and stays above global controls', as
 
 for (const language of ['ru', 'uk'] as const) {
   test(`printer setup modal stays readable in ${language}`, async ({ page }, testInfo) => {
-    test.skip(!['phone', 'desktop-16-9'].includes(testInfo.project.name));
-
     await page.addInitScript((selectedLanguage) => {
       window.localStorage.setItem('foxforge.language', selectedLanguage);
     }, language);

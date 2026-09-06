@@ -442,7 +442,7 @@ function MaterialRoutingReview({
             <option value="">{t('queueRouting.choosePlate')}</option>
             {plan.plates.map((candidate) => (
               <option key={candidate.plateIndex} value={candidate.plateIndex}>
-                {t('queueRouting.plate')} {candidate.plateIndex}{candidate.readyForRouting ? '' : ' · blocked'}
+                {t('queueRouting.plate')} {candidate.plateIndex}{candidate.readyForRouting ? '' : ` · ${t('queueRouting.blockedLabel')}`}
               </option>
             ))}
           </select>
