@@ -135,6 +135,14 @@ class RuntimePrinterManager:
                 raise PrinterConfigurationNotFoundError(printer_id)
 
             effective = _with_existing_secrets(configuration, existing, self._secret_store)
+
+            # Keep updates at the same safety level as Add Printer: a bad host,
+            # serial or credential must never replace a known-good durable
+            # configuration merely because the operator edited the printer.
+            preflight = await self.test_connection(effective)
+            if preflight.connection_error is not None:
+                raise PrinterConnectionValidationError(preflight.connection_error)
+
             replacement = self._registry.create(effective.identity, effective.settings)
             previous = self._config
             secret_backup = _capture_secret_values(
@@ -161,20 +169,27 @@ class RuntimePrinterManager:
             try:
                 await self._fleet.add_adapter(replacement)
             except Exception:
-                save_runtime_config(self._config_path, previous)
-                _restore_secret_values(secret_backup, self._secret_store)
-                old_adapter = self._registry.create(
-                    existing.identity,
-                    hydrate_settings(existing.identity, existing.settings, self._secret_store),
+                await self._rollback_update(
+                    printer_id=printer_id,
+                    existing=existing,
+                    previous=previous,
+                    secret_backup=secret_backup,
                 )
-                await self._fleet.add_adapter(old_adapter)
-                with suppress(PrinterAdapterError):
-                    await self._fleet.connect(printer_id)
                 raise
+
+            connected = await self._connect(effective)
+            if connected.connection_error is not None:
+                await self._rollback_update(
+                    printer_id=printer_id,
+                    existing=existing,
+                    previous=previous,
+                    secret_backup=secret_backup,
+                )
+                raise PrinterConnectionValidationError(connected.connection_error)
+
             self._config = updated
             self._publish_configuration_change(printer_id, "printer_updated")
-
-        return await self._connect(effective)
+            return connected
 
     async def remove(self, printer_id: str) -> None:
         async with self._lock:
@@ -221,6 +236,26 @@ class RuntimePrinterManager:
             snapshot=self._fleet.snapshot(printer_id),
             connection_error=connection_error,
         )
+
+    async def _rollback_update(
+        self,
+        *,
+        printer_id: str,
+        existing: PrinterRuntimeConfig,
+        previous: RuntimeConfig,
+        secret_backup: dict[str, str | None],
+    ) -> None:
+        save_runtime_config(self._config_path, previous)
+        _restore_secret_values(secret_backup, self._secret_store)
+        with suppress(Exception):
+            await self._fleet.remove_adapter(printer_id)
+        old_adapter = self._registry.create(
+            existing.identity,
+            hydrate_settings(existing.identity, existing.settings, self._secret_store),
+        )
+        await self._fleet.add_adapter(old_adapter)
+        with suppress(PrinterAdapterError):
+            await self._fleet.connect(printer_id)
 
     def _publish_configuration_change(self, printer_id: str, change: str) -> None:
         if self._events is None:

@@ -104,6 +104,50 @@ def test_add_does_not_persist_or_join_fleet_when_preflight_fails(tmp_path) -> No
     asyncio.run(scenario())
 
 
+def test_update_does_not_replace_working_configuration_when_preflight_fails(tmp_path) -> None:
+    async def scenario() -> None:
+        config_path = tmp_path / "config.json"
+        fleet = FleetService()
+        registry = AdapterRegistry()
+
+        def factory(identity, settings):
+            if settings.get("endpoint") == "unavailable":
+                return _UnavailablePrinterAdapter(identity)
+            return FakePrinterAdapter(identity)
+
+        registry.register("fake-ui", factory)
+        journal = ApplicationEventJournal()
+        manager = RuntimePrinterManager(
+            fleet=fleet,
+            registry=registry,
+            config_path=config_path,
+            config=_empty_runtime_config(),
+            secret_store=InMemorySecretStore(),
+            events=journal,
+        )
+        try:
+            await manager.add(_configuration())
+            sequence_after_add = journal.sequence
+            bad_update = PrinterConfiguration(
+                identity=_configuration().identity,
+                settings={"endpoint": "unavailable"},
+            )
+
+            with pytest.raises(PrinterConnectionValidationError) as captured:
+                await manager.update("printer-ui", bad_update)
+
+            assert captured.value.error.code == PrinterErrorCode.CONNECTION_UNAVAILABLE
+            assert manager.configuration("printer-ui").settings == {"endpoint": "local"}
+            persisted = load_runtime_config(config_path)
+            assert persisted.printers[0].settings == {"endpoint": "local"}
+            assert fleet.snapshot("printer-ui").connection == ConnectionState.CONNECTED
+            assert journal.sequence == sequence_after_add
+        finally:
+            await fleet.aclose()
+
+    asyncio.run(scenario())
+
+
 def test_test_connection_normalizes_unexpected_runtime_errors(tmp_path) -> None:
     async def scenario() -> None:
         config_path = tmp_path / "config.json"
