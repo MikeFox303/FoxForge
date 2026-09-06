@@ -12,7 +12,7 @@ from pathlib import Path
 
 from foxforge.application.fleet import FleetService
 from foxforge.application.queue import InMemoryQueueStore, QueueEntryState, QueueService
-from foxforge.domain.printers import PrinterIdentity, utc_now
+from foxforge.domain.printers import utc_now
 from foxforge.domain.printers.capabilities import (
     DetectedMaterial,
     LocalPrintArtifact,
@@ -98,6 +98,41 @@ def test_assess_persists_compiled_toolhead_before_adapter_assessment(tmp_path, p
         assert assessed.state == QueueEntryState.PENDING
         assert assessed.assessment is not None and assessed.assessment.eligible
         assert assessed.request.material_bindings == (MaterialBinding(0, _SLOT_ID, _TOOLHEAD_0),)
+        assert printing.submit_attempt_count == 0
+        assert printing.start_count == 0
+
+    asyncio.run(scenario())
+
+
+def test_routed_three_mf_without_explicit_source_binding_never_reaches_adapter_assessment(
+    tmp_path,
+    printer_identity,
+) -> None:
+    async def scenario() -> None:
+        adapter = FakePrinterAdapter(printer_identity)
+        printing = FakePrintExecutionCapability(adapter)
+        adapter.register_capability(PrintExecutionCapability, printing)
+        adapter.register_capability(
+            MaterialSystemCapability,
+            FakeMaterialSystemCapability(adapter, _material_snapshot(printer_identity.printer_id)),
+        )
+        adapter.register_capability(
+            MaterialTopologyCapability,
+            FakeMaterialTopologyCapability(adapter, _topology_snapshot(printer_identity.printer_id)),
+        )
+        await adapter.connect()
+        queue = QueueService(FleetService([adapter]), InMemoryQueueStore())
+        entry = queue.enqueue(
+            printer_identity.printer_id,
+            _three_mf_artifact(tmp_path / "unbound.3mf"),
+        )
+
+        assessed = await queue.assess(entry.queue_id)
+
+        assert assessed.state == QueueEntryState.BLOCKED
+        assert assessed.assessment is not None
+        assert assessed.assessment.blockers[0].code == PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID
+        assert printing.assess_count == 0
         assert printing.submit_attempt_count == 0
         assert printing.start_count == 0
 
