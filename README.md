@@ -16,11 +16,13 @@ Bambu Lab is the current primary integration target. Moonraker/Klipper support r
 
 The latest published semantic pre-release is **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**.
 
-Development toward **`v0.1.0-alpha.5`** is currently in physical-validation stage under [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). The companion Umbrel Store currently carries validation candidate **`0.1.0-alpha.4.3-umbrel.2`**, built from FoxForge commit `37b253f385c19451c7ea075a4a4d12378cf17cf2` and pinned to:
+Development toward **`v0.1.0-alpha.5`** is currently in physical-validation stage under [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). The companion Umbrel Store currently carries validation candidate **`0.1.0-alpha.4.3-umbrel.3`**, built from FoxForge commit `37d1cbed8f73d62acdc1994545bc2f5ee57e816a` and pinned to:
 
 ```text
-ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
 ```
+
+The matching Umbrel Store commit is `cc6010fdff4823b671a92be3b307155f26db85bc`.
 
 This package is deliberately **not** a final Alpha 5 release. Evidence collected against another image or package must not be relabeled as Alpha 5 evidence.
 
@@ -45,17 +47,24 @@ See the [Pre-Alpha 5 Bambu physical-validation runbook](docs/testing/pre-alpha-5
 - project-storage abstraction with FTPS implementation and fail-safe print-start semantics;
 - normalized X2D/printer state foundation;
 - AMS-family and external material-source observation through the common material-system capability;
+- vendor-neutral material-topology capability with typed source/toolhead routing and fail-closed unknown/dynamic states;
 - active source, remaining fraction, material identity and tag identity when reported by the printer;
+- immutable staged `.3mf` print-plan inspection with material requirements and toolhead intent;
+- fail-closed material-routing compilation from explicit physical bindings before queue dispatch;
+- queue-persisted compiler-owned toolhead routes with revalidation before later dispatch;
+- Bambu final source/topology/toolhead revalidation from one native snapshot immediately before submit;
+- `project_file` `ams_mapping` / `ams_mapping2` / `nozzle_mapping` generation from the proven compiled route, including external 254/255 handling without nozzle guessing;
 - guarded common Pause / Resume / Cancel with exact active-job identity checks;
 - optional independent MQTT and FTPS SHA-256 certificate pins.
 
-Physical X2D/AMS 2 Pro validation is still required for the complete connection, storage, print-start, control and recovery matrix.
+Physical X2D/AMS 2 Pro validation is still required for the complete connection, material-topology, print-routing, storage, print-start, control and recovery matrix.
 
 ### Queue and inventory
 
 - durable SQLite-backed queue with lifecycle, retry and reconciliation boundaries;
 - explicit `INDETERMINATE` handling instead of blind side-effect retry;
 - content-addressed `.gcode` / `.3mf` staging with quota and safe garbage collection;
+- routed Bambu `.3mf` jobs require explicit physical material bindings and an eligible compiled route before adapter submission;
 - durable spool inventory with exact `Decimal` accounting;
 - create, edit empty-spool mass, correct mass, assign/move/unassign, archive and history workflows;
 - opaque physical slot identifiers suitable for AMS/CFS/external material systems.
@@ -82,6 +91,7 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 | Moonraker/Klipper adapter | Functional alpha; physical OpenKE validation pending |
 | Fleet/reconnect supervision | Implemented foundation |
 | Durable print queue | Implemented foundation |
+| Bambu 3MF material routing | Implemented fail-closed foundation; physical X2D proof pending |
 | Pause / Resume / Cancel | Implemented; physical validation pending |
 | Artifact staging | Implemented |
 | Filament/spool inventory | Normal operator workflow implemented |
@@ -90,7 +100,7 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 | Automatic filament accounting | Frozen / not released |
 | Persistent farm scheduler | Not implemented |
 | Docker `amd64` / `arm64` | Published alpha foundation |
-| Umbrel | Pre-Alpha 5 validation candidate 2 published |
+| Umbrel | Pre-Alpha 5 validation candidate 3 published |
 
 ## Installation
 
