@@ -2,7 +2,7 @@
 
 - **Target milestone:** `v0.1.0-alpha.5`
 - **Tracking:** [#115](https://github.com/MikeFox303/FoxForge/issues/115)
-- **Status:** validation candidate 2 published; real-device evidence required before final Alpha 5
+- **Status:** validation candidate 3 published; real-device evidence required before final Alpha 5
 - **Updated:** 2026-09-06
 
 This is the current milestone-specific source of truth for the Bambu/X2D Alpha 5 release gate. Generic evidence rules remain in [physical-validation-runbook.md](physical-validation-runbook.md) and [physical-evidence-gate.md](physical-evidence-gate.md).
@@ -12,17 +12,17 @@ This is the current milestone-specific source of truth for the Bambu/X2D Alpha 5
 All current Pre-Alpha 5 evidence must identify this exact build:
 
 ```text
-FoxForge source commit: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image tag: ghcr.io/mikefox303/foxforge:sha-37b253f
-OCI digest: sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
-exact image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
-Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
-Umbrel Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
+FoxForge source commit: 37d1cbed8f73d62acdc1994545bc2f5ee57e816a
+image tag: ghcr.io/mikefox303/foxforge:sha-37d1cbe
+OCI digest: sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
+exact image: ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
+Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.3
+Umbrel Store commit: cc6010fdff4823b671a92be3b307155f26db85bc
 base semantic release: v0.1.0-alpha.4.3
 target semantic release: v0.1.0-alpha.5
 ```
 
-The package is intentionally a validation candidate, not final Alpha 5. Candidate 1 evidence remains historical and must not be relabeled as candidate 2 evidence.
+The package is intentionally a validation candidate, not final Alpha 5. Candidate 1 and candidate 2 evidence remain historical and must not be relabeled as candidate 3 evidence. Candidate 3 is required because the material-routing, queue integration and Bambu nozzle-mapping implementation changed after candidate 2.
 
 ## Target environment
 
@@ -34,18 +34,37 @@ Primary acceptance target:
 - AMS 2 Pro connected to the X2D;
 - browser access through the normal Umbrel App Proxy path.
 
+Physical material fixture for the current X2D acceptance:
+
+```text
+X2D
+├─ AMS 2 Pro
+│  ├─ A1 PETG
+│  ├─ A2 PETG
+│  ├─ A3 PETG
+│  └─ A4 PETG
+├─ External Left
+│  └─ empty
+└─ External Right
+   └─ PLA
+```
+
+Where the printer exposes authoritative routing metadata, FoxForge must represent External Left as the left-toolhead source and External Right as the right-toolhead source. Unknown or dynamic routing must remain unknown/dynamic rather than being guessed.
+
 Moonraker/OpenKE remains a separate physical track. P3 automatic filament accounting stays frozen during this Bambu milestone.
 
 ## Evidence hygiene
 
 Do not commit operator credentials, printer access codes, API keys, cookies, session data or unredacted private network targets. Use normalized FoxForge error categories and redacted evidence only.
 
+For print-routing evidence, record normalized logical material indices, source slot IDs, toolhead IDs and sanitized command mapping fields. Do not capture credentials or raw transport payloads that contain sensitive values.
+
 ## Acceptance sequence
 
 ### 1. Install and identity
 
 1. Refresh the Community Store.
-2. Confirm package `0.1.0-alpha.4.3-umbrel.2` is offered.
+2. Confirm package `0.1.0-alpha.4.3-umbrel.3` is offered.
 3. Install/update without editing Compose or container settings manually.
 4. Confirm `/healthz` succeeds through the normal app path.
 5. Record the exact source/image/digest/Store identities above in private run notes.
@@ -92,9 +111,18 @@ Starting from the known-good configured X2D:
 
 ### 5. Live X2D and AMS 2 Pro state
 
-Verify real updates for connection/operational state, current job/progress when applicable, currently mapped telemetry, AMS 2 Pro units/slots/material state, active source when reported and external feed/source when present.
+Verify real updates for connection/operational state, current job/progress when applicable, currently mapped telemetry, AMS 2 Pro units/slots/material state, active source when reported and both external feed/source positions when reported.
 
-**Pass:** values originate from real printer state, and FoxForge inventory identity remains separate from physical AMS state.
+For the current fixture verify at minimum:
+
+- the AMS is identified as AMS 2 Pro when native metadata proves that subtype;
+- A1-A4 are present and report PETG;
+- External Left is represented and empty;
+- External Right is represented and reports PLA;
+- source-to-toolhead routing is represented only when proved by current native metadata;
+- the UI does not collapse the two external sources into one generic external tray.
+
+**Pass:** values originate from real printer state, topology is truthful, and FoxForge inventory identity remains separate from physical AMS state.
 
 ### 6. Restart and reconnect
 
@@ -108,19 +136,33 @@ Verify real updates for connection/operational state, current job/progress when 
 
 **Pass:** reconnect is automatic, bounded and secret-safe.
 
-### 7. Real print dispatch
+### 7. Real print dispatch and material routing
 
-Use a small known-safe X2D `.3mf`.
+Use a small known-safe X2D `.3mf` whose intended plate/material/nozzle use is known before the run.
 
-1. Select/hash/stage it through the browser.
-2. Enqueue it for the connected X2D.
-3. Start/dispatch as a separate protected action.
-4. Verify project storage/upload completes.
-5. Verify the print submission is accepted.
-6. Verify the physical X2D starts exactly one intended job.
-7. Verify FoxForge observes the same active job/progress.
+1. Select/hash/stage it through the browser and record the staged artifact SHA-256.
+2. Inspect the immutable staged `.3mf` print plan before enqueue.
+3. Record the selected plate and normalized material requirements, including material index and target toolhead/nozzle when present in the artifact.
+4. Select the connected X2D.
+5. Explicitly bind every required logical material to a currently loaded physical material source. Do not rely on automatic material/color substitution.
+6. Review the compiler-owned source-to-toolhead result. Ambiguous, missing, stale or unsupported routing must block before adapter assessment/submit.
+7. Enqueue the artifact only after the routing assessment is eligible.
+8. Press **Start** as a separate protected action.
+9. Immediately before Bambu transport submission, verify the selected source remains present and the native topology still proves the compiled toolhead route.
+10. Verify project storage/upload completes.
+11. Record sanitized command mapping evidence for the exact dispatch:
+    - logical material index;
+    - selected physical source slot;
+    - compiled toolhead;
+    - flat `ams_mapping` entry;
+    - `ams_mapping2` entry when applicable;
+    - `nozzle_mapping` entry.
+12. For Bambu external source IDs 254/255, verify flat `ams_mapping` uses `-1`, the real external source ID is retained in `ams_mapping2`, and nozzle selection comes only from the compiled toolhead route.
+13. Verify the print submission is accepted.
+14. Verify the physical X2D starts exactly one intended job.
+15. Verify FoxForge observes the same active vendor job/progress.
 
-**Pass:** exactly one print starts. Any ambiguous outcome remains `INDETERMINATE`/reconciliation-bound and is not blindly retried.
+**Pass:** every required material has a proven physical source/toolhead path, the serialized Bambu mappings match that proven route, and exactly one print starts. Any ambiguous outcome remains `INDETERMINATE`/reconciliation-bound and is not blindly retried.
 
 ### 8. Guarded job control
 
@@ -135,9 +177,9 @@ Against the same observed active job:
 
 ### 9. Evidence
 
-Repository-safe evidence should include exact candidate identities, validation date, pass/fail per section, normalized error/reconnect categories, redacted screenshots/log excerpts where useful and follow-up issue references for failures.
+Repository-safe evidence should include exact candidate identities, validation date, pass/fail per section, normalized error/reconnect categories, the sanitized routing/mapping facts above, redacted screenshots/log excerpts where useful and follow-up issue references for failures.
 
-A starter manifest is [`evidence/pre-alpha5-candidate2-manifest.template.json`](evidence/pre-alpha5-candidate2-manifest.template.json).
+A starter manifest is [`evidence/pre-alpha5-candidate3-manifest.template.json`](evidence/pre-alpha5-candidate3-manifest.template.json).
 
 ## Alpha 5 release gate
 
@@ -151,12 +193,16 @@ A starter manifest is [`evidence/pre-alpha5-candidate2-manifest.template.json`](
 | Discovery | candidate-only and cannot bypass authenticated preflight |
 | Reconnect | restart/network-loss recovery proven with sanitized diagnostics |
 | Live Bambu state | real X2D state updates proven |
-| AMS 2 Pro | physical slot/material/source observation proven |
+| AMS 2 Pro | A1-A4 PETG plus both external sources observed truthfully |
+| Material topology | external left/right and source-to-toolhead routing are proved or explicitly unknown; never guessed |
+| 3MF print plan | selected plate/material requirements/toolheads are inspected from the immutable staged artifact |
+| Material binding | every required material is explicitly bound to a current physical source |
+| Bambu command mapping | `ams_mapping` / `ams_mapping2` / `nozzle_mapping` match the compiled route |
 | Print dispatch | real project upload/start proven without duplicate start |
 | Job control | real guarded Pause/Resume/Cancel or completion path proven |
 | Regression | backend/frontend/browser/container/Umbrel package gates remain green |
 
-If physical testing requires implementation changes, publish a new immutable candidate and repeat every affected observation. Do not carry candidate 2 evidence across a changed source/image digest without explicit revalidation.
+If physical testing requires implementation changes, publish a new immutable candidate and repeat every affected observation. Do not carry candidate 1 or candidate 2 evidence across candidate 3 without explicit revalidation.
 
 ## After the gate
 
