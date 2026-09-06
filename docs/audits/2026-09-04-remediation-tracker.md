@@ -20,7 +20,7 @@ This file tracks current remediation/evidence state. It does not rewrite the ori
 | --- | --- | --- | --- |
 | AUD-001 | P0 | RESOLVED | Guarded release identity preflight prevents conflicting tags/releases/semantic images. |
 | AUD-002 | P0 | RESOLVED | Development container workflow no longer publishes semantic release tags. |
-| AUD-003 | P0 | **VALIDATION REQUIRED** | Explicit FoxForge token model and Umbrel bootstrap are implemented/tested; real Raspberry Pi/Umbrel install, proxy-write, persistence, network/realtime evidence remains. Current target is Pre-Alpha 5 candidate 2. |
+| AUD-003 | P0 | **VALIDATION REQUIRED** | Explicit FoxForge token model and Umbrel bootstrap are implemented/tested; real Raspberry Pi/Umbrel install, proxy-write, persistence, network/realtime evidence remains. Current target is Pre-Alpha 5 candidate 3. |
 | AUD-004 | P0 | RESOLVED | ADR 0005 explicit-token model; proxy headers are not application principals; unsafe trusted-browser mode rejected. |
 | AUD-005 | P1 | RESOLVED | One canonical responsive Add Printer entry point with production-browser regression coverage. |
 | AUD-006 | P1 | RESOLVED | Frozen frontend/backend dependency inputs and reproducible install/audit gates. |
@@ -40,15 +40,15 @@ This file tracks current remediation/evidence state. It does not rewrite the ori
 
 ## Current validation target
 
-The former Alpha 4.2 package was a valid historical audit baseline. It is no longer the active physical-validation target.
+The former Alpha 4.2 package and Pre-Alpha 5 Candidates 1/2 are valid historical audit baselines. They are no longer the active physical-validation target.
 
 Current Bambu/Pre-Alpha 5 target:
 
 ```text
-package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
-source: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-Store: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.3
+source: 37d1cbed8f73d62acdc1994545bc2f5ee57e816a
+Store: cc6010fdff4823b671a92be3b307155f26db85bc
+image: ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
 ```
 
 See [`../testing/pre-alpha-5-bambu-physical-validation.md`](../testing/pre-alpha-5-bambu-physical-validation.md).
@@ -63,7 +63,12 @@ After the original stabilization work, current source additionally provides:
 - Update Printer preflight and rollback to the prior working configuration;
 - deterministic durable replay of terminal sanitized Add/Update setup failures;
 - secret-safe reconnect diagnostics API/UI;
-- current Bambu material-system observation foundation.
+- Bambu material-system and vendor-neutral material-topology foundations;
+- immutable staged `.3mf` material-requirement inspection;
+- fail-closed source→toolhead routing compilation from explicit physical bindings;
+- queue persistence/revalidation of compiler-owned toolhead routes;
+- Bambu one-snapshot final source/topology revalidation and compiled `project_file.nozzle_mapping` generation;
+- Candidate 3 package/runtime gates green on public `linux/amd64` and `linux/arm64` images.
 
 These changes reduce software-side risk but do not close AUD-003/AUD-013 without physical evidence.
 
@@ -75,7 +80,7 @@ The normal inventory prerequisite is complete. Resume still requires reviewing t
 
 ## Current execution order
 
-1. Complete the Pre-Alpha 5 Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro physical matrix.
+1. Complete the Candidate 3 Pre-Alpha 5 Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro physical matrix.
 2. If a physical defect changes code, publish a new immutable candidate and repeat affected evidence.
 3. Review AUD-003/AUD-013 evidence; update statuses only when requirements actually pass.
 4. Publish final Alpha 5 only after the exact candidate gate passes.
