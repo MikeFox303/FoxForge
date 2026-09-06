@@ -153,6 +153,87 @@
 .printer-detail-slot { min-height: 150px; }
 .printer-detail-slot .progress-track { margin-top: auto; }
 
+.material-topology-panel {
+  display: grid;
+  gap: 15px;
+  min-width: 0;
+}
+.material-topology-panel.stale { border-color: rgba(245,158,11,.28); }
+.material-topology-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.material-topology-head > div { min-width: 0; }
+.material-topology-head h3 { margin: 4px 0 5px; font-size: 19px; }
+.material-topology-head p { margin: 0; max-width: 760px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.material-topology-health,
+.material-route-kind {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  white-space: nowrap;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 9px;
+  font-weight: 750;
+}
+.material-topology-health.fresh,
+.material-route-kind.kind-fixed { color: #86efac; border-color: rgba(74,222,128,.25); background: rgba(20,83,45,.18); }
+.material-topology-health.stale,
+.material-route-kind.kind-unknown { color: #fcd34d; border-color: rgba(245,158,11,.28); background: rgba(120,53,15,.16); }
+.material-route-kind.kind-dynamic { color: #93c5fd; border-color: rgba(96,165,250,.26); background: rgba(30,64,175,.14); }
+.material-topology-warning {
+  padding: 10px 12px;
+  border: 1px solid rgba(245,158,11,.22);
+  border-radius: 10px;
+  background: rgba(120,53,15,.12);
+  color: #fcd34d;
+  font-size: 10px;
+  line-height: 1.45;
+}
+.material-topology-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.material-topology-route {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  background: rgba(8,12,18,.25);
+}
+.material-topology-route.warning { border-color: rgba(245,158,11,.2); }
+.material-topology-source,
+.material-topology-target {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.material-topology-source > span {
+  color: var(--muted-2);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.material-topology-source strong,
+.material-topology-target strong {
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+.material-topology-source small,
+.material-topology-target small { color: var(--muted); font-size: 9px; line-height: 1.4; }
+.material-topology-arrow { color: var(--muted-2); font-size: 15px; }
+.material-topology-empty { margin: 0; }
+
 .printer-detail-queue-panel { overflow: hidden; }
 .printer-queue-table { margin-top: 14px; }
 .printer-queue-table-row {
@@ -185,6 +266,7 @@
 @media (max-width: 1050px) {
   .printer-detail-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .printer-job-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .material-topology-grid { grid-template-columns: 1fr; }
   .printer-queue-table-row { grid-template-columns: minmax(200px, 1fr) 110px 80px; }
   .printer-queue-table-row > div:last-child { display: none; }
 }
@@ -197,6 +279,9 @@
   .printer-detail-kpis { grid-template-columns: 1fr 1fr; }
   .printer-job-facts { grid-template-columns: 1fr 1fr; }
   .printer-tab-intro { align-items: flex-start; }
+  .material-topology-head { flex-direction: column; }
+  .material-topology-route { grid-template-columns: 1fr; }
+  .material-topology-arrow { transform: rotate(90deg); justify-self: start; }
   .printer-queue-table-row { grid-template-columns: minmax(0, 1fr) auto; }
   .printer-queue-table-row > div:nth-child(3),
   .printer-queue-table-row > div:last-child { display: none; }
