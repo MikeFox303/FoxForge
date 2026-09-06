@@ -1,11 +1,10 @@
 # Material routing compiler
 
-Status: implementation foundation for Pre-Alpha 5.
+Status: implemented for the Pre-Alpha 5 routing path; physical X2D validation pending a replacement immutable candidate.
 
 ## Decision
 
-FoxForge compiles print-material routing as a vendor-neutral, read-only application step before any printer adapter is
-allowed to dispatch a print.
+FoxForge compiles print-material routing as a vendor-neutral application step before any printer adapter is allowed to dispatch a print.
 
 The compiler joins four independent pieces of evidence:
 
@@ -14,8 +13,7 @@ The compiler joins four independent pieces of evidence:
 3. the printer's current `MaterialSystemSnapshot`;
 4. the printer's current `MaterialTopologySnapshot`.
 
-It produces either a complete set of bindings with a proven `toolhead_id`, or blockers and **no partial compiled
-bindings**.
+It produces either a complete set of bindings with a proven `toolhead_id`, or blockers and **no partial compiled bindings**.
 
 The compiler never automatically chooses an AMS, external source, color substitute or toolhead.
 
@@ -29,24 +27,22 @@ The compiler never automatically chooses an AMS, external source, color substitu
 - `MaterialSystemSnapshot`;
 - `MaterialTopologySnapshot`.
 
-`MaterialBinding.toolhead_id` is compiler-owned. Queue/API clients may choose the physical source slot, but they may
-not provide a toolhead identity through the enqueue API.
+`MaterialBinding.toolhead_id` is compiler-owned. Queue/API clients may choose the physical source slot, but they may not provide a toolhead identity through the enqueue API.
 
 ## Plate rules
 
 - a single-plate plan may omit an explicit plate selection;
 - a multi-plate plan must select one plate explicitly;
-- a selected plate must exist and be `ready_for_routing`;
+- the selected plate must exist and be `ready_for_routing`;
+- blocking issues belonging only to another unselected plate do not invalidate an otherwise safe selected plate;
+- global blocking issues still apply to every plate;
 - a selected plate with `TOOLHEAD_METADATA_INVALID` is blocked even when its chosen source has a fixed route;
 - bindings must cover exactly the material indices used by that plate;
 - bindings for materials belonging only to other plates are rejected.
 
-The extra toolhead-metadata rule prevents topology from masking corrupt or partial slicer intent on dual-nozzle
-printers. A fixed physical route proves where a source can go; it does not prove that the sliced plate intended that
-toolhead.
+The extra toolhead-metadata rule prevents topology from masking corrupt or partial slicer intent on dual-nozzle printers. A fixed physical route proves where a source can go; it does not prove that the sliced plate intended that toolhead.
 
-This intentionally differs from silently defaulting to plate 1. A default that is convenient for a transport is not
-sufficient evidence for a safety gate.
+Missing toolhead metadata and invalid toolhead metadata are therefore different states. A 3MF that simply does not identify a toolhead can still use an otherwise unambiguous proven source route. Metadata that is present but malformed, ambiguous, encrypted, oversized or internally inconsistent is not treated as absence and blocks routing for the affected plate.
 
 ## Source rules
 
@@ -68,14 +64,41 @@ For every selected source:
 
 - a topology route must exist;
 - `MaterialRouteKind.UNKNOWN` is a blocker;
-- if the print plan names an expected toolhead position, that position must resolve to exactly one reported toolhead
-  and the selected source must be able to reach it;
+- if the print plan names an expected toolhead position, that position must resolve to exactly one reported toolhead and the selected source must be able to reach it;
 - if the print plan does not name a toolhead, the selected source route itself must resolve to exactly one toolhead;
 - a route that can reach several toolheads without additional immutable evidence is ambiguous and is blocked.
 
-A previously compiled binding is idempotent only while current evidence resolves to the same `toolhead_id`. If the
-route changes, the compiler returns `compiled_route_changed` rather than silently rewriting a persisted dispatch
-decision.
+A previously compiled binding is idempotent only while current evidence resolves to the same `toolhead_id`. If the route changes, the compiler returns `compiled_route_changed` rather than silently rewriting a persisted dispatch decision.
+
+## Queue integration
+
+Queue integration is implemented.
+
+For routed 3MF requests, QueueService:
+
+1. inspects the immutable staged artifact;
+2. obtains current material-system and topology snapshots;
+3. runs the routing compiler;
+4. persists the complete compiler-owned bindings before adapter assessment or any submit side effect;
+5. maps compiler failures into normalized assessment blockers;
+6. compares enqueue idempotency replays using client-owned source intent while ignoring only server-owned `toolhead_id`;
+7. recompiles on dispatch so stale or changed topology cannot silently reuse an old route.
+
+G-code/Moonraker execution remains outside this 3MF routing gate.
+
+## Bambu Lab dispatch defense
+
+Bambu native revalidation is implemented as defense in depth.
+
+Immediately before transport submission the adapter uses one native state snapshot to verify that:
+
+- the bound source still exists;
+- the selected tray/source is still positively present;
+- topology is fresh;
+- the source can still reach the compiler-owned toolhead;
+- the toolhead maps to an allowed native nozzle index.
+
+Only a complete validated mapping becomes `project_file.nozzle_mapping`. External source IDs 254/255 remain `-1` in flat `ams_mapping`, retain their real source IDs in `ams_mapping2`, and receive a nozzle only from the compiler-owned toolhead decision.
 
 ## Fail-closed output
 
@@ -99,36 +122,20 @@ Representative blockers include:
 - unknown/ambiguous/incompatible toolhead;
 - changed previously compiled route.
 
-## Bambu Lab relationship
+## Candidate boundary
 
-The compiler itself has no Bambu adapter dependency.
+Candidate 4 exposed the complete routing stack but a later release-readiness audit found that some present-but-invalid `project_settings.config` / toolhead mapping states could be converted into apparent metadata absence before the compiler saw them. PR #145 closes that gap and also aligns browser review with selected-plate semantics.
 
-For X2D/H2D-class printers, earlier FoxForge layers translate Bambu observations into vendor-neutral material-system
-and topology snapshots, while immutable 3MF inspection may expose an expected physical toolhead position. The compiler
-only joins those contracts.
-
-A later Bambu-specific dispatch gate will revalidate the compiled `toolhead_id` immediately before submit and encode
-the required native nozzle/toolhead mapping. Until that layer exists and passes tests, this compiler does not enable
-physical print dispatch by itself.
-
-## Queue integration
-
-This PR intentionally keeps the compiler pure. The following integration slice must:
-
-1. inspect the staged artifact immediately before queue assessment/dispatch;
-2. resolve current material-system and topology capabilities from the target printer;
-3. compile the explicit source bindings;
-4. persist the complete compiled bindings before any submit side effect;
-5. map routing blockers into normalized queue assessment blockers;
-6. compare enqueue replays using client-owned intent only, ignoring compiler-owned `toolhead_id`;
-7. recompile before dispatch so stale/changed topology cannot reuse an old decision silently.
+Candidate 4 must not be used for the first real print after this finding. A new immutable application/image/Umbrel candidate is required after the fix passes exact-head gates.
 
 ## Acceptance criteria
 
 - [x] compiler has no vendor adapter imports;
 - [x] multi-plate plans require explicit selection;
 - [x] binding coverage is exact for the selected plate;
-- [x] invalid plate toolhead metadata blocks even a fixed physical route;
+- [x] invalid selected-plate toolhead metadata blocks even a fixed physical route;
+- [x] present-but-invalid toolhead metadata is not silently converted into absence;
+- [x] blocking issues on an unselected plate do not poison a safe selected plate;
 - [x] stale snapshots fail closed;
 - [x] unknown/unloaded sources fail closed;
 - [x] known material-family mismatch fails closed;
@@ -136,6 +143,7 @@ This PR intentionally keeps the compiler pure. The following integration slice m
 - [x] unknown/ambiguous/incompatible routes fail closed;
 - [x] changed compiled toolhead fails closed;
 - [x] blocked compilations never expose partial compiled bindings;
-- [ ] queue assessment persists compiled bindings before submit;
-- [ ] Bambu submit revalidates and encodes compiled toolhead mapping;
-- [ ] immutable Alpha 5 candidate is physically validated on X2D before the first real production print workflow is accepted.
+- [x] queue assessment persists compiled bindings before submit;
+- [x] Bambu submit revalidates and encodes compiled toolhead mapping;
+- [ ] replacement immutable candidate passes Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print gate;
+- [ ] first real print and guarded job-control evidence pass before final Alpha 5.
