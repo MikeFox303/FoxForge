@@ -23,8 +23,8 @@ def test_shell_owns_navigation_and_operator_chrome() -> None:
     shell = (root / "frontend/src/app/AppShell.tsx").read_text(encoding="utf-8")
     app = (root / "frontend/src/FoxForgeApp.tsx").read_text(encoding="utf-8")
 
-    assert "<aside className=\"sidebar\">" in shell
-    assert "<header className=\"topbar\">" in shell
+    assert '<aside className="sidebar">' in shell
+    assert '<header className="topbar">' in shell
     assert "<OperatorAccess" in shell
-    assert "<aside className=\"sidebar\">" not in app
+    assert '<aside className="sidebar">' not in app
     assert "<OperatorAccess" not in app
