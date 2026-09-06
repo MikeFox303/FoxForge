@@ -1,86 +1,54 @@
 # Frontend parallel development policy
 
-Status: active development rule
+- **Status:** active development rule
+- **Updated:** 2026-09-06
+- **Related:** [ADR 0001](../adr/0001-printer-adapter-architecture.md), [ADR 0002](../adr/0002-repository-layout.md), [web UI](web-ui-foundation.md)
 
-Related: ADR 0001, ADR 0002, `docs/design/web-ui-foundation.md`, `docs/design/inventory-foundation.md`
+FoxForge backend, frontend and deployment work may proceed in parallel, but `main` is the only durable implementation state. Open PRs are work in progress, not public contracts.
 
-## Context
+## Rules
 
-FoxForge backend, frontend and deployment work intentionally proceed in parallel. That increases delivery speed, but it also creates a risk that the frontend starts depending on an API, capability, inventory field or queue behavior that exists only in an unmerged branch and later changes before reaching `main`.
+### Main-driven contracts
 
-The Git repository is the canonical project state. Open pull requests are work in progress, not durable application contracts.
+Production UI types/behavior are based on contracts already merged into `main`. A frontend branch may study active backend work for awareness but must not present an unmerged API/capability as live functionality.
 
-## Decision
+Before merge, update the branch against then-current `main` and rerun the complete applicable frontend/browser gate.
 
-Frontend implementation must be **main-driven and gateway-isolated**.
+### Gateway isolation
 
-### 1. `main` is the only authoritative backend state
+TanStack Query/feature clients own server-state boundaries. Page components consume typed FoxForge read/command models rather than raw HTTP/vendor payloads.
 
-A frontend branch may study active backend work for awareness, but production UI types and behavior must be based on contracts already merged into `main` or on explicitly documented future seams that do not claim to be live.
+Explicit `?demo=1` data is presentation-only and must not become authoritative over backend/domain contracts.
 
-Open backend pull requests must not be treated as stable API schemas.
+### No fake writes
 
-### 2. UI branches start from fresh `main`
+If a backend mutation/capability does not exist, the UI must not simulate successful durable state. Preview-only or unavailable behavior must be explicit.
 
-Every independent UI increment should start from the latest `main` available when the work begins.
+Conversely, once a mutation is implemented, documentation and UI must stop describing it as unavailable. Current inventory create/correct/empty-mass/assignment/archive/history commands, printer setup commands, queue commands and common job control are real command surfaces.
 
-Before merge, the UI branch must be updated onto the then-current `main` and its full frontend CI rerun. If backend work merged while the UI branch was open, conflicts are resolved in favor of the merged canonical contracts rather than preserving stale mock assumptions.
+### Capability-driven vendor depth
 
-### 3. Query/mutation gateways isolate server state
+Generic UI uses FoxForge common models. Vendor-only controls appear only behind the corresponding typed vendor capability; code must not infer Bambu behavior from display names/model strings/raw fields.
 
-Pages and components must not call future REST endpoints directly.
+### Opaque cross-context identity
 
-TanStack Query gateways own the frontend server-state seam. While a backend endpoint is unavailable, the gateway may return representative demo data whose shape is derived from merged domain/design concepts. When the endpoint becomes real, the query function can be replaced without redesigning page components.
+Inventory assignment uses `printerId + slotId`. `slotId` is opaque outside the printer adapter; the frontend may resolve a friendly current label but must not parse AMS/CFS topology from the string. `spoolId` stays inventory-owned.
 
-Demo DTOs are presentation contracts only. They are never authoritative over Python domain models.
+### Keep conflict surfaces small
 
-### 4. No fake write behavior
-
-Buttons that require a missing backend mutation remain disabled or explicitly preview-only. The UI must not simulate successful spool edits, printer commands, queue dispatches or material assignments in a way that could be confused with durable application state.
-
-### 5. Vendor depth mounts through capabilities
-
-Common screens consume normalized printer/application read models. Bambu-only or other vendor-only controls are added only when a typed capability exists in merged FoxForge contracts. Frontend work must not infer vendor features from model names, adapter strings or raw protocol payloads.
-
-### 6. Cross-context identifiers remain opaque
-
-Inventory-to-printer assignment uses merged Phase 11 semantics: `printer_id` plus opaque `slot_id`. The UI may resolve a friendly slot label from the current material-system snapshot, but it must not parse `slot_id` to infer AMS/CFS/vendor structure.
-
-Likewise, `spool_id` remains inventory-owned and is not added to printer material snapshots for presentation convenience.
-
-### 7. Keep conflict surfaces small
-
-Parallel UI PRs should primarily modify `frontend/**` and a focused design document. Root README, project-status and broad architecture docs should be changed only when necessary because they are common conflict surfaces for backend work.
+Parallel feature PRs should focus on their feature area. Root README/project-status/ADRs change only when the durable project contract actually changes.
 
 ## Current inventory example
 
-The Spool Inventory workspace follows these rules:
+The inventory UI now uses live `/api/v1` read/command surfaces for the normal operator workflow. Exact mass crosses JSON as decimal strings, assignments keep opaque `slotId`, and friendly printer/material labels are derived from current FoxForge read models.
 
-- the read model is derived from the already-merged Phase 11 inventory design;
-- Decimal mass values cross the demo/API boundary as strings and are converted only for display calculations;
-- assignments carry `printerId` and opaque `slotId`;
-- friendly `X2D Main · A1`-style labels are resolved by matching the opaque slot to the current `MaterialSystemSnapshot`;
-- add/move/correct actions remain disabled until public Inventory API mutations exist;
-- the inventory gateway is a TanStack Query seam that can later call `InventoryService` HTTP DTOs.
+Automatic consumption/reservation remains separate frozen P3 work and must not be simulated in the normal inventory UI.
 
-## Merge procedure for a parallel UI PR
+## Merge checklist
 
-1. Confirm the UI branch was created from a real `main` commit.
-2. Implement only against merged contracts; document preview-only seams.
-3. Run TypeScript checking, unit tests and production build.
-4. Immediately before merge, compare with current `main`.
-5. If `main` advanced, update the UI branch onto it and preserve newly merged backend/domain work.
-6. Rerun the complete Web UI gate on the updated head.
-7. Merge only the green, current head.
-
-## Acceptance criteria
-
-A parallel frontend increment is acceptable when:
-
-- it does not depend on unmerged backend implementation details;
-- page components consume query/read-model gateways rather than raw vendor/backend transports;
-- unavailable mutations are not presented as working actions;
-- vendor-specific controls appear only behind merged typed capabilities;
-- inventory keeps `spool_id` out of printer material snapshots and treats `slot_id` as opaque;
-- the branch has been reconciled with current `main` before merge;
-- `npm run check`, `npm test` and `npm run build` pass on the final head.
+1. branch from/refresh against real `main`;
+2. implement only merged/live contracts or explicitly marked preview seams;
+3. keep feature access behind typed gateway/capability boundaries;
+4. run `npm run check`, `npm test`, `npm run build` plus applicable production-browser acceptance;
+5. reconcile again if `main` advanced before merge;
+6. merge only the current green head.

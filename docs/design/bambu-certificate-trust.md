@@ -1,90 +1,58 @@
-# Bambu LAN certificate trust
+# Bambu certificate trust
 
-Status: software foundation implemented for AUD-013; physical X2D validation required before changing defaults.
+- **Status:** optional pinning implemented; real X2D trust evidence still required
+- **Updated:** 2026-09-06
+- **Related:** AUD-013, [physical evidence gate](../testing/physical-evidence-gate.md)
 
-## Context
+## Problem
 
-Bambu LAN MQTT and implicit FTPS use TLS, but local printer certificates are commonly not rooted in a public CA. FoxForge therefore historically defaulted to `tls_verify=false`. The access code authenticates the client to the printer, but it does not prove that the TLS peer is the expected physical printer.
+Bambu LAN MQTT and FTPS are TLS services, but a self-hosted application cannot assume the printer presents a certificate chaining to ordinary public roots. Disabling certificate validation entirely would permit an active LAN attacker to impersonate the printer and receive credentials/commands.
 
-Changing the default to normal public-CA validation without device evidence could make supported LAN printers unreachable. Conversely, permanent certificate verification bypass should not be the final trust model.
+FoxForge therefore separates transport compatibility from explicit identity pinning.
 
-## Decision
+## Current policy
 
-FoxForge adds optional SHA-256 certificate pinning at the Bambu wire boundary while preserving the current compatibility default until hardware validation is complete.
+Bambu settings may independently configure:
 
-MQTT and FTPS have **independent pins**:
+- `mqtt_certificate_sha256`;
+- `ftps_certificate_sha256`.
 
-```text
-mqtt_tls_certificate_sha256
-ftps_tls_certificate_sha256
-```
+Pins are canonical SHA-256 fingerprints. Invalid values fail during configuration parsing. When a pin is present, the presented peer certificate must match before the corresponding authenticated MQTT/FTPS operation continues.
 
-This deliberately avoids assuming that the printer's MQTT and FTPS services always present the same certificate across models or firmware versions.
+A mismatch becomes a normalized, non-retryable authentication failure. Public errors must not echo the expected or observed fingerprint.
 
-A configured pin is checked after the TLS handshake and before FoxForge accepts the service for use:
+MQTT and FTPS pins are independent because they may present different certificates.
 
-- MQTT: before report-topic subscription and before `connect()` is considered successful;
-- FTPS: after implicit TLS connection but before username/access-code login or file transfer.
+## Default trust
 
-A mismatch fails closed as a normalized Bambu transport rejection with vendor code `certificate_mismatch`. Error text does not disclose the configured or observed fingerprint.
+The alpha default remains compatibility-oriented when no pin is configured, but this is **not** a claim that unpinned transport identity is proven safe for every Bambu firmware/device.
 
-## Interaction with `tls_verify`
+FoxForge will not switch to mandatory pinning or invent a first-use persistence scheme solely from CI. Real representative X2D evidence must establish certificate behavior across normal restart and the correct/incorrect-pin recovery path.
 
-Certificate pinning and normal CA/hostname verification are independent controls:
+## Evidence requirement
 
-- `tls_verify=false`, no pin: current compatibility behavior;
-- `tls_verify=false`, pin set: self-signed/device-local certificate is allowed to handshake but must match the configured SHA-256 pin;
-- `tls_verify=true`, no pin: normal Python CA/hostname verification;
-- `tls_verify=true`, pin set: both normal verification and the explicit pin must succeed.
+AUD-013 requires real evidence for the exact target package:
 
-The remediation does **not** change the default value of `tls_verify`.
+1. at least two successful MQTT/FTPS TLS samples around a real normal X2D restart;
+2. stable MQTT fingerprint across samples;
+3. stable FTPS fingerprint across samples;
+4. configured correct MQTT/FTPS pins succeed;
+5. intentionally incorrect MQTT pin fails closed;
+6. intentionally incorrect FTPS pin fails closed;
+7. restoring correct pins recovers without deleting unrelated printer state.
 
-## Pin representation
+The repository verifier validates sample consistency but cannot prove that the operator actually restarted the physical printer; that remains an observed fact recorded in the evidence manifest/run notes.
 
-Pins are SHA-256 digests of the peer's DER certificate. FoxForge accepts 64 hexadecimal characters with or without colon separators and normalizes them to lowercase hex internally.
+## Secret handling
 
-Fingerprint values are device trust metadata rather than authentication credentials. They may remain in normal private runtime configuration, but public read DTOs do not need to expose them.
+Fingerprints are not printer credentials, but public diagnostics/errors still avoid exposing trust details unnecessarily. Bambu access codes remain separate SecretStore data and must never be included in TLS evidence.
 
-## TOFU direction
+## Future policy
 
-A future Trust On First Use flow may build on this primitive, but automatic first-use enrollment is intentionally deferred. A safe TOFU design must define:
+After representative physical evidence, FoxForge may choose one of these explicitly documented paths:
 
-1. how the first fingerprint is obtained and shown to the operator;
-2. whether MQTT and FTPS are enrolled independently;
-3. how certificate rotation is distinguished from an unexpected peer change;
-4. how a replacement printer with the same configured identity is approved;
-5. where the trust record is persisted and audited;
-6. what the UI does when a stored pin changes.
+- keep optional pinning as a hardening feature;
+- ship a documented known trust anchor if the vendor provides a stable verifiable chain;
+- add a carefully designed operator-approved first-use/rotation workflow.
 
-FoxForge must not silently replace an existing trust record after a mismatch.
-
-## Physical validation gate
-
-Before changing Bambu defaults or enabling automatic TOFU, validate on a real X2D installation:
-
-1. capture the MQTT peer SHA-256 certificate fingerprint through a controlled diagnostic path;
-2. capture the implicit-FTPS control-channel fingerprint independently;
-3. determine whether the two certificates are identical on the tested firmware, without making that an architectural assumption;
-4. reconnect repeatedly and confirm fingerprints remain stable;
-5. restart the printer and repeat;
-6. validate status/subscription with the MQTT pin enabled;
-7. validate a harmless FTPS upload with the FTPS pin enabled;
-8. intentionally configure a wrong pin and prove FoxForge fails closed before MQTT subscription / FTPS login;
-9. record printer model and firmware alongside the evidence.
-
-The current source must continue to report AUD-013 as validation-required until this evidence exists.
-
-## Acceptance criteria
-
-- [x] certificate pinning remains inside `foxforge.adapters.bambu` and does not leak into common printer contracts;
-- [x] MQTT and FTPS pins are independent;
-- [x] SHA-256 pin syntax is validated and normalized;
-- [x] MQTT pin is checked before subscription/connection success;
-- [x] FTPS pin is checked before authentication/upload;
-- [x] mismatch is fail-closed and does not expose fingerprints in the normalized error;
-- [x] existing `tls_verify` compatibility semantics are preserved;
-- [x] automated tests cover match, mismatch and invalid fingerprint input;
-- [ ] exact final-head CI for the remediation PR;
-- [ ] physical X2D MQTT fingerprint validation;
-- [ ] physical X2D FTPS fingerprint validation;
-- [ ] decision on a default pin/TOFU enrollment UX after hardware evidence.
+Any change to default trust semantics requires release notes, tests and an updated ADR/design rationale.

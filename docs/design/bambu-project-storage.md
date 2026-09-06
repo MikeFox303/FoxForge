@@ -1,137 +1,68 @@
-# Bambu project storage strategy
+# Bambu project storage
 
-- **Status:** Implemented seam; FTPS default, X2D/eMMC physical validation pending
-- **Related ADR:** [ADR 0001: PrinterAdapter architecture](../adr/0001-printer-adapter-architecture.md)
-- **Related design:** [Bambu LAN production transport](bambu-lan-transport.md)
-- **Date:** 2026-09-04
+- **Status:** implemented FTPS storage boundary; physical X2D validation pending
+- **Updated:** 2026-09-06
+- **Related:** [Bambu LAN transport](bambu-lan-transport.md), [certificate trust](bambu-certificate-trust.md)
 
-## Context
+## Purpose
 
-Phase 7 established a Bambu LAN transport that combines MQTT control/status with the conventional implicit-FTPS project upload path. That is appropriate for Bambu families that expose the standard FTPS storage service, but it is too strong an architectural assumption for every Bambu printer.
+Bambu print execution requires artifact delivery before MQTT print start. File/project delivery is therefore isolated behind a Bambu-specific storage port instead of being embedded in queue or common print-execution code.
 
-Phase 8 therefore separated project delivery from MQTT print control. The production architecture no longer needs any preserved experimental uploader in order to support a future X2D/N6 storage implementation.
-
-The former `integrations/bambuddy/x2d_port6000/` experiment was removed from the current repository tree on 2026-09-04. Git history remains available for historical provenance, but FoxForge will not promote that implementation into production. If X2D/N6 requires internal-eMMC transfer, it will be implemented as new production FoxForge code behind this storage boundary after physical validation.
-
-## Decision
-
-Separate **project delivery** from **print control** inside the Bambu adapter package.
-
-`BambuLanTransport` owns:
-
-- MQTT connection and status reconciliation;
-- Bambu-native state/event handling;
-- busy guards;
-- `project_file` command dispatch;
-- response matching and `INDETERMINATE` semantics.
-
-A Bambu-specific `BambuProjectStorage` strategy owns:
-
-- delivering a local project artifact to printer-accessible storage;
-- returning the remote basename used by `project_file`;
-- returning the exact Bambu-native project URL used by `project_file`.
-
-The boundary is intentionally **not** promoted to a common FoxForge `FileStorageCapability`. This storage operation exists to support Bambu print execution and its protocol semantics; it is not yet a proven cross-vendor application capability.
+```text
+QueueService
+  -> PrintExecutionCapability
+     -> BambuPrintExecutionCapability
+        -> BambuProjectStorage
+        -> BambuLanTransport (start command)
+```
 
 ## Contract
 
-```text
-BambuProjectStorage.upload(local_path, remote_filename)
-        |
-        v
-BambuStoredProject
-  remote_filename
-  project_url
-  storage_kind
-```
+`BambuProjectStorage` owns vendor-specific storage publication and returns a remote path/identity only after delivery is complete and validated according to the implementation.
 
-Initial storage kinds are:
+Queue/common code never speaks FTPS and never depends on a Bambu remote-path convention.
 
-- `FTPS` — standard implicit-FTPS delivery, returning `ftp:///<name>`;
-- `INTERNAL_EMMC` — reserved contract shape for a future validated internal-storage implementation, returning `brtc://emmc/<name>`.
+## Current implementation
 
-`INTERNAL_EMMC` in the value model does **not** mean an X2D production uploader exists. It proves that MQTT control is independent from upload transport and leaves a typed extension point for hardware-led implementation.
+`FtpsBambuProjectStorage` implements the standard LAN storage strategy with:
 
-## Default implementation
+- implicit FTPS/TLS;
+- authenticated file upload using Bambu LAN credentials;
+- deterministic safe remote naming;
+- temporary/incomplete upload handling so interrupted transfer is not exposed as a completed project;
+- cleanup/best-effort cleanup on failure;
+- normalized FoxForge errors;
+- optional independent FTPS certificate pin verification before credential-bearing storage work.
 
-`FtpsBambuProjectStorage` wraps the Phase 7 `BambuFtpsWire` implementation. Existing production factory behavior remains:
+The retired port-6000/X2D experiment is not part of the production tree. If real X2D evidence proves standard FTPS insufficient, a newly validated storage implementation can be added behind this port without changing queue semantics.
 
-```text
-create_bambu_lan_adapter()
-        |
-        v
-BambuLanTransport
-        |
-        +-- PahoBambuMqttWire
-        `-- FtpsBambuProjectStorage
-                 |
-                 `-- ImplicitFtpsBambuWire
-```
+## Submission safety
 
-No automatic model detection or silent FTPS-to-alternate-transport fallback exists.
+The Bambu print capability performs storage before MQTT start submission.
 
-## Future X2D/N6 implementation
+- definite storage failure occurs before printer-side start and can be classified accordingly;
+- once MQTT start may have been emitted, uncertain acknowledgement is treated as `INDETERMINATE`;
+- queue dispatch identity/receipt/reconciliation remain FoxForge-owned.
 
-After physical validation, a production X2D storage strategy may implement the same Bambu-specific contract:
+The storage layer must not retry the print-start command itself.
 
-```text
-X2dEmmcProjectStorage.upload(...)
-        |
-        +-- newly implemented, hardware-validated transfer
-        `-- BambuStoredProject(
-              remote_filename="job.3mf",
-              project_url="brtc://emmc/job.3mf",
-              storage_kind=INTERNAL_EMMC,
-            )
-```
+## Credentials
 
-The existing `BambuLanTransport` can then send the returned URL through `project_file` without changing `QueueService`, `FleetService`, `PrintExecutionCapability`, or the common printer domain.
+Storage receives the required Bambu credential only through runtime adapter composition. Secrets are not persisted in public config DTOs or returned by the storage result/error surface.
 
-The implementation must be selected explicitly. Production Bambu code must not import historical integration experiments.
+## Provenance
 
-## Safety consequences
+The production storage implementation is newly written FoxForge code. Bambuddy/open networking research may inform behavior, but any copied/derived implementation must be recorded separately with exact upstream commit/path/license/notices.
 
-The project-storage boundary sits **before** the print-start side effect.
+## Physical validation
 
-- Storage failures remain safe pre-start failures.
-- The second busy guard still runs after project storage completes and before MQTT `project_file`.
-- `INDETERMINATE` remains reserved for ambiguity after `project_file` may have reached the printer.
-- A storage strategy must not itself start a print.
+The active X2D gate must prove:
 
-A storage strategy must return a validated project reference. `BambuStoredProject` rejects mismatched filenames, unsupported URL schemes, query/fragment-bearing URLs, and invalid internal-eMMC references.
+- real project upload through the exact Umbrel candidate;
+- remote path/plate semantics required by the X2D;
+- successful print start after upload;
+- interrupted upload/connection failure does not produce a duplicate start;
+- certificate trust behavior when pins are enabled;
+- recovery without deleting unrelated printer configuration.
 
-## Alternatives considered
-
-### Keep FTPS hard-coded in `BambuLanTransport`
-
-Rejected. It makes a storage difference look like a completely different printer adapter and would force X2D-specific branches into control logic.
-
-### Carry the former port-6000 experiment forward as a dormant fallback
-
-Rejected and removed. Dormant experimental production-adjacent code increases maintenance and provenance burden without improving current behavior. Hardware validation should drive a fresh implementation of the exact protocol path FoxForge actually needs.
-
-### Add a common `FileStorageCapability`
-
-Deferred. Moonraker and Bambu file handling currently have different application semantics, and the queue does not need a generic user-facing file manager to dispatch prints. A common capability can be introduced later if multiple vendors demonstrate the same stable use case.
-
-## Acceptance criteria
-
-1. Standard FTPS dispatch behavior is unchanged.
-2. `BambuLanTransport` depends on `BambuProjectStorage`, not directly on FTPS semantics.
-3. `project_file.url` comes from the storage result rather than being constructed as FTP inside the MQTT codec.
-4. A fake internal-eMMC storage strategy can return `brtc://emmc/...` and the transport forwards it exactly.
-5. The second busy guard still runs after storage completion.
-6. Production Bambu code imports neither Moonraker nor historical Bambuddy integration modules.
-7. The default production factory still selects standard FTPS explicitly; there is no model-based fallback.
-8. Ruff and the full test suite pass on Python 3.12 and Python 3.13.
-
-## Next validation step
-
-The next X2D-specific slice should be hardware-led rather than architecture-led:
-
-1. identify which storage services the physical X2D exposes in the target LAN mode/firmware;
-2. validate read-only capability discovery before attempting writes;
-3. upload a small test 3MF without issuing `project_file`;
-4. verify the remote artifact and the project URL expected by the printer;
-5. only then implement a production `BambuProjectStorage` strategy based on the validated protocol;
-6. document any external reverse-engineering source/provenance actually used by that new implementation.
+If physical results require a different X2D storage strategy, update this design and publish a new immutable validation candidate before carrying evidence forward.

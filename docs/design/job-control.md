@@ -1,128 +1,69 @@
-# Common printer job control
+# Common job-control capability
 
-**Status:** implemented as P1 and released in `v0.1.0-alpha.4`; automated validation green, physical validation pending  
-**Capability:** `foxforge.job_control` v1  
-**Actions:** pause, resume, cancel
+- **Status:** implemented and released; physical printer validation pending
+- **Updated:** 2026-09-06
+- **Capability:** `foxforge.job_control` / v1
+- **Related:** [ADR 0001](../adr/0001-printer-adapter-architecture.md), [ADR 0004](../adr/0004-command-api-security.md)
 
-## Context
+## Purpose
 
-FoxForge needs common operator controls for an already-running print without allowing the web UI or application layer to know Bambu MQTT commands, Moonraker HTTP endpoints, or vendor model names. Pause/resume/cancel are genuinely common operations, but they are safety-sensitive remote side effects: a stale UI must never pause or cancel whichever job happens to be running now.
+Pause, Resume and Cancel are common only when they target the exact currently observed remote job and preserve uncertainty safely. They are therefore a typed capability rather than methods on the base `PrinterAdapter`.
 
-The P1 design therefore treats job control as a typed capability attached to a concrete `PrinterAdapter`, and every command names the exact vendor job identity observed by FoxForge before the operator acts.
+## Eligibility
 
-## Domain contract
+A control request is allowed only when:
 
-`JobControlCapability` exposes:
+- the printer exposes `JobControlCapability`;
+- snapshot state is fresh/connected;
+- an active job exists;
+- that job has a non-empty vendor job identity;
+- requested action is valid for the observed job state;
+- the request's expected vendor job identity matches the current observed job exactly.
 
-- a `JobControlDescriptor` advertising supported common actions;
-- `assess(JobControlRequest)` for fail-closed eligibility;
-- `execute(JobControlRequest)` returning a `JobControlReceipt` only after the adapter transport reports acceptance.
+Stale/mismatched state fails closed before a command is sent.
 
-`JobControlRequest` contains two durable pieces of intent:
+Typical action state rules:
 
-- `control_id`: logical FoxForge identity for one control command;
-- `expected_vendor_job_id`: the exact active vendor job the operator saw.
+- Pause: active printing/preparing states supported by the adapter;
+- Resume: paused;
+- Cancel: active/preparing/printing/paused states supported by the adapter.
 
-A command is blocked when the printer is offline, the snapshot is stale, there is no active job, the active job lacks a vendor identity, the identity changed, the action is unsupported, or the job state does not allow that action.
+The adapter remains responsible for mapping common action to vendor protocol semantics.
 
-State rules in v1 are:
+## Identities
 
-| Action | Allowed job states |
-| --- | --- |
-| Pause | `PRINTING` |
-| Resume | `PAUSED` |
-| Cancel | `PREPARING`, `PRINTING`, `PAUSED` |
+`controlId` identifies one logical job-control action and is distinct from HTTP `Idempotency-Key`.
 
-The common capability does not infer vendor behavior from a model name. Adapters explicitly advertise the capability.
+The HTTP command layer may replay the original result for one request, while the capability-level `controlId` prevents an accidental new logical control action from being inferred from transport retries.
 
-## Adapter mapping
+## Outcomes
 
-### Bambu Lab
+The capability reports a normalized outcome such as acknowledged/accepted or `INDETERMINATE` when the side effect may have occurred but cannot be confirmed.
 
-`BambuJobControlCapability` maps:
+`INDETERMINATE` is non-retryable by default. The browser refreshes/observes printer state; it does not silently resend Pause/Resume/Cancel.
 
-- pause → Bambu print command `pause`;
-- resume → Bambu print command `resume`;
-- cancel → Bambu print command `stop`.
+## Vendor mapping
 
-`BambuLanTransport` checks the current native vendor job identity again immediately before publishing the command. MQTT publish/response ambiguity is normalized to `PrinterErrorCode.INDETERMINATE` and is never marked retryable.
+Current implementations:
 
-### Moonraker/Klipper
+- Bambu adapter maps the common action to Bambu MQTT command behavior;
+- Moonraker adapter maps it to Moonraker control endpoints;
+- unsupported printers expose no common capability.
 
-`MoonrakerJobControlCapability` maps:
+Vendor-native response DTOs/errors do not leave their adapter.
 
-- pause → `POST /printer/print/pause`;
-- resume → `POST /printer/print/resume`;
-- cancel → `POST /printer/print/cancel`.
+## HTTP/UI boundary
 
-The controlled HTTP transport checks the current filename/vendor job identity before the request. Network errors, timeouts, or server-side failures after the request may have reached Moonraker are treated as `INDETERMINATE` rather than as safe retries.
+Protected job-control routes require `printer.control`, explicit Operator Access authentication and idempotency/audit handling from ADR 0004/0005.
 
-## HTTP command contract
+The UI:
 
-P1 exposes:
+- shows controls only for supported/current state;
+- sends the exact observed vendor job identity;
+- requires confirmation for Cancel;
+- refreshes state after success or ambiguity;
+- does not downgrade `INDETERMINATE` into Retry.
 
-```text
-POST /api/v1/printers/{printer_id}/job-control
-Authorization: Bearer ...
-Idempotency-Key: <HTTP command identity>
-Content-Type: application/json
+## Physical validation
 
-{
-  "controlId": "<UUID>",
-  "action": "pause | resume | cancel",
-  "expectedVendorJobId": "<opaque vendor job id>"
-}
-```
-
-The route requires ADR 0004 permission `printer.control` and participates in the same fail-closed command audit as printer configuration, inventory, and queue writes.
-
-`controlId` and HTTP `Idempotency-Key` are intentionally different identities. `controlId` identifies the logical device-side command. `Idempotency-Key` identifies one externally callable HTTP attempt/replay identity.
-
-For a conclusive result the idempotency reservation becomes `COMPLETED`. Replaying the same HTTP key does not execute the adapter again. Reusing one HTTP key with a different payload is rejected as an idempotency conflict.
-
-## Ambiguous outcomes
-
-Job-control side effects are not blindly retried.
-
-If a transport cannot prove whether pause/resume/cancel reached the printer, the adapter returns `INDETERMINATE`. The HTTP idempotency reservation deliberately remains `STARTED`. A replay with the same HTTP key returns `job_control_reconciliation_required` and does not invoke the adapter again.
-
-The browser reacts by invalidating the fleet snapshot and locking the current controls behind an uncertainty warning. Ordinary polling or a changed `observedAt` timestamp is not enough to unlock another side effect; controls remain locked until the observed job state or vendor job identity changes conclusively. It does not automatically generate a new command identity or silently resend the side effect.
-
-This is deliberately stricter than treating a timeout as a normal retryable failure. For cancel in particular, uncertainty must be resolved by live/physical state before another intentional control command.
-
-## Frontend contract
-
-The fleet read model advertises `foxforge.job_control` v1 with `supportedActions` and `requiresVendorJobIdentity`. The React cockpit renders controls from this capability only:
-
-- printing: Pause and Cancel when advertised;
-- paused: Resume and Cancel when advertised;
-- preparing: Cancel when advertised;
-- stale/offline/no vendor job identity: no actionable control is sent.
-
-Cancel requires explicit operator confirmation. The UI does not add Bambu-only controls to Moonraker printers or vice versa.
-
-## Release status
-
-P1 was shipped in `v0.1.0-alpha.4`. The guarded release workflow validated the exact frozen release commit before publishing the multi-architecture image and pre-release.
-
-Release inclusion is not physical validation. The same hardware evidence requirements below remain binding.
-
-## Acceptance criteria
-
-P1 is code-complete because all of the following hold:
-
-1. Bambu and Moonraker adapters expose the same typed `JobControlCapability` without application/API imports of vendor transport types.
-2. Pause/resume/cancel are guarded by exact vendor job identity and current normalized state.
-3. Bambu LAN and Moonraker transports implement the corresponding native commands and normalize ambiguous outcomes to non-retryable `INDETERMINATE`.
-4. `/api/v1/fleet` advertises job-control capability metadata rather than requiring frontend vendor inference.
-5. The authenticated command endpoint requires `printer.control`, `Idempotency-Key`, request validation, durable idempotency, normalized errors and command audit.
-6. Same-key completed replay executes the remote side effect at most once.
-7. Same-key unresolved replay never executes the remote side effect again.
-8. The React printer cockpit exposes only state/capability-valid controls and requires confirmation for cancel.
-9. EN/RU/UK job-control copy remains key-identical.
-10. Backend tests/Ruff and frontend typecheck/Vitest/build plus unified-container smoke remain green.
-11. Documentation distinguishes automated/code validation from physical X2D and OpenKE validation.
-
-## Physical validation still required
-
-Code-complete and released P1 does not by itself prove printer-side behavior on real hardware. Before production-ready claims, the hardware validation matrix must cover pause, observed paused state, resume, observed resumed state, cancel, completion/cancellation state, network loss during each command, and server restart/reconnect on both a representative Bambu target and a Moonraker/OpenKE target.
+Real Bambu X2D and Moonraker/OpenKE tests must prove action/state mapping and stale-job protection before production-ready support is claimed. For the active Bambu milestone see [Pre-Alpha 5 validation](../testing/pre-alpha-5-bambu-physical-validation.md).

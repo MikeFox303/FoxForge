@@ -4,7 +4,7 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 
 ## Read this first
 
-- [Current project status](project-status.md) — current semantic release, current validation candidate, implementation state and development order.
+- [Current project status](project-status.md) — current semantic release, validation candidate, implementation state and development order.
 - [Pre-Alpha 5 Bambu physical validation](testing/pre-alpha-5-bambu-physical-validation.md) — exact installable candidate and X2D/AMS 2 Pro release gate.
 - [Generic physical-validation runbook](testing/physical-validation-runbook.md) — version-independent evidence rules.
 - [Physical evidence gate](testing/physical-evidence-gate.md) — verifier contract.
@@ -21,7 +21,7 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 | Candidate source | `37b253f385c19451c7ea075a4a4d12378cf17cf2` |
 | Candidate image | `ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f` |
 
-The validation package is not a final Alpha 5 semantic release.
+The validation package is not a final Alpha 5 semantic release. Documentation-only commits may advance `main` without changing the immutable candidate under test.
 
 ## Architecture Decision Records
 
@@ -31,7 +31,7 @@ The validation package is not a final Alpha 5 semantic release.
 - [ADR 0004 — command API security and idempotency](adr/0004-command-api-security.md)
 - [ADR 0005 — browser command authentication and deployment trust](adr/0005-browser-command-authentication.md)
 
-ADRs record durable decisions. Historical context inside an accepted ADR is not rewritten merely because implementation has advanced; implementation-status notes clarify the current state.
+ADRs record durable decisions. Historical context inside an accepted ADR is not rewritten merely because implementation has advanced; implementation-status notes clarify current state.
 
 ## Printer and fleet design
 
@@ -70,6 +70,7 @@ Queue:
 - [Queue retry policy](design/queue-retry-policy.md)
 - [Queue command API and artifact staging](design/queue-command-api.md)
 - [Queue command UI](design/queue-command-ui.md)
+- [Artifact lifecycle](design/artifact-lifecycle.md)
 
 Inventory:
 
@@ -79,14 +80,15 @@ Inventory:
 
 The normal spool operator workflow is implemented. Automatic queue-to-filament accounting remains a separate frozen P3 feature.
 
-## API, web and persistence
+## API, web, security and persistence
 
 - [Public API v1](design/public-api-v1.md)
 - [Web UI foundation](design/web-ui-foundation.md)
 - [Frontend parallel-development policy](design/frontend-parallel-development.md)
+- [Command idempotency reservation](design/command-idempotency-reservation.md)
 - [Secret storage](design/secret-storage.md)
 - [Persistence migrations](design/persistence-migrations.md)
-- [Artifact lifecycle](design/artifact-lifecycle.md)
+- [Printer setup UI acceptance](validation/printer-setup-ui-acceptance.md)
 
 ## Deployment and testing
 
@@ -96,15 +98,25 @@ The normal spool operator workflow is implemented. Automatic queue-to-filament a
 - [Deployment authentication contract](testing/deployment-auth-contract.md)
 - [Coverage policy](testing/coverage-policy.md)
 
-## Audits and historical records
+## Upstream/provenance records
 
-- [Independent audit — 2026-09-04](audits/2026-09-04-independent-project-audit.md) — **immutable historical finding snapshot**.
+- [`integrations/bambuddy/README.md`](../integrations/bambuddy/README.md) — retired fork/X2D experiment and upstream-contribution context.
+- [`integrations/bambuddy/i18n_ru_uk.md`](../integrations/bambuddy/i18n_ru_uk.md) — localization contribution record.
+- [`integrations/bambuddy/legacy_migration.md`](../integrations/bambuddy/legacy_migration.md) — historical migration/provenance notes.
+
+These files are records, not a second FoxForge architecture.
+
+## Historical evidence and dated records
+
+- [Independent audit — 2026-09-04](audits/2026-09-04-independent-project-audit.md) — immutable historical finding snapshot.
 - [Audit remediation tracker](audits/2026-09-04-remediation-tracker.md) — active status/evidence tracker.
-- [`docs/status/`](status/) — dated release-readiness/evidence/handoff records. Alpha 4.x files in this directory are historical and must not be used as the current validation target.
-- [`testing/evidence/alpha4.2-manifest.template.json`](testing/evidence/alpha4.2-manifest.template.json) — historical Alpha 4.2 evidence template.
-- [P3 frozen state](status/p3-frozen-state-2026-09-04.md) — frozen implementation snapshot; current resume gate is defined by the current project status and physical-validation documentation.
+- [`docs/status/`](status/) — dated release-readiness/evidence/handoff records. Alpha 4.x files here are historical and must not be used as the current validation target.
+- [Umbrel mobile validation — 2026-09-04](validation/2026-09-04-umbrel-mobile.md) — historical Alpha 2 real-install/mobile evidence.
+- [`testing/alpha4.2-validation-tooling-bootstrap.md`](testing/alpha4.2-validation-tooling-bootstrap.md) — historical Alpha 4.2 tooling handoff.
+- [`testing/evidence/alpha4.2-manifest.template.json`](testing/evidence/alpha4.2-manifest.template.json) — historical Alpha 4.2 template.
+- [P3 frozen state](status/p3-frozen-state-2026-09-04.md) — frozen implementation snapshot; current resume gate is defined by project-status/current physical-validation docs.
 
-Do not rewrite historical release notes, immutable audit snapshots or dated evidence records to look current. New current-state documents should link to them with their historical role clearly labeled.
+Do not rewrite immutable release notes, audit snapshots or dated evidence records to look current. Link to them with their historical role clearly labeled.
 
 ## Working rules
 
