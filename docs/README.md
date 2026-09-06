@@ -1,6 +1,6 @@
 # FoxForge documentation
 
-The Git repository is the canonical source for durable FoxForge architecture, contracts, project status and validation evidence.
+The Git repository is the canonical source for durable FoxForge architecture, contracts, validation evidence and release state. Chat discussion is not a substitute for the documents below.
 
 ## Read this first
 
@@ -8,16 +8,14 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 - [Pre-Alpha 5 Bambu physical validation](testing/pre-alpha-5-bambu-physical-validation.md) — exact installable candidate and X2D/AMS 2 Pro release gate.
 - [Generic physical-validation runbook](testing/physical-validation-runbook.md) — version-independent evidence rules.
 - [Physical evidence gate](testing/physical-evidence-gate.md) — verifier contract.
-- [`CHANGELOG.md`](../CHANGELOG.md) — release and current-development summary.
-- [`release/`](../release/) — immutable published release notes and release identity.
 
-### Current identities
+## Current validation target
 
-| Role | Identity |
+| Item | Current value |
 | --- | --- |
-| Latest semantic pre-release | `v0.1.0-alpha.4.3` |
-| Target milestone | `v0.1.0-alpha.5` |
-| Current Umbrel validation package | `0.1.0-alpha.4.3-umbrel.2` |
+| Semantic release | `v0.1.0-alpha.4.3` |
+| Active milestone | Pre-Alpha 5 / Bambu Lab connection and control |
+| Umbrel validation package | `0.1.0-alpha.4.3-umbrel.2` |
 | Candidate source | `37b253f385c19451c7ea075a4a4d12378cf17cf2` |
 | Candidate image | `ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f` |
 
@@ -36,6 +34,7 @@ ADRs record durable decisions. Historical context inside an accepted ADR is not 
 ## Printer and fleet design
 
 - [Printer contracts v1](design/printer-contracts.md)
+- [Material topology capability](design/material-topology.md)
 - [AdapterRegistry and FleetService](design/fleet-service.md)
 - [Application-managed printer setup](design/app-managed-printer-setup.md)
 - [Printer setup security](design/printer-setup-security.md)
@@ -74,9 +73,9 @@ Queue:
 
 Inventory:
 
-- [Inventory foundation](design/inventory-foundation.md)
-- [SQLite inventory](design/inventory-sqlite.md)
-- [Inventory atomicity](design/inventory-atomicity.md)
+- [Inventory domain](design/inventory-domain.md)
+- [Inventory operator API](design/inventory-command-api.md)
+- [Inventory command UI](design/inventory-command-ui.md)
 
 The normal spool operator workflow is implemented. Automatic queue-to-filament accounting remains a separate frozen P3 feature.
 
@@ -92,9 +91,10 @@ The normal spool operator workflow is implemented. Automatic queue-to-filament a
 
 ## Deployment and testing
 
-- [Deployment overview](../deployment/README.md)
-- [Docker deployment](../deployment/docker/README.md)
-- [Umbrel deployment](../deployment/umbrel/README.md)
+- [Docker deployment](deployment/docker.md)
+- [Umbrel deployment](deployment/umbrel.md)
+- [Deployment authentication](deployment/authentication.md)
+- [Release publishing](deployment/release-publishing.md)
 - [Deployment authentication contract](testing/deployment-auth-contract.md)
 - [Coverage policy](testing/coverage-policy.md)
 
@@ -120,9 +120,10 @@ Do not rewrite immutable release notes, audit snapshots or dated evidence record
 
 ## Working rules
 
-1. Important architecture/runtime decisions belong in the repository, not chat memory.
-2. Common application code remains vendor-independent; deep Bambu behavior stays available through typed vendor capabilities.
-3. Remote mutations remain authenticated, authorized, validated, idempotent, normalized and audited.
-4. Physical/device/deployment claims require physical evidence; CI/QEMU/browser emulation are supporting evidence only.
-5. Implementation work defines acceptance criteria and tests.
-6. Copied/derived upstream material retains required copyright/license notices and provenance.
+- Keep common printer contracts vendor-independent.
+- Preserve deep Bambu functionality behind typed adapter/capability boundaries.
+- Keep Bambu and Moonraker transport details out of common queue/inventory code.
+- Keep deployment compatible with Docker, Linux `amd64`/`arm64` and Umbrel.
+- Preserve upstream copyright/license notices and classify upstream-derived work in the adoption map.
+- Treat `INDETERMINATE` side effects as reconciliation-only; never blindly retry an ambiguous printer command.
+- Important architecture and release decisions belong in Git, not only in chat.
