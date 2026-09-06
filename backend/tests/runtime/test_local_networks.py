@@ -30,15 +30,18 @@ def test_private_discovery_subnets_narrow_wide_networks_around_server_address() 
 
 
 def test_private_discovery_subnets_ignore_public_loopback_link_local_and_invalid_records() -> None:
-    assert private_discovery_subnets(
-        (
-            LocalIPv4Interface("8.8.8.8", "255.255.255.0"),
-            LocalIPv4Interface("127.0.0.1", "255.0.0.0"),
-            LocalIPv4Interface("169.254.1.20", "255.255.0.0"),
-            LocalIPv4Interface("not-an-ip", "255.255.255.0"),
-            LocalIPv4Interface("192.168.1.20", "not-a-mask"),
+    assert (
+        private_discovery_subnets(
+            (
+                LocalIPv4Interface("8.8.8.8", "255.255.255.0"),
+                LocalIPv4Interface("127.0.0.1", "255.0.0.0"),
+                LocalIPv4Interface("169.254.1.20", "255.255.0.0"),
+                LocalIPv4Interface("not-an-ip", "255.255.255.0"),
+                LocalIPv4Interface("192.168.1.20", "not-a-mask"),
+            )
         )
-    ) == ()
+        == ()
+    )
 
 
 def test_private_discovery_subnets_are_deduplicated_and_deterministic() -> None:
