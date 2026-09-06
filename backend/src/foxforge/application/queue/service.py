@@ -32,6 +32,7 @@ from foxforge.domain.printers.capabilities import (
 )
 
 from .models import QueueDispatchError, QueueEntry, QueueEntryState
+from .routing import prepare_queue_routing
 from .store import QueueStore
 
 
@@ -202,7 +203,31 @@ class QueueService:
                 observed_at=utc_now(),
             )
         else:
-            assessment = await capability.assess(entry.request)
+            prepared = prepare_queue_routing(
+                self._fleet,
+                printer_id=entry.printer_id,
+                request=entry.request,
+                print_execution=capability,
+            )
+            if not prepared.eligible:
+                assessment = PrintExecutionAssessment(
+                    eligible=False,
+                    blockers=prepared.blockers,
+                    observed_at=utc_now(),
+                )
+            else:
+                if prepared.request != entry.request:
+                    entry = replace(
+                        entry,
+                        request=prepared.request,
+                        assessment=None,
+                        error=None,
+                        updated_at=utc_now(),
+                    )
+                    # The compiler-owned route becomes durable before adapter
+                    # assessment and therefore before any later submit side effect.
+                    self._store.save(entry)
+                assessment = await capability.assess(entry.request)
 
         next_state = QueueEntryState.PENDING if assessment.eligible else QueueEntryState.BLOCKED
         updated = replace(
@@ -223,6 +248,9 @@ class QueueService:
         if entry.state in {QueueEntryState.DISPATCHING, QueueEntryState.INDETERMINATE}:
             raise QueueReconciliationRequiredError(entry)
 
+        # assess() performs immutable 3MF inspection plus live material/topology
+        # compilation on every dispatch attempt, so a persisted route is
+        # revalidated immediately before the queue crosses into DISPATCHING.
         assessed = await self.assess(queue_id)
         if assessed.state == QueueEntryState.BLOCKED:
             return assessed

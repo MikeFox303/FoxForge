@@ -336,9 +336,21 @@ def _existing_enqueue(
         existing = queue.get(queue_id)
     except QueueEntryNotFoundError:
         return None
-    if existing.printer_id != printer_id or existing.request != expected_request:
+    if existing.printer_id != printer_id or not _same_client_enqueue_intent(existing.request, expected_request):
         return None
     return existing
+
+
+def _same_client_enqueue_intent(existing: PrintExecutionRequest, expected: PrintExecutionRequest) -> bool:
+    existing_bindings = tuple(sorted((item.material_index, item.slot_id) for item in existing.material_bindings))
+    expected_bindings = tuple(sorted((item.material_index, item.slot_id) for item in expected.material_bindings))
+    return (
+        existing.dispatch_id == expected.dispatch_id
+        and existing.artifact == expected.artifact
+        and existing.selection == expected.selection
+        and existing.requested_name == expected.requested_name
+        and existing_bindings == expected_bindings
+    )
 
 
 def _queue_result(entry: QueueEntry, *, replayed: bool = False) -> dict[str, Any]:
