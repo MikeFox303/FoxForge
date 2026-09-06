@@ -1,0 +1,169 @@
+name: Candidate 4 docs integrator
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.event.pull_request.head.ref == 'pre-alpha-5/candidate4-docs-sync'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: pre-alpha-5/candidate4-docs-sync
+          fetch-depth: 0
+
+      - name: Apply exact Candidate 4 current-state documentation edits
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          OLD_PACKAGE = '0.1.0-alpha.4.3-umbrel.2'
+          NEW_PACKAGE = '0.1.0-alpha.4.3-umbrel.4'
+          OLD_SOURCE = '37b253f385c19451c7ea075a4a4d12378cf17cf2'
+          NEW_SOURCE = 'c11f7145b4354aa79c8f0fad223648240e652bac'
+          OLD_STORE = '1d7d78d7a0f3c36805071dd6d8078033c59672ac'
+          NEW_STORE = '07b8e8087ac9897d4c2f5dc45944b48dfb0938e1'
+          OLD_IMAGE = 'ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f'
+          NEW_IMAGE = 'ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a'
+
+          def exact_replace(path: str, old: str, new: str, expected: int = 1) -> None:
+              target = Path(path)
+              text = target.read_text(encoding='utf-8')
+              actual = text.count(old)
+              assert actual == expected, f'{path}: expected {expected} matches for {old!r}, got {actual}'
+              target.write_text(text.replace(old, new), encoding='utf-8')
+
+          current_files = [
+              'README.md',
+              'CHANGELOG.md',
+              'docs/README.md',
+              'docs/project-status.md',
+              'deployment/README.md',
+              'deployment/docker/README.md',
+              'deployment/umbrel/README.md',
+              'docs/testing/deployment-auth-contract.md',
+          ]
+          for path in current_files:
+              text = Path(path).read_text(encoding='utf-8')
+              text = text.replace(OLD_PACKAGE, NEW_PACKAGE)
+              text = text.replace(OLD_SOURCE, NEW_SOURCE)
+              text = text.replace(OLD_STORE, NEW_STORE)
+              text = text.replace(OLD_IMAGE, NEW_IMAGE)
+              Path(path).write_text(text, encoding='utf-8')
+
+          exact_replace(
+              'docs/project-status.md',
+              '| Umbrel | Candidate 2 published | `APP_PASSWORD` maps to `FOXFORGE_COMMAND_TOKEN`; app password is exposed through Umbrel UI for GUI-only operator unlock. |',
+              '| Umbrel | Candidate 4 published | `APP_PASSWORD` maps to `FOXFORGE_COMMAND_TOKEN`; app password is exposed through Umbrel UI for GUI-only operator unlock. |',
+          )
+          exact_replace(
+              'deployment/umbrel/README.md',
+              'The Store currently carries the **second Pre-Alpha 5 physical-validation candidate**:',
+              'The Store currently carries the **fourth Pre-Alpha 5 physical-validation candidate**:',
+          )
+          exact_replace(
+              'docs/testing/deployment-auth-contract.md',
+              'The current Store package is Pre-Alpha 5 validation candidate 2:',
+              'The current Store package is Pre-Alpha 5 validation candidate 4:',
+          )
+
+          exact_replace(
+              'README.md',
+              '- conservative Bambu LAN discovery over an explicitly selected RFC1918 IPv4 subnet, with manual entry retained as fallback;',
+              '- conservative Bambu LAN discovery over bounded RFC1918 IPv4 subnets, including server-visible private subnet suggestions plus manual CIDR entry as fallback;',
+          )
+          exact_replace(
+              'README.md',
+              '- AMS-family and external material-source observation through the common material-system capability;\n- active source, remaining fraction, material identity and tag identity when reported by the printer;',
+              '- AMS-family and external material-source observation through the common material-system capability;\n- typed `foxforge.material_topology` routes with explicit fixed/dynamic/unknown toolhead reachability and stale-state handling;\n- active source, remaining fraction, material identity and tag identity when reported by the printer;\n- Bambu print dispatch defense that revalidates compiled source/toolhead routing and emits `ams_mapping`, `ams_mapping2` and `nozzle_mapping` only from proven intent;',
+          )
+          exact_replace(
+              'README.md',
+              '- durable SQLite-backed queue with lifecycle, retry and reconciliation boundaries;\n- explicit `INDETERMINATE` handling instead of blind side-effect retry;',
+              '- durable SQLite-backed queue with lifecycle, retry and reconciliation boundaries;\n- immutable staged-3MF print-plan inspection with plate-scoped requirements, explicit operator material bindings and fail-closed routing compilation;\n- compiler-owned toolhead bindings persisted before submit and revalidated again at dispatch;\n- explicit `INDETERMINATE` handling instead of blind side-effect retry;',
+          )
+          exact_replace(
+              'README.md',
+              '- Add Printer discovery/manual flow, structured setup errors and reconnect diagnostics;\n- queue, inventory and common job-control workflows.',
+              '- Add Printer discovery/manual flow with safe subnet suggestions, structured setup errors and reconnect diagnostics;\n- Printer Detail Material Topology UI with fixed/dynamic/unknown/stale presentation;\n- explicit 3MF material-binding review plus queue, inventory and common job-control workflows.',
+          )
+
+          exact_replace(
+              'docs/README.md',
+              'Current source includes conservative LAN discovery, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project-storage foundations and AMS/external material observation. Physical X2D/AMS 2 Pro acceptance remains the active release gate.',
+              'Current source includes bounded LAN discovery with private-subnet suggestions, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project storage, AMS/external observation, typed material topology and fail-closed 3MF material routing. Physical X2D/AMS 2 Pro acceptance remains the active release gate.',
+          )
+
+          exact_replace(
+              'docs/project-status.md',
+              '| Bambu adapter | Functional alpha | MQTT/TLS state, project storage, material-system observation and common job control; physical X2D validation in progress. |',
+              '| Bambu adapter | Functional alpha | MQTT/TLS state, project storage, material-system/topology observation, fail-closed compiled 3MF routing and common job control; physical X2D validation in progress. |',
+          )
+          exact_replace(
+              'docs/project-status.md',
+              '| Bambu discovery | Implemented foundation | Explicit RFC1918 IPv4 subnet scan, bounded `/22` or smaller, candidate-only until normal authenticated setup succeeds. |',
+              '| Bambu discovery | Implemented foundation | Server-visible RFC1918 suggestions plus explicit manual CIDR scan, bounded `/22` or smaller and candidate-only until normal authenticated setup succeeds. |',
+          )
+          exact_replace(
+              'docs/project-status.md',
+              '| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation with explicit `INDETERMINATE`. |',
+              '| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation, immutable 3MF inspection, explicit physical material intent, compiler-owned toolhead routing and explicit `INDETERMINATE`. |',
+          )
+          exact_replace(
+              'docs/project-status.md',
+              '| Web UI | Functional alpha | Live API, setup/discovery, queue, inventory, job control and reconnect diagnostics. |',
+              '| Web UI | Functional alpha | Live API, setup/discovery with subnet suggestions, explicit 3MF binding review, Material Topology, queue, inventory, job control and reconnect diagnostics. |',
+          )
+          exact_replace(
+              'docs/project-status.md',
+              '- live Bambu material-system foundation;\n- GUI-visible Umbrel app password/operator-token path.',
+              '- live Bambu material-system and typed material-topology foundation;\n- immutable 3MF print-plan inspection, explicit source binding and fail-closed compiler-owned toolhead routing;\n- adapter-side source/topology revalidation plus Bambu `nozzle_mapping` from the proven compiled route;\n- operator-facing Material Topology and 3MF binding review UI;\n- GUI-visible Umbrel app password/operator-token path.',
+          )
+          exact_replace(
+              'docs/project-status.md',
+              'What remains before final Alpha 5 is primarily **real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro evidence**, including real print dispatch and guarded job control.',
+              'What remains before final Alpha 5 is the **real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro gate**: first the complete no-print setup/material-topology/reconnect matrix, then one explicitly reviewed 3MF dispatch and guarded job control.',
+          )
+
+          exact_replace(
+              'deployment/README.md',
+              '- Bambu discovery is an explicit, bounded scan of a user-selected RFC1918 IPv4 subnet and produces candidates only;',
+              '- Bambu discovery can suggest server-visible private RFC1918 networks and performs an explicit bounded scan of the selected/manual CIDR; results remain candidates only;',
+          )
+          exact_replace(
+              'deployment/umbrel/README.md',
+              '- the operator selects a private RFC1918 IPv4 subnet;\n- scanning is limited to `/22` or smaller networks;',
+              '- FoxForge may suggest bounded private RFC1918 networks visible from the server/container;\n- the operator explicitly selects a suggestion or enters the private CIDR manually;\n- scanning is limited to `/22` or smaller networks;',
+          )
+
+          exact_replace(
+              'CHANGELOG.md',
+              '- Conservative Bambu LAN discovery over an explicitly selected RFC1918 IPv4 subnet, requiring the expected Bambu LAN service ports before presenting a candidate.\n- Structured Bambu setup identity/model handling and normalized operator-facing setup errors.',
+              '- Conservative Bambu LAN discovery over explicit RFC1918 IPv4 subnets, with bounded server-visible private subnet suggestions and the expected Bambu LAN service ports required before presenting a candidate.\n- Typed `foxforge.material_topology` read models and Printer Detail routing UI with explicit fixed/dynamic/unknown/stale states.\n- Immutable staged-3MF print-plan inspection, plate-scoped toolhead expectations, explicit queue material-binding review and fail-closed material routing compilation.\n- Structured Bambu setup identity/model handling and normalized operator-facing setup errors.',
+          )
+          exact_replace(
+              'CHANGELOG.md',
+              '- Terminal sanitized Add/Update connection failures are replayed deterministically through durable HTTP idempotency rather than re-executing a failed setup side effect.\n- The Bambu milestone is explicitly focused on real X2D + AMS 2 Pro connection/control validation before broader P3/farm work resumes.',
+              '- Terminal sanitized Add/Update connection failures are replayed deterministically through durable HTTP idempotency rather than re-executing a failed setup side effect.\n- Queue assessment persists compiler-owned toolhead bindings, Bambu dispatch revalidates source/topology immediately before submit, and `project_file.nozzle_mapping` is emitted only from a complete proven route.\n- External Bambu 254/255 sources remain `-1` in flat `ams_mapping` and retain their real source identity in `ams_mapping2`.\n- The Bambu milestone is explicitly focused on real X2D + AMS 2 Pro connection/control validation before broader P3/farm work resumes.',
+          )
+
+          # Guard the exact Candidate 4 identity across every current-state file.
+          for path in current_files:
+              text = Path(path).read_text(encoding='utf-8')
+              if OLD_PACKAGE in text or OLD_SOURCE in text or OLD_IMAGE in text:
+                  raise AssertionError(f'{path}: stale Candidate 2 identity remains')
+
+          PY
+
+      - name: Commit docs sync
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add README.md CHANGELOG.md docs/README.md docs/project-status.md deployment/README.md deployment/docker/README.md deployment/umbrel/README.md docs/testing/deployment-auth-contract.md
+          git commit -m 'docs: sync current state to Pre-Alpha 5 Candidate 4'
+          git push origin HEAD:pre-alpha-5/candidate4-docs-sync
