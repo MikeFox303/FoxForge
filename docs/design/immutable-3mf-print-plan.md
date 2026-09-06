@@ -1,6 +1,6 @@
 # Immutable 3MF print-plan inspection
 
-Status: implemented for the Pre-Alpha 5 routing path; physical validation pending a replacement immutable candidate.
+Status: implemented for the Pre-Alpha 5 routing path; Candidate 5 published and physical X2D validation pending.
 
 ## Decision
 
@@ -55,7 +55,7 @@ These states are intentionally different.
 
 These conditions produce plate-scoped `TOOLHEAD_METADATA_INVALID`. The routing compiler treats that issue as a blocker even when the selected physical source has a fixed route. A fixed physical route proves source reachability; it does not prove slicer intent.
 
-This distinction closes the Candidate 4 audit gap where parser failure could otherwise appear indistinguishable from genuinely absent toolhead intent.
+This distinction closed the Candidate 4 audit gap where parser failure could otherwise appear indistinguishable from genuinely absent toolhead intent. Candidate 5 contains the fix and is the immutable target for new physical evidence.
 
 ## Immutability boundary
 
@@ -124,6 +124,17 @@ The routing compiler joins them explicitly:
 
 Unknown, ambiguous, stale, contradictory or invalid joins remain blockers. No default-to-toolhead-0 behavior is permitted.
 
+## Candidate 5 validation boundary
+
+New physical evidence must use the exact Candidate 5 application/image identity recorded in `docs/testing/pre-alpha-5-bambu-physical-validation.md`. Candidate 1/2/3/4 evidence is historical and cannot satisfy Candidate 5.
+
+The no-print sections of that runbook must pass before the first physical Start. During selected-plate review, physical validation must prove both sides of the safety rule:
+
+- invalid selected-plate toolhead metadata remains blocked even against a fixed physical source route;
+- a blocker belonging only to another unselected plate does not poison a safe selected plate.
+
+Any application-code change after Candidate 5 invalidates affected physical evidence and requires another immutable candidate.
+
 ## P3 accounting remains frozen
 
 Although Bambu 3MF metadata can contain `used_g`, estimated filament length and related values, this milestone does not apply them to inventory. Automatic filament accounting remains frozen until the Alpha 5 physical connection/control/real-print gate is complete.
@@ -147,4 +158,6 @@ Behavior reviewed against Bambuddy `maziggy/bambuddy` at `9b2c49d866ae1ddc63f23c
 - [x] unsafe/ambiguous required structures do not reach dispatch;
 - [x] inspection is authenticated and read-only;
 - [x] no P3 consumption mutation is introduced;
-- [ ] replacement immutable candidate is physically validated on X2D before first real print.
+- [x] Candidate 5 immutable source/image/Umbrel identity published;
+- [ ] Candidate 5 passes Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print validation;
+- [ ] first real print evidence passes before final Alpha 5.
