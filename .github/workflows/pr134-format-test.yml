@@ -1,0 +1,36 @@
+name: PR134 format toolhead tests
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/tests/application/test_artifact_toolheads.py
+      - .github/workflows/pr134-format-test.yml
+
+permissions:
+  contents: write
+
+jobs:
+  format:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: python -m pip install "ruff==0.15.20"
+      - run: ruff format backend/tests/application/test_artifact_toolheads.py
+      - name: Commit formatter output
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/tests/application/test_artifact_toolheads.py
+          git commit -m "style: format PR134 toolhead tests"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
