@@ -182,7 +182,9 @@ def _artifact_matches(request: PrintExecutionRequest) -> bool:
 
 def _request_fingerprint(request: PrintExecutionRequest) -> tuple[object, ...]:
     plate_index = request.selection.plate_index if request.selection else None
-    bindings = tuple(sorted((item.material_index, item.slot_id) for item in request.material_bindings))
+    bindings = tuple(
+        sorted((item.material_index, item.slot_id, item.toolhead_id) for item in request.material_bindings)
+    )
     return (
         request.artifact.sha256,
         request.artifact.format.value,
