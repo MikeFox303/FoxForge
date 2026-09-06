@@ -85,8 +85,8 @@ class PrintPlanPlate:
         indices = [item.material_index for item in self.material_requirements]
         if indices != sorted(indices) or len(indices) != len(set(indices)):
             raise ValueError("plate material requirements must have unique sorted indices")
-        if self.ready_for_routing != bool(self.material_requirements):
-            raise ValueError("ready_for_routing must be true exactly when material requirements are known")
+        if self.ready_for_routing and not self.material_requirements:
+            raise ValueError("a routing-ready plate must have at least one material requirement")
 
 
 @dataclass(frozen=True, slots=True)
@@ -203,11 +203,12 @@ def _inspect_verified_three_mf(handle: BinaryIO, artifact: LocalPrintArtifact) -
                     )
                     for material_index in sorted(material_indices)
                 )
+                has_blocker = any(issue.severity == PrintPlanIssueSeverity.BLOCKING for issue in plate_issues)
                 plates.append(
                     PrintPlanPlate(
                         plate_index=plate_index,
                         material_requirements=requirements,
-                        ready_for_routing=bool(requirements),
+                        ready_for_routing=bool(requirements) and not has_blocker,
                     )
                 )
 
