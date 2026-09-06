@@ -4,113 +4,39 @@
 import type { TFunction } from 'i18next';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 
+import { AppShell } from './app/AppShell';
 import { fleetRuntimeTone, type FleetRuntimeState, useFleetData } from './data/fleetGateway';
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from './domain';
 import { InventoryView } from './features/inventory/InventoryView';
 import { PrinterDetailView } from './features/printers/PrinterDetailView';
-import { PrinterSetupLauncher } from './features/printers/PrinterSetupLauncher';
-import { OperatorAccess } from './features/security/OperatorAccess';
 import { printerRoute } from './features/printers/printerDetailViewModel';
 import { QueueCommandPanel, QueueEntryActions } from './features/queue/QueueCommandPanel';
 import { changeInterfaceLanguage } from './i18n';
 import { fleetAvailability, formatDuration, formatPercent, printerTone, summarizeFleet } from './viewModel';
 
-type NavItem = {
-  path: string;
-  icon: string;
-  key: 'overview' | 'printers' | 'queue' | 'materials' | 'inventory' | 'farm' | 'system';
-};
-
-const navigation: NavItem[] = [
-  { path: '/', icon: 'OV', key: 'overview' },
-  { path: '/printers', icon: 'PR', key: 'printers' },
-  { path: '/queue', icon: 'QU', key: 'queue' },
-  { path: '/materials', icon: 'MT', key: 'materials' },
-  { path: '/inventory', icon: 'SP', key: 'inventory' },
-  { path: '/farm', icon: 'FM', key: 'farm' },
-  { path: '/system', icon: 'SY', key: 'system' },
-];
-
 export function FoxForgeApp() {
   const fleetRuntime = useFleetData();
   const fleet = fleetRuntime.data;
-  const location = useLocation();
   const navigate = useNavigate();
-  const { t } = useTranslation();
-  const current = navigation.find((item) => item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path)) ?? navigation[0];
   const openPrinter = (printerId: string) => navigate(printerRoute(printerId));
-  const runtimeTone = fleetRuntimeTone(fleetRuntime.phase);
-  const runtimeLabel = fleetRuntime.isRefreshing ? t('alpha.runtime.refreshing') : t(`alpha.runtime.${fleetRuntime.phase}`);
 
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark" aria-hidden="true">F</div>
-          <div>
-            <div className="brand-name">FoxForge</div>
-            <div className="brand-subtitle">{t('alpha.shell.fleetControl')}</div>
-          </div>
-        </div>
-
-        <nav className="sidebar-nav" aria-label={t('alpha.shell.primaryNavigation')}>
-          {navigation.map((item) => (
-            <NavLink key={item.path} to={item.path} end={item.path === '/'} className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}>
-              <span className="nav-icon" aria-hidden="true">{item.icon}</span>
-              <span>{t(`nav.${item.key}`)}</span>
-            </NavLink>
-          ))}
-        </nav>
-
-        <div className="sidebar-footer">
-          <div className="runtime-status">
-            <span className={`status-dot ${runtimeTone}`} />
-            <div>
-              <strong>{t('alpha.shell.build')}</strong>
-              <span>{runtimeLabel}</span>
-            </div>
-          </div>
-          <a className="support-link" href="https://ko-fi.com/mikefox303" target="_blank" rel="noreferrer">
-            <span aria-hidden="true">♡</span>
-            <span>{t('alpha.shell.support')}</span>
-            <span aria-hidden="true">↗</span>
-          </a>
-        </div>
-      </aside>
-
-      <main className="main-column">
-        <header className="topbar">
-          <div>
-            <div className="eyebrow">{t('alpha.shell.workspace')}</div>
-            <h1>{t(`nav.${current.key}`)}</h1>
-          </div>
-          <div className="topbar-actions">
-            <div className={`live-pill tone-${runtimeTone}`} aria-live="polite"><span className={`status-dot ${runtimeTone}`} /> {runtimeLabel}</div>
-            <PrinterSetupLauncher />
-            <div className="operator-access-shell">
-              <OperatorAccess />
-            </div>
-          </div>
-        </header>
-
-        <div className="content">
-          <FleetRuntimeNotice runtime={fleetRuntime} />
-          <Routes>
-            <Route path="/" element={<OverviewView fleet={fleet} onOpenPrinter={openPrinter} />} />
-            <Route path="/printers" element={<PrintersView fleet={fleet} onOpenPrinter={openPrinter} />} />
-            <Route path="/printers/:printerId" element={<PrinterDetailView fleet={fleet} />} />
-            <Route path="/queue" element={<QueueView fleet={fleet} />} />
-            <Route path="/materials" element={<MaterialsView fleet={fleet} />} />
-            <Route path="/inventory" element={<InventoryView fleet={fleet} />} />
-            <Route path="/farm" element={<FarmView fleet={fleet} onOpenPrinter={openPrinter} />} />
-            <Route path="/system" element={<SystemView runtime={fleetRuntime} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-      </main>
-    </div>
+    <AppShell runtime={fleetRuntime}>
+      <FleetRuntimeNotice runtime={fleetRuntime} />
+      <Routes>
+        <Route path="/" element={<OverviewView fleet={fleet} onOpenPrinter={openPrinter} />} />
+        <Route path="/printers" element={<PrintersView fleet={fleet} onOpenPrinter={openPrinter} />} />
+        <Route path="/printers/:printerId" element={<PrinterDetailView fleet={fleet} />} />
+        <Route path="/queue" element={<QueueView fleet={fleet} />} />
+        <Route path="/materials" element={<MaterialsView fleet={fleet} />} />
+        <Route path="/inventory" element={<InventoryView fleet={fleet} />} />
+        <Route path="/farm" element={<FarmView fleet={fleet} onOpenPrinter={openPrinter} />} />
+        <Route path="/system" element={<SystemView runtime={fleetRuntime} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AppShell>
   );
 }
 
