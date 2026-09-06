@@ -222,6 +222,8 @@ def _inspect_verified_three_mf(handle: BinaryIO, artifact: LocalPrintArtifact) -
                 plates=tuple(plates),
                 issues=tuple(issues),
             )
+    except InvalidThreeMfError:
+        raise
     except zipfile.BadZipFile as error:
         raise InvalidThreeMfError("Artifact is not a valid ZIP-based 3MF file") from error
     except (RuntimeError, NotImplementedError) as error:
