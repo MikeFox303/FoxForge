@@ -1,149 +1,84 @@
 # Queue command UI
 
-**Status:** implemented and released in `v0.1.0-alpha.3`  
-**Applies to:** React browser client over ADR 0004 authenticated command APIs  
-**Backend contract:** [Queue command API and artifact staging](queue-command-api.md)
+- **Status:** implemented; evolved through Alpha 4 and current Pre-Alpha 5 source
+- **Updated:** 2026-09-06
+- **Backend contract:** [Queue command API and artifact staging](queue-command-api.md)
 
-## Context
+## Purpose
 
-FoxForge already owns a durable queue and a safe command API for staging print artifacts, enqueueing jobs, dispatching a print and reconciling uncertain starts. The browser must not weaken those guarantees by introducing client filesystem paths, inventing a second queue state machine or treating every failed/blocked command as a generic retryable action.
-
-The UI therefore acts as a thin orchestration layer above the FoxForge API and preserves the queue's existing durable identities and safety states.
+The browser is a thin orchestration layer over the durable queue contract. It must not introduce client filesystem paths, invent a second state machine or weaken idempotency/reconciliation safety.
 
 ## Browser print flow
 
 ```text
-File selected in browser
-        |
-        v
-WebCrypto SHA-256
-        |
-        v
-POST /api/v1/artifacts
-(bytes + filename + expected hash)
-        |
-        v
-content-addressed staged artifact
-        |
-        v
-POST /api/v1/queue
-(queueId + dispatchId + artifactId)
-        |
-        v
-PENDING durable queue entry
-        |
-        v
-explicit POST .../dispatch
-        |
-        +--> BLOCKED
-        +--> FAILED (retry only when retryable=true and no receipt)
-        +--> ACCEPTED / lifecycle states
-        +--> INDETERMINATE --> explicit reconciliation only
+select File
+  -> WebCrypto SHA-256
+  -> authenticated byte staging
+  -> content-addressed artifact
+  -> enqueue(queueId + dispatchId + artifactId)
+  -> PENDING
+  -> explicit dispatch
+       +-> BLOCKED
+       +-> retryable receipt-free FAILED
+       +-> ACCEPTED / lifecycle
+       `-> INDETERMINATE -> reconciliation only
 ```
 
-The browser never sends an arbitrary local/server path. The selected `File` object is used only for hashing and request bytes; the backend reconstructs its own `LocalPrintArtifact` from trusted staged storage.
+The browser never sends an arbitrary client/server path.
 
 ## Identity model
 
-Three identities have different responsibilities and must not be conflated.
+Three identities remain distinct:
 
-### `queueId`
+- `queueId` — durable FoxForge queue resource;
+- `dispatchId` — printer-side logical submission identity retained for the queue entry;
+- HTTP `Idempotency-Key` — one externally callable command identity.
 
-Created by the browser before enqueue. It identifies the durable FoxForge queue resource and is reused when an enqueue HTTP request must be replayed.
+An uncertain HTTP request replays the same HTTP key. A later intentional attempt after a conclusive safe pre-start result uses a new HTTP key while retaining the queue's original `dispatchId`.
 
-### `dispatchId`
+## State presentation
 
-Created with the logical queue job and persisted inside the queue request. It is the printer-submission idempotency identity owned by `QueueService` and remains stable for the lifetime of that queue entry, including safe pre-start retries.
+`BLOCKED`, `FAILED` and `INDETERMINATE` are not interchangeable.
 
-### HTTP `Idempotency-Key`
-
-Identifies one externally callable command attempt under ADR 0004.
-
-For dispatch:
-
-- create a key before sending the HTTP request;
-- if the request outcome is unknown because the browser/network failed before receiving a conclusive response, replay the **same key**;
-- after a conclusive `BLOCKED` response, a later intentional reassessment/start uses a **new HTTP key** while keeping the queue's original `dispatchId`;
-- after a conclusive receipt-free `FAILED` response, a new HTTP key may be used only when the backend exposes `error.retryable=true`;
-- receipt-bearing failures never expose a dispatch retry;
-- `DISPATCHING` and `INDETERMINATE` never receive a new dispatch attempt.
-
-This prevents both duplicate side effects and the opposite failure mode where a completed `BLOCKED` command is replayed forever under one old HTTP key even after printer conditions change.
-
-## UI state model
-
-The create/dispatch panel exposes explicit phases:
-
-- `idle`
-- `hashing`
-- `staging`
-- `enqueuing`
-- `queued`
-- `dispatching`
-- `blocked`
-- `accepted`
-- `failed`
-- `indeterminate`
-- request `error`
-
-`BLOCKED`, `FAILED` and `INDETERMINATE` are not interchangeable:
-
-- **BLOCKED** means assessment completed without a printer start; the operator may intentionally reassess later.
-- **FAILED** exposes retry only when the canonical API read model marks the pre-start error retryable.
-- **INDETERMINATE** means FoxForge cannot prove whether the side effect happened and therefore offers only reconciliation actions.
-
-The UI never converts an uncertain print start into a generic "Retry" button.
+- **BLOCKED:** side-effect-free eligibility failed; later reassessment may be intentional.
+- **FAILED:** dispatch retry is shown only when canonical state marks a receipt-free pre-start error retryable.
+- **INDETERMINATE:** no generic retry; explicit reconciliation/observation required.
 
 ## Reconciliation
 
-For an `INDETERMINATE` queue entry the operator must verify the physical/live printer state and explicitly choose one of:
+When start acceptance is uncertain, the operator verifies physical/live state and explicitly records accepted/not-accepted according to the backend reconciliation contract. The UI never turns uncertainty into a blind Retry button.
 
-- confirm that printing started;
-- confirm that printing did not start.
+## Authentication
 
-Both reconciliation commands are authenticated and idempotent. The UI asks for explicit confirmation because reconciliation changes the durable interpretation of an uncertain printer-side effect.
+Queue commands use the shared explicit Operator Access credential. Production does not depend on anonymous `/api/v1/operator-session` bootstrap.
 
-## Shared browser command client
+The shared command client owns only:
 
-Printer setup and queue commands use one browser command client for:
-
-- `POST /api/v1/operator-session` bootstrap;
-- bearer-token attachment;
-- `Idempotency-Key` headers;
+- in-memory Bearer credential attachment;
+- HTTP idempotency header handling;
 - normalized command errors;
-- clearing a cached browser token after HTTP 401.
+- clearing the credential after authentication failure/Lock.
 
-Feature clients remain typed and domain-specific; the common client does not learn printer, inventory or queue business semantics.
+Feature business semantics remain in typed queue/printer/inventory clients.
 
-## Current limitations
+## Features added after Alpha 3
 
-This slice intentionally does not add:
+The original queue UI has since been joined by:
 
-- plate selection or material-binding controls;
-- streaming/incremental SHA-256 computation or byte-progress upload UI;
-- pause/resume/cancel controls;
-- automatic print dispatch when a job is enqueued;
-- realtime WebSocket/SSE updates;
-- persisted browser draft recovery across a full page reload.
+- common capability-driven Pause/Resume/Cancel;
+- SSE query invalidation/replay-resync handling;
+- production-browser acceptance;
+- artifact lifecycle/capacity safeguards;
+- current Bambu setup/reconnect diagnostics work.
 
-`crypto.subtle.digest()` currently hashes the whole selected file in browser memory. The backend's upload bound remains authoritative. A future streaming hash/progress implementation may improve very-large-file UX without changing the API trust boundary.
+Plate/material binding UX may evolve as trusted cross-vendor contracts are expanded. Automatic filament accounting remains frozen P3 work.
 
 ## Acceptance criteria
 
-- a browser-selected `.gcode`/`.3mf` reaches staging as bytes plus filename/hash, never a client filesystem path;
-- queue creation uses a stable browser-created `queueId`, `dispatchId` and enqueue idempotency key;
-- an uncertain dispatch request can be replayed with the same HTTP key;
-- a completed `BLOCKED` attempt does not pin all later intentional attempts to the old HTTP key;
-- only backend-confirmed retryable receipt-free `FAILED` entries expose retry;
-- `INDETERMINATE` exposes reconciliation only;
-- printer setup and queue writes share authentication/session plumbing without sharing feature semantics;
-- EN/RU/UK translation keys remain aligned;
-- frontend typecheck, unit tests, production build and unified-container smoke remain green.
-
-## Follow-up
-
-1. Run physical Bambu X2D and Moonraker/OpenKE upload/start/reconciliation validation.
-2. Add typed common pause/resume/cancel capability and command APIs before exposing those controls in the UI.
-3. Add realtime application-event delivery and query-cache updates.
-4. Add trustworthy material binding and queue-driven filament accounting.
-5. Consider streaming hashing/upload progress for very large artifacts without weakening backend verification.
+- file staging sends bytes + filename/hash only;
+- queue/dispatch/HTTP identities are never conflated;
+- only canonical retryable receipt-free failures expose retry;
+- `INDETERMINATE` remains reconciliation-only;
+- Operator Access credential stays memory-only;
+- realtime updates refresh canonical HTTP queue state;
+- frontend EN/RU/UK/typecheck/unit/build/browser gates remain green.

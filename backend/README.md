@@ -1,30 +1,49 @@
 # FoxForge backend
 
-The FoxForge backend is the Python 3.12+ application/core runtime.
+The backend is the Python 3.12+ application/core runtime for FoxForge.
+
+## Responsibilities
 
 It owns:
 
-- the normalized printer domain;
-- `PrinterAdapter` contracts and typed capabilities;
-- Bambu Lab and Moonraker/Klipper adapters;
-- fleet and durable print-queue application services;
-- persistence/database infrastructure;
-- future inventory and AMS/CFS application workflows;
-- the future public REST/WebSocket API used by the web frontend and automation clients.
+- FoxForge printer, queue and inventory domain contracts;
+- `PrinterAdapter` and typed capability boundaries;
+- Bambu Lab and Moonraker/Klipper adapters and transports;
+- `FleetService`, durable queue and inventory application services;
+- application-managed printer configuration, test-before-save and rollback-safe updates;
+- Bambu LAN discovery and secret-safe reconnect diagnostics;
+- authenticated/idempotent command APIs and append-only command audit;
+- `/api/v1` HTTP read/command models and `/api/v1/events` SSE invalidations;
+- SQLite persistence, migrations, artifact staging and `SecretStore` credential handling;
+- the unified `aiohttp` runtime that serves both API and compiled frontend assets.
 
-The backend must remain independent from frontend implementation details. HTTP/WebSocket handlers should call application services and typed capabilities rather than importing vendor protocol transports directly.
+The backend must remain independent from frontend implementation details. HTTP/SSE handlers call application services and typed capabilities; they do not bypass those boundaries to raw Bambu/Moonraker transports.
+
+## Architecture rule
+
+```text
+HTTP / runtime
+      |
+application services
+      |
+PrinterAdapter + typed capabilities
+      |
+Bambu / Moonraker adapters
+      |
+vendor transports
+```
+
+Common domain/application packages must not import vendor protocol DTOs or transport implementations.
 
 ## Development
 
-From this directory:
-
 ```bash
 python -m venv .venv
-# Activate the virtual environment, then:
-pip install -e ".[dev]"
+# activate the environment
+pip install -c constraints.txt -e ".[dev]"
 pytest
 ruff check src tests
 ruff format --check src tests
 ```
 
-See the repository-level `docs/` directory for architecture decisions and design specifications.
+See [`../docs/README.md`](../docs/README.md) for the current architecture and validation documentation.

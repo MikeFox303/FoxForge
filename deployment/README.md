@@ -1,114 +1,73 @@
 # FoxForge deployment
 
-Deployment assets live separately from backend and frontend source code, but package the same FoxForge application.
+FoxForge ships one application behavior across generic Docker and Umbrel packaging. Deployment code must not become a platform-specific fork of printer, queue or inventory logic.
 
-## Current status
+## Current deployment identities
 
-FoxForge deployment is a runnable/installable alpha implementation:
+The latest semantic release is `v0.1.0-alpha.4.3`.
 
-- one multi-stage image builds the React frontend and Python backend;
-- one `aiohttp` runtime serves the compiled SPA and `/api/v1`;
-- standalone Compose configuration is available under `docker/`;
-- application state is persisted outside the image under `/data`;
-- first start creates current schema state (`config.json` schema 2 and SQLite `user_version` 1);
-- printer credentials are stored behind the `SecretStore` boundary;
-- staged print artifacts are persisted under `/data/artifacts`;
-- the container prepares mounted-data permissions before dropping to a non-root steady-state user;
-- CI builds and starts the production image and validates health, browser behavior, persistence and deployment authentication contracts;
-- `v0.1.0-alpha.4.2` is published as an immutable Linux `amd64` + `arm64` image with SBOM/provenance metadata;
-- the companion Umbrel Community App package pins the exact Alpha 4.2 multi-architecture OCI digest.
-
-Published Alpha 4.2 image:
+The current Umbrel package is a **Pre-Alpha 5 validation candidate**, not final Alpha 5:
 
 ```text
-ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6
+package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
+source: 37b253f385c19451c7ea075a4a4d12378cf17cf2
+image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
 ```
 
-Release commit: `fe5b3437f1e342548df74ded78557c771ef40710`. The matching Umbrel Store package is merged at `e842c411e26689609e9bbba4681df903f3624bbd`.
+## Runtime model
 
-Representative Raspberry Pi 5 hardware validation, physical printer-network validation and release-to-release deployment evidence are still pending.
+- one multi-stage image builds the React frontend and Python backend;
+- one `aiohttp` process serves the compiled SPA, `/api/v1`, `/api/v1/events` and `/healthz`;
+- persistent application data lives under `/data`;
+- printer credentials are stored behind `SecretStore`;
+- print artifacts live under `/data/artifacts`;
+- steady-state container execution is non-root;
+- Docker and Umbrel use the same application image/runtime contract.
 
-## Browser/API write authentication
+## Write authentication
 
-FoxForge write commands are fail-closed and require `FOXFORGE_COMMAND_TOKEN`. Read-only operation remains supported when the token is unset.
+Protected writes require `FOXFORGE_COMMAND_TOKEN`.
 
-For standalone Docker:
+For standalone Docker, configure a high-entropy token and enter the same value in **Operator Access / Unlock writes**. Omitting the token is deliberate read-only mode for protected commands.
 
-1. copy `deployment/docker/.env.example` to `deployment/docker/.env`;
-2. generate a high-entropy token of at least 32 visible ASCII characters;
-3. set `FOXFORGE_COMMAND_TOKEN` in that `.env` file;
-4. start Compose;
-5. enter the same token in **Unlock writes** in the FoxForge browser UI when write access is needed.
+The browser retains the operator credential only in memory for the current tab. FoxForge does not store it in URLs, `localStorage`, `sessionStorage`, public DTOs or logs.
 
-The browser keeps the token only in memory for the current tab. FoxForge does not place it in URLs, `localStorage`, `sessionStorage`, public API DTOs or logs. A 401 response or explicit **Lock** clears the in-memory credential.
+`FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` is rejected by the production runtime. Reverse-proxy headers or a private container network are not FoxForge application authentication. See [ADR 0005](../docs/adr/0005-browser-command-authentication.md).
 
-`FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` is deliberately rejected by the production runtime. A reverse proxy, private Docker network or forwarded header is not by itself proof of application authentication. Tokenless proxy bootstrap requires a future cryptographically authenticated contract and representative deployment tests; see [ADR 0005](../docs/adr/0005-browser-command-authentication.md).
+### Umbrel
 
-The production-container contract is executable in `.github/workflows/deployment-auth.yml` and documented in [Deployment authentication acceptance](../docs/testing/deployment-auth-contract.md). It verifies intentionally read-only and explicit-token write-enabled runtimes, invalid bearer rejection, tokenless session rejection and fail-closed startup for the unsafe trusted-browser flag.
-
-## Umbrel authentication status
-
-The `v0.1.0-alpha.4.2` Umbrel package is configured as **write-enabled** without treating Umbrel App Proxy as a FoxForge principal.
-
-The package maps Umbrel's per-app `APP_PASSWORD` to:
+The companion package maps:
 
 ```text
 FOXFORGE_COMMAND_TOKEN=${APP_PASSWORD}
 ```
 
-The operator opens FoxForge through Umbrel and enters that same app password in **Unlock writes**. The credential remains memory-only in the browser tab and is sent as the FoxForge Bearer credential for protected commands.
+Umbrel exposes the app password through its UI, so the operator can unlock FoxForge writes without terminal lookup. App Proxy remains a separate defense-in-depth boundary; it does not become a FoxForge principal.
 
-This preserves two independent boundaries:
+## Printer networking
 
-- **Umbrel App Proxy** — authenticated access to the application surface;
-- **FoxForge command authorization** — explicit `FOXFORGE_COMMAND_TOKEN` required for protected writes.
+Current printer transports use deployment-to-printer LAN connectivity:
 
-Direct tokenless backend access remains fail-closed. Tokenless `/api/v1/operator-session` remains disabled, and `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` remains unsupported.
+- Bambu MQTT/TLS and FTPS use configured/discovered printer addresses;
+- Moonraker uses the configured base URL;
+- Bambu discovery is an explicit, bounded scan of a user-selected RFC1918 IPv4 subnet and produces candidates only;
+- discovered Bambu candidates still must pass normal authenticated test-before-save before configuration is persisted.
 
-The companion Store package contract verifies the exact Alpha 4.2 image/digest, the `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN` mapping, Compose rendering and anonymous image pull/runtime startup on Linux `amd64` and `arm64`. Store PR #28 and its post-merge package/release gates completed successfully.
-
-That software/package evidence does **not** by itself resolve AUD-003. Real Raspberry Pi 5/Umbrel installation, proxy/write behavior, direct-backend fail-closed behavior, printer-network reachability, upgrade and SSE reconnect/resync evidence are still required.
-
-See [`umbrel/README.md`](umbrel/README.md) for the package-specific contract and validation boundary.
+No Docker socket, privileged mode or `network_mode: host` is required by the current package. Real bridge/container reachability to the printer LAN remains part of physical validation. Broader network features such as Virtual Printer require separate design and evidence.
 
 ## Deployment families
 
-- [`docker/`](docker/) — implemented alpha container image and local/self-hosted Compose runtime; explicit-token writes and tokenless read-only mode are covered by production-container CI.
-- [`umbrel/`](umbrel/) — Community App packaging built on the same release image/runtime; Alpha 4.2 is configured with an explicit FoxForge application credential path using Umbrel `APP_PASSWORD`.
+- [`docker/`](docker/) — standalone self-hosted Compose/runtime.
+- [`umbrel/`](umbrel/) — Community App packaging and current Pre-Alpha 5 validation candidate.
 
-Deployment code must not become a second FoxForge implementation. Docker and Umbrel package the same backend, API and compiled frontend behavior. Vendor/network behavior belongs in FoxForge runtime/adapters, not in platform-specific forks.
+## Upgrade and persistence
 
-## Current release contract
+Early-alpha persistence is migration-owned but pre-stable. Back up the complete `/data` directory before upgrades and treat backups as credential-bearing data.
 
-The published deployment line is `v0.1.0-alpha.4.2`.
+Source changes on `main` do not mutate an already published immutable semantic release or validation candidate. A changed physical-test target requires a new digest-pinned package and fresh evidence for the affected path.
 
-Release publication is guarded by:
+## Production-readiness gate
 
-- release identity/version consistency;
-- frozen dependency installation;
-- backend lint/tests;
-- frontend typecheck/tests/build;
-- unified image build and live health/SPA/persistence smoke;
-- exact-commit production Browser Acceptance before publication;
-- production source-map absence;
-- immutable tag uniqueness/revalidation checks;
-- Linux `amd64` + `arm64` publication with SBOM/provenance;
-- GitHub pre-release creation after the immutable tag and multi-architecture image publication.
+FoxForge still requires representative physical evidence for Raspberry Pi 5/Umbrel, real Bambu X2D/AMS 2 Pro behavior and Moonraker/OpenKE behavior before production claims.
 
-Changes merged after a release are not delivered through floating semantic tags; they require another guarded FoxForge release and, for Umbrel, a corresponding Store package update.
-
-Persistent `/data` contains runtime configuration, SQLite state, secrets and staged print artifacts. Back up the complete directory before early-alpha upgrades and treat backups as credential-bearing data.
-
-## Remaining production-readiness work
-
-Before calling deployment production-ready, FoxForge still needs:
-
-1. representative Raspberry Pi 5 / physical ARM64 install, restart and persistence validation of the exact Alpha 4.2 package;
-2. real Umbrel App Proxy/browser write-path evidence using the published package plus direct-backend fail-closed verification;
-3. real Bambu X2D and Moonraker/OpenKE reachability from Docker/Umbrel network environments;
-4. end-to-end physical upload/start/control/lifecycle/reconciliation validation;
-5. validation of upgrade behavior between relevant published FoxForge/Umbrel package versions;
-6. representative SSE reconnect/resync behavior through the deployed proxy path;
-7. separate network design and testing before enabling discovery, Virtual Printer or features requiring broader LAN access.
-
-The exact package/image identities and secret-safe evidence procedure are maintained in [`../docs/testing/physical-validation-runbook.md`](../docs/testing/physical-validation-runbook.md).
+For the active Bambu milestone use [`../docs/testing/pre-alpha-5-bambu-physical-validation.md`](../docs/testing/pre-alpha-5-bambu-physical-validation.md). Generic evidence rules are in [`../docs/testing/physical-validation-runbook.md`](../docs/testing/physical-validation-runbook.md).

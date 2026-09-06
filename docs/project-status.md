@@ -1,152 +1,127 @@
 # FoxForge project status
 
-**Snapshot date:** 2026-09-05  
+**Snapshot date:** 2026-09-06  
 **Canonical branch:** `main`  
-**Published pre-release:** `v0.1.0-alpha.4.2` (`0.1.0a4.post2` backend package)  
-**Frozen release commit:** `fe5b3437f1e342548df74ded78557c771ef40710`  
-**Published image:** `ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2`  
-**Published multi-arch digest:** `sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6`  
-**Umbrel Community App:** `my3d-foxforge` `0.1.0-alpha.4.2`, merged to Store `main` via PR #28 as `e842c411e26689609e9bbba4681df903f3624bbd`  
+**Latest semantic pre-release:** `v0.1.0-alpha.4.3`  
+**Active milestone:** Pre-Alpha 5 / Bambu Lab connection and control ([#115](https://github.com/MikeFox303/FoxForge/issues/115))  
+**Current installable Umbrel validation candidate:** `0.1.0-alpha.4.3-umbrel.2`  
 **Maturity:** runnable/installable alpha; not production-ready
 
-This file is the concise current-state snapshot. ADRs/design documents remain normative for architecture, `CHANGELOG.md` remains implementation history, `release/` records immutable release metadata/notes, and the independent audit/remediation tracker records stabilization evidence.
+This page is the concise current-state snapshot. ADRs/design documents remain normative for architecture. `release/` remains immutable release history, and dated Alpha 4.x status/evidence documents remain historical records.
 
-## Release and deployment state
+## Release versus validation candidate
 
-`v0.1.0-alpha.4.2` is the current published FoxForge pre-release. Release workflow `33973431720` ran on exact commit `fe5b3437f1e342548df74ded78557c771ef40710` and completed successfully. The annotated tag resolves to that exact commit.
+FoxForge has **not** published final `v0.1.0-alpha.5` yet.
 
-The guarded release sequence performs backend/frontend checks, builds and smoke-tests the production image, runs exact-commit Browser Acceptance, verifies source-map absence and revalidates immutable release identity before the Git tag is created. The release then publishes the versioned Linux `amd64` + `arm64` image and creates the GitHub pre-release.
+The latest semantic GitHub pre-release remains `v0.1.0-alpha.4.3`, released from commit `6845bd1329739c03d766fd86fa8fa308032b1bab`.
 
-The published OCI index is:
+The current physical-validation package is deliberately separate:
 
 ```text
-ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.2@sha256:39d2f2fd02ed8dafe68ce741543642a62d9f3669d2deeb118bc5abce61589fc6
+Umbrel package: 0.1.0-alpha.4.3-umbrel.2
+candidate source: 37b253f385c19451c7ea075a4a4d12378cf17cf2
+Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
+exact image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+target release: v0.1.0-alpha.5
 ```
 
-The matching Umbrel package is already merged in `MikeFox303/umbrel-3d-printing-store` at commit `e842c411e26689609e9bbba4681df903f3624bbd`. It preserves `${APP_DATA_DIR}/data:/data` and maps Umbrel `APP_PASSWORD` to `FOXFORGE_COMMAND_TOKEN`. PR-head and post-merge Store gates passed.
-
-Durable release/publication evidence is recorded in [`status/alpha4-fix2-release-evidence-2026-09-05.md`](status/alpha4-fix2-release-evidence-2026-09-05.md).
+Documentation-only commits may advance `main` beyond the candidate source without changing the immutable package under test.
 
 ## Current implementation status
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Common printer domain | Implemented | FoxForge-owned identities, snapshots/events/errors and typed capabilities. |
-| Bambu adapter | Implemented foundation | MQTT/TLS, project storage and common job controls; optional independent MQTT/FTPS SHA-256 certificate pins; physical X2D validation pending. |
-| Moonraker adapter | Implemented foundation | HTTP/WebSocket, upload/start and common job controls; explicit endpoint/redirect/address-resolution security policy; physical OpenKE validation pending. |
-| Fleet management | Implemented | Dynamic composition, normalized lifecycle/events and per-printer reconnect supervision. |
-| Durable print queue | Implemented foundation | SQLite-backed dispatch, retry boundaries, terminal persistence and explicit `INDETERMINATE`. |
-| Artifact staging | Implemented | Content-addressed storage, quota/min-free reserve, retention and safe orphan cleanup. |
-| Filament/spool inventory | Operator workflow implemented | Exact `Decimal` ledger, idempotent/atomic adjustments, opaque physical assignments and create/correct/empty-mass/move/unassign/archive/history UI. |
-| Public API/read models | Implemented | FoxForge DTOs only; no raw vendor payloads, secrets or local paths. |
-| Command security | Implemented foundation | Auth, permission checks, request IDs, durable idempotency, normalized errors and append-only audit. |
-| Printer credentials | SecretStore boundary implemented | Bambu access code and Moonraker API key are separated from normal runtime config; legacy inline credentials migrate. |
-| Pause/Resume/Cancel | Implemented/released | Exact vendor-job identity guards and non-retryable ambiguous outcomes; physical validation pending. |
-| Realtime application events | Implemented/released | SSE replay/resync invalidation layer; canonical HTTP snapshots and polling fallback remain. |
-| Web UI | Functional alpha | Printer setup, queue command flow, common controls, realtime invalidation and normal inventory workflow. |
-| Responsive/browser acceptance | Implemented | Exact release Browser Acceptance covers phone 390×844, tablet 900×1024, desktop 1920×1080 and ultra-wide 5120×1440 plus RU/UK, Add Printer, Operator Access and browser-runtime errors. |
-| Dependency/security governance | Implemented | Frozen dependency graphs, Dependabot, npm/pip audits and final-image HIGH/CRITICAL scanning. |
-| Backend coverage governance | Implemented | Approximately 76% measured branch-aware baseline; CI enforces a 75% floor on Python 3.12 while Python 3.13 runs independently. |
-| Docker/ARM64 | Published alpha foundation | Alpha 4.2 published for Linux `amd64` + `arm64`; representative Raspberry Pi 5 validation pending. |
-| Umbrel | Alpha 4.2 package merged and CI-validated | Exact digest pin plus `APP_PASSWORD` → `FOXFORGE_COMMAND_TOKEN`; real Raspberry Pi/Umbrel/proxy/printer-network evidence still required. |
-| Automatic filament accounting | **Frozen draft** | Preserved in draft PR #58 and not merged into `main`; see P3 freeze/resume gate. |
-| Farm scheduler | Not implemented | Deferred until queue/control/inventory/deployment foundations and P3 are stable. |
+| Bambu adapter | Functional alpha | MQTT/TLS state, project storage, material-system observation and common job control; physical X2D validation in progress. |
+| Bambu discovery | Implemented foundation | Explicit RFC1918 IPv4 subnet scan, bounded `/22` or smaller, candidate-only until normal authenticated setup succeeds. |
+| Bambu Add Printer | Implemented | Test-before-save prevents invalid connectivity/credentials from creating durable dead configuration. |
+| Bambu Update Printer | Implemented | Preflight before replacement; failed replacement restores previous durable config, secrets and adapter state. |
+| Moonraker adapter | Functional alpha | Production HTTP/WebSocket/control foundation implemented; physical OpenKE validation pending. |
+| Fleet management | Implemented | Dynamic composition and normalized lifecycle/events. |
+| Reconnect supervision | Implemented foundation | Per-printer workers, bounded concurrency/backoff/jitter and secret-safe diagnostics. |
+| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation with explicit `INDETERMINATE`. |
+| Artifact staging | Implemented | Content-addressed storage, quota/min-free reserve and safe GC. |
+| Filament/spool inventory | Operator workflow implemented | Exact `Decimal` ledger plus create/correct/empty-mass/assignment/archive/history. |
+| Command security | Implemented foundation | Explicit bearer auth, permissions, durable idempotency, normalized errors and audit. |
+| Printer credentials | Implemented | `SecretStore` separates Bambu access codes and Moonraker API keys from ordinary config. |
+| Pause/Resume/Cancel | Implemented | Exact observed vendor-job guard; physical Bambu/Moonraker validation remains. |
+| Realtime application events | Implemented | SSE replay/resync invalidation plus canonical HTTP snapshots. |
+| Web UI | Functional alpha | Live API, setup/discovery, queue, inventory, job control and reconnect diagnostics. |
+| Docker/ARM64 | Published alpha foundation | Linux `amd64` + `arm64`; physical Raspberry Pi validation remains package-specific. |
+| Umbrel | Candidate 2 published | `APP_PASSWORD` maps to `FOXFORGE_COMMAND_TOKEN`; app password is exposed through Umbrel UI for GUI-only operator unlock. |
+| Automatic filament accounting | **Frozen / not merged** | P3 remains behind physical/deployment gate. |
+| Persistent farm scheduler | Not implemented | Deferred until printer/deployment and P3 foundations are stable. |
 
-## Persistence state
+## Pre-Alpha 5 milestone state
 
-Current owned persistent versions are:
+Issue #115 is intentionally Bambu-first. Current source has already closed the main software-side setup/reconnect gaps:
 
-- `config.json`: `schemaVersion` **2**;
-- `foxforge.sqlite3`: SQLite `PRAGMA user_version` **1**;
-- `secrets.json`: SecretStore format version **1**.
+- normalized setup failures instead of raw internal exceptions;
+- stable setup identity/model handling;
+- conservative discovery plus manual fallback;
+- Add and Update test-before-save;
+- rollback-safe failed updates;
+- durable replay of terminal failed setup requests;
+- reconnect diagnostics API/UI;
+- live Bambu material-system foundation;
+- GUI-visible Umbrel app password/operator-token path.
 
-Migrations, backups and schema validation are implemented. Complete `/data` backups must be treated as sensitive because printer credentials and recovery material may be present.
+What remains before final Alpha 5 is primarily **real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro evidence**, including real print dispatch and guarded job control.
 
-## Audit and physical-validation state
+## Current physical release gate
 
-The immutable finding snapshot is [the 2026-09-04 independent audit](audits/2026-09-04-independent-project-audit.md). Active evidence/status is maintained in the [remediation tracker](audits/2026-09-04-remediation-tracker.md).
+Use [`testing/pre-alpha-5-bambu-physical-validation.md`](testing/pre-alpha-5-bambu-physical-validation.md) for the exact package and sequence.
 
-All software-only audit findings have repository remediation evidence. The remaining findings are validation-bound:
+Required evidence includes:
 
-- **AUD-003 — `VALIDATION REQUIRED`:** representative Raspberry Pi 5/Umbrel package installation, restart/persistence, real proxy write path, direct-backend fail-closed behavior, deployment-network printer reachability, upgrade and SSE reconnect/resync evidence is still required.
-- **AUD-013 — `VALIDATION REQUIRED`:** real X2D MQTT/FTPS certificate stability, correct-pin behavior, wrong-pin fail-closed behavior and recovery evidence is still required.
+1. candidate install/update on Raspberry Pi 5/Umbrel;
+2. GUI-only Operator Access using the Umbrel-displayed app password;
+3. real X2D Add Printer, including negative host/access-code/serial cases without persistence;
+4. safe Update behavior that preserves a working printer after invalid replacement values;
+5. restart and network-loss reconnect/recovery with sanitized diagnostics;
+6. live X2D state plus AMS 2 Pro/external-source observation;
+7. real `.3mf` project delivery and exactly-once intended print start;
+8. guarded Pause/Resume/Cancel or completion path against the observed job;
+9. secret-safe evidence and no raw credentials/tracebacks.
 
-The current canonical physical-test target is the exact Alpha 4.2 package/image/Store commit listed above. [`testing/physical-validation-runbook.md`](testing/physical-validation-runbook.md) now contains those identities and the secret-safe evidence workflow.
+If implementation changes are required by physical findings, a new immutable candidate must be published and affected evidence repeated.
 
-Automated CI, QEMU, mocks, browser emulation and Store package smoke tests do **not** count as real-device validation.
+## Audit and P3 state
 
-## Safety invariants that remain binding
+The immutable audit snapshot remains [`audits/2026-09-04-independent-project-audit.md`](audits/2026-09-04-independent-project-audit.md). Active status is in [`audits/2026-09-04-remediation-tracker.md`](audits/2026-09-04-remediation-tracker.md).
 
-1. Common application/domain code must not import Bambu or Moonraker transport/protocol types.
-2. Deep Bambu behavior remains behind typed capabilities instead of being flattened into common lowest-common-denominator fields.
-3. Common job controls target an exact observed vendor job identity and fail closed on stale/mismatched state.
-4. Ambiguous pause/resume/cancel or print-start side effects are never blindly retried.
-5. Receipt-bearing jobs are never redispatched.
-6. Realtime events are invalidations, not a second source of truth; continuity uncertainty forces canonical HTTP resync.
-7. Queue/inventory realtime events publish only after successful persistence.
-8. Inventory owns FoxForge spool identity; printer slots remain opaque physical identifiers.
-9. Public API DTOs expose FoxForge contracts, not raw vendor payloads, secrets or arbitrary local paths.
-10. Browser code cannot weaken backend retry/idempotency/reconciliation semantics.
-11. Docker and Umbrel package the same application behavior; deployment proxy authentication is defense in depth, not a replacement for FoxForge authorization.
-12. Scheduler/farm logic must depend on FoxForge capabilities and durable application state, never directly on vendor transports.
+Software-only audit remediation is complete. AUD-003 and AUD-013 remain validation-bound and must not be closed from CI-only evidence.
 
-## Automatic filament accounting freeze
+P3 automatic filament accounting remains preserved in its frozen implementation branch/record and does not resume during the Bambu Alpha 5 milestone.
 
-P3 automatic filament accounting remains preserved in draft PR #58 and is **not** the active implementation priority until the real-device/deployment gate passes.
+## Development order
 
-The canonical frozen-state record is [P3 automatic filament accounting — frozen implementation state](status/p3-frozen-state-2026-09-04.md).
+1. Complete the Pre-Alpha 5 Bambu physical acceptance matrix.
+2. Fix any real-device/deployment defect and publish a new immutable candidate if the tested code changes.
+3. Prepare and publish final `v0.1.0-alpha.5` only after the exact candidate passes.
+4. Update audit evidence/status only from reviewed real-device evidence.
+5. Reassess P3 resume after Alpha 5 stabilization.
+6. Continue broader Moonraker physical validation, deep Bambu capabilities and persistent farm scheduling behind the existing typed boundaries.
 
-Software prerequisites already satisfied include the release/dependency/security/migration/atomic-inventory stabilization, browser/deployment trust contract, normal inventory workflow, production-container browser acceptance, common job control/realtime foundations and an exact immutable Umbrel package with an ADR-0005-compatible application credential path.
+## Persistence and safety
 
-P3 may resume only after representative Alpha 4.2 physical/deployment evidence is recorded, `AUD-003`/`AUD-013` evidence requirements are met, PR #58 is synchronized with then-current `main`, and all exact-head backend/frontend/container/security/browser gates pass again.
+Persistent `/data` remains sensitive and contains configuration, SQLite state, SecretStore data and staged artifacts. Back up the complete directory before early-alpha upgrades.
 
-## Current development order
+Binding invariants include:
 
-1. **Physical/deployment validation:** Raspberry Pi 5/Umbrel + Bambu X2D/AMS 2 Pro + Ender 3 V3 KE/OpenKE using the exact Alpha 4.2 package.
-2. **Audit closure:** review secret-safe evidence and update AUD-003/AUD-013 only when their verifier/observation requirements actually pass.
-3. **Resume P3:** synchronize draft PR #58 with current `main`, preserve all stabilization work, finish tests/docs and merge only on exact-head green evidence.
-4. **Farm/deep-vendor expansion:** persistent scheduler/farm semantics, AMS/CFS depth and other Bambu-specific capabilities follow after the preceding foundations are stable.
+- common application/domain code does not depend on vendor transports;
+- deep Bambu behavior remains typed and vendor-specific when it is not genuinely common;
+- ambiguous remote side effects are not blindly retried;
+- realtime events invalidate canonical HTTP state rather than becoming a second source of truth;
+- printer credentials are never returned by setup read models;
+- browser credentials remain memory-only;
+- Docker and Umbrel package the same FoxForge application behavior.
 
-Historical release notes and the original audit snapshot are not rewritten.
+## Key current documents
 
-## Current validation gates
-
-Repository changes are protected by the applicable combination of:
-
-- Ruff lint/format;
-- full Python tests on 3.12 and 3.13;
-- measured backend branch coverage with a 75% floor on Python 3.12;
-- frozen dependency verification;
-- frontend TypeScript checks, Vitest and production build;
-- production-container Playwright acceptance on the supported viewport matrix;
-- unified Docker image build/start/health/runtime smoke;
-- deployment-authentication acceptance;
-- npm/pip dependency audits;
-- final-image HIGH/CRITICAL vulnerability scanning;
-- guarded release identity checks and immutable multi-arch release publication.
-
-The companion Store separately validates the exact Umbrel package definition, Compose rendering, application-token bootstrap and anonymous architecture runtime pull/start. Physical validation remains separate.
-
-## Key documents
-
-- [Release notes — v0.1.0-alpha.4.2](../release/v0.1.0-alpha.4.2.md)
-- [Alpha 4.2 release evidence](status/alpha4-fix2-release-evidence-2026-09-05.md)
-- [Physical validation runbook](testing/physical-validation-runbook.md)
-- [Physical evidence gate](testing/physical-evidence-gate.md)
-- [Independent audit](audits/2026-09-04-independent-project-audit.md)
-- [Audit remediation tracker](audits/2026-09-04-remediation-tracker.md)
-- [P3 frozen state / resume gate](status/p3-frozen-state-2026-09-04.md)
-- [ADR 0001 — PrinterAdapter architecture](adr/0001-printer-adapter-architecture.md)
-- [ADR 0005 — browser command authentication/deployment trust](adr/0005-browser-command-authentication.md)
+- [Pre-Alpha 5 Bambu physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
+- [Application-managed printer setup](design/app-managed-printer-setup.md)
+- [Reconnect supervision](design/reconnect-supervision.md)
 - [Bambu LAN transport](design/bambu-lan-transport.md)
-- [Bambu certificate trust](design/bambu-certificate-trust.md)
-- [Moonraker transport](design/moonraker-http-transport.md)
-- [Secret storage](design/secret-storage.md)
-- [Persistence migrations](design/persistence-migrations.md)
-- [Inventory atomicity](design/inventory-atomicity.md)
-- [Realtime application events](design/realtime-events.md)
-- [Coverage policy](testing/coverage-policy.md)
-
-## Release readiness
-
-FoxForge is suitable for continued alpha development and controlled self-hosted testing. `v0.1.0-alpha.4.2` is a real guarded pre-release and the matching Umbrel package is merged in Store `main`, but FoxForge is **not production-ready** and must not be represented as physically validated until the remaining printer/deployment matrices are complete.
+- [Deployment authentication](testing/deployment-auth-contract.md)
+- [Documentation index](README.md)

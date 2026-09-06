@@ -1,28 +1,48 @@
 # FoxForge web UI
 
-This directory contains the FoxForge web interface foundation.
+The frontend is the React/TypeScript web application shipped inside the unified FoxForge runtime.
 
-The frontend stack is:
+## Stack
 
 - TypeScript;
 - React;
 - Vite;
-- React Router for URL-addressable application views;
-- TanStack Query for the frontend data-access/cache boundary;
-- i18next + react-i18next for localization;
-- responsive CSS suitable for desktop, tablet and narrow/mobile layouts.
+- React Router;
+- TanStack Query;
+- i18next + react-i18next;
+- responsive CSS;
+- native `EventSource` for FoxForge SSE invalidations.
 
-The current data gateway still returns representative in-memory data that mirrors FoxForge's normalized printer, material-system and queue concepts. It does not import backend Python modules or vendor protocol payloads.
+Normal runtime uses live FoxForge `/api/v1` models. Representative demo data is available only through explicit `?demo=1` mode and is not the normal production data source.
+
+## Current product areas
+
+- fleet overview;
+- printer list and route-based printer cockpit;
+- Add/Update/Remove/Reconnect printer setup;
+- Bambu discovery plus manual setup fallback;
+- normalized setup error presentation;
+- per-printer reconnect diagnostics;
+- durable print queue with browser hashing/staging/enqueue/dispatch/reconciliation;
+- common capability-driven Pause/Resume/Cancel;
+- physical material-system views for AMS-family and external sources;
+- spool inventory create/correct/empty-mass/assign/move/unassign/archive/history workflows;
+- system/deployment information;
+- English, Russian and Ukrainian localization.
+
+TanStack Query remains the canonical browser cache boundary. SSE carries invalidations/replay-resync signals; authoritative state is refetched from HTTP snapshots.
+
+## Security boundary
+
+Protected writes require the explicit FoxForge operator credential. The browser stores it only in memory for the current tab and clears it on Lock, authentication failure or page/tab lifecycle. UI code must not weaken backend idempotency/reconciliation semantics or fabricate vendor capabilities.
 
 ## Run locally
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
-
-Vite will print the local development URL.
 
 ## Validate
 
@@ -32,26 +52,6 @@ npm test
 npm run build
 ```
 
-The production build is emitted to `frontend/dist/`.
+The production build is emitted to `frontend/dist/` and served by the Python runtime; production deployment does not require a separate Node.js process.
 
-## Application structure
-
-`src/app/providers.tsx` owns application-level providers such as TanStack Query and React Router.
-
-`src/data/fleetGateway.ts` is the temporary server-state seam. It currently resolves demo data through TanStack Query. When the backend HTTP API exists, the query function should be replaced with the typed API client rather than changing page components.
-
-`src/i18n.ts` initializes the localization layer and currently provides shell/navigation strings for English, Russian and Ukrainian. Translation coverage will expand incrementally rather than blocking core interface development.
-
-The UI currently provides:
-
-- fleet overview;
-- printer cards and a wider printer cockpit with Overview / Materials / Diagnostics tabs;
-- durable print-queue view;
-- material-system view for multi-slot and external spool units;
-- farm command-center view;
-- user-facing system/deployment information with developer diagnostics collapsed by default;
-- a restrained optional Ko-fi support link in the sidebar footer.
-
-The public FoxForge API and real-time transport are not implemented yet. The intended next boundary is REST for reads/writes plus WebSocket or SSE for live printer/queue events.
-
-See [`docs/design/web-ui-foundation.md`](../docs/design/web-ui-foundation.md) for the architectural rules, upstream design provenance, acceptance criteria and migration path.
+See [`../docs/design/web-ui-foundation.md`](../docs/design/web-ui-foundation.md).

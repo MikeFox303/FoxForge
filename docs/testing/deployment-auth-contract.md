@@ -1,77 +1,79 @@
 # Deployment authentication acceptance contract
 
-**Related:** AUD-003, AUD-004, ADR 0005  
-**Applies to:** `v0.1.0-alpha.4` release line and current source unless superseded by a later ADR
+- **Status:** implemented current contract
+- **Updated:** 2026-09-06
+- **Related:** AUD-003, AUD-004, ADR 0005
 
-FoxForge treats deployment authentication as one product contract spanning runtime settings, the browser UI and packaging. A green unit test for the API alone is not enough evidence that an installed deployment has usable write workflows.
+FoxForge treats deployment authentication as one product contract spanning runtime configuration, browser behavior and packaging.
 
-## Supported deployment modes
+## Supported modes
 
-| Mode | Application write credential | Browser protected writes | Expected behavior |
-| --- | --- | --- | --- |
-| Standalone Docker, token configured | `FOXFORGE_COMMAND_TOKEN` | Available after explicit in-memory unlock | Authorized writes succeed; missing/wrong bearer fails closed. |
-| Standalone Docker, token omitted | none | Deliberately unavailable | Reads remain available; protected writes return `command_api_disabled`; browser explains read-only state. |
-| Reverse proxy + explicit token | `FOXFORGE_COMMAND_TOKEN` | Same as standalone token mode | Proxy authentication is defense in depth; FoxForge still requires its own bearer. Proxy/forwarding identity headers are not application principals. |
-| Tokenless trusted-browser mode | none | Unsupported | Production runtime rejects `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true`; `/api/v1/operator-session` does not anonymously mint credentials. |
-| Umbrel `v0.1.0-alpha.4` package | Umbrel `APP_PASSWORD` mapped to `FOXFORGE_COMMAND_TOKEN` | Available after the operator enters the app password in **Unlock writes** | Package definition supplies an explicit ADR-0005-compatible application credential while App Proxy remains a separate defense-in-depth boundary. |
+| Mode | FoxForge write credential | Browser behavior |
+| --- | --- | --- |
+| Standalone Docker, token configured | `FOXFORGE_COMMAND_TOKEN` | Protected writes unlock after explicit in-memory Operator Access. |
+| Standalone Docker, token omitted | none | Reads remain available; protected writes fail closed as disabled. |
+| Reverse proxy + explicit token | `FOXFORGE_COMMAND_TOKEN` | Proxy auth is defense in depth; FoxForge still requires its Bearer. |
+| Tokenless trusted-browser mode | none | Unsupported; production rejects `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true`. |
+| Umbrel current package | `APP_PASSWORD` mapped to `FOXFORGE_COMMAND_TOKEN` | Operator enters the app credential shown by Umbrel; browser state remains memory-only. |
 
-The historical `alpha.3` Umbrel package remains a historical read-only packaging state and is not rewritten. Current deployment documentation describes the `alpha.4` package contract.
+Tokenless `/api/v1/operator-session` does not anonymously mint credentials.
 
-## Production-container CI evidence
+## Production-container contract
 
-`.github/workflows/deployment-auth.yml` builds the actual production Dockerfile and validates the runtime contract in containers:
+The deployment-auth workflow proves representative production behavior:
 
-1. **Read-only runtime** — starts without `FOXFORGE_COMMAND_TOKEN`; `/healthz` and reads stay available; a protected inventory mutation returns HTTP 503 with `command_api_disabled`; tokenless `/api/v1/operator-session` returns HTTP 503 with `browser_session_disabled`.
-2. **Write-enabled runtime** — starts with an explicit high-entropy command token; a wrong bearer returns HTTP 401; the correct bearer plus idempotency key can execute a real inventory create command; tokenless `/operator-session` remains unavailable.
-3. **Representative reverse-proxy boundary** — starts a separate proxy process in front of the production runtime. Representative `X-Forwarded-*` and authenticated-user metadata alone still produce HTTP 401 on protected writes; tokenless `/operator-session` remains disabled; only a valid FoxForge bearer enables the protected write.
-4. **Unsafe trusted-session configuration** — a production container started with `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` must fail startup rather than silently becoming a token dispenser.
+1. read-only runtime starts without a command token and rejects protected writes;
+2. write-enabled runtime rejects an incorrect bearer and accepts the configured bearer/idempotency identity;
+3. representative proxy headers/authenticated-user metadata do not become FoxForge application principals;
+4. unsafe trusted-browser configuration fails startup.
 
-The browser production-container acceptance suite separately proves that operator credentials remain memory-only and that protected UI paths fail closed when no credential is unlocked.
+The browser acceptance layer separately checks that operator credentials remain memory-only and protected UI paths fail closed when locked.
 
-## Umbrel package software evidence
+## Umbrel contract
 
-The companion Store package for `alpha.4` adds a package-level contract on top of the runtime tests:
+The current Store package is Pre-Alpha 5 validation candidate 2:
 
-- exact version `0.1.0-alpha.4` and immutable multi-architecture image digest are pinned;
-- Store Compose maps `${APP_PASSWORD}` to `FOXFORGE_COMMAND_TOKEN`;
-- representative Compose rendering verifies that the mapping resolves to the supplied app password;
-- Umbrel App Proxy remains enabled;
-- host networking, privileged mode and Docker socket access are not introduced;
-- anonymous image pull and runtime smoke pass for Linux `amd64` and `arm64`;
-- first-start config is validated against current schema version 2.
+```text
+my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
+source 37b253f385c19451c7ea075a4a4d12378cf17cf2
+image ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+```
 
-This proves the **software/package bootstrap contract**. It does not prove the actual Umbrel deployment environment on physical Raspberry Pi hardware.
+The package:
+
+- maps the Umbrel per-app password to `FOXFORGE_COMMAND_TOKEN`;
+- exposes the app credential through the Umbrel UI for GUI-only operator unlock;
+- keeps App Proxy enabled as a separate boundary;
+- does not require host networking, privileged mode or Docker socket access;
+- pins an immutable candidate image digest.
+
+This proves package/bootstrap intent and reproducibility. It does not prove real Raspberry Pi/network/printer behavior.
 
 ## AUD-004 conclusion
 
-The current FoxForge security model deliberately does **not** trust a reverse proxy as an application principal. ADR 0005 requires an explicit FoxForge bearer for protected browser commands and rejects tokenless trusted-session mode in production. The representative cross-process proxy test proves that forwarding/authentication-style headers do not weaken that boundary.
-
-This satisfies AUD-004 for the current explicit-token model. A future design that introduces cryptographically authenticated tokenless proxy bootstrap would be a new security contract and must receive a new/amended ADR plus its own representative tests before replacing this decision.
+AUD-004 remains resolved for the explicit-token model: forwarding/proxy identity does not authorize FoxForge commands. Any future tokenless proxy bootstrap requires a new/amended ADR and representative cryptographically authenticated tests.
 
 ## AUD-003 boundary
 
-The `alpha.4` package removes the previous missing-bootstrap software gap, but **AUD-003 remains `VALIDATION REQUIRED`**.
+AUD-003 remains `VALIDATION REQUIRED` until the exact current candidate demonstrates on representative Raspberry Pi/Umbrel:
 
-CI does not prove:
+- install/restart/persistence;
+- protected browser writes through the actual App Proxy path;
+- direct-backend protected writes fail closed without the FoxForge credential;
+- X2D and required printer-network reachability;
+- upgrade behavior where applicable;
+- representative SSE reconnect/resync.
 
-- physical Raspberry Pi 5/UmbrelOS install, restart and persistence behavior;
-- successful protected browser writes through the actual deployed Umbrel App Proxy path;
-- direct-backend fail-closed behavior in the real deployment topology;
-- X2D/OpenKE reachability from the actual Umbrel container/network environment;
-- upgrade behavior between the relevant installed package versions;
-- representative SSE reconnect/resync through the real proxy path.
+Use the current milestone runbook rather than a historical Alpha 4.2 package identity.
 
-Those observations must be recorded through the physical/deployment evidence gate before AUD-003 can be resolved.
+## Package/release requirements
 
-## Release/package gate
+Every write-capable deployment package must:
 
-For the `alpha.4` Umbrel package and future package releases:
-
-- identify the package as **write-capable** or **read-only** explicitly;
-- if write-capable, document the FoxForge application credential/bootstrap source;
-- pin the exact guarded FoxForge release image by immutable digest;
-- run package/Compose validation with representative platform variables;
-- prove the application credential mapping at Compose-render time without relying on App Proxy identity as the principal;
-- exercise anonymous pull/runtime smoke on every published architecture;
-- verify tokenless `/api/v1/operator-session` remains unavailable;
-- record real physical/deployment evidence separately before changing AUD-003 to `RESOLVED`.
+- declare the application credential source;
+- keep browser credentials memory-only;
+- pin or otherwise identify the exact immutable image under test/release;
+- validate Compose/runtime startup on published architectures;
+- prove tokenless operator-session remains disabled;
+- preserve FoxForge authorization independently of proxy identity;
+- record real physical/deployment evidence separately from CI.

@@ -1,169 +1,96 @@
 # Queue dispatch and durable idempotency
 
-- **Status:** implementation design
-- **Date:** 2026-09-03
-- **Related:** ADR 0001, [Printer contracts v1](printer-contracts.md), [AdapterRegistry and FleetService](fleet-service.md)
+- **Status:** implemented durable queue contract
+- **Updated:** 2026-09-06
+- **Related:** [queue event lifecycle](queue-event-lifecycle.md), [retry policy](queue-retry-policy.md), [queue command API](queue-command-api.md)
 
 ## Purpose
 
-Phase 4 moves automated print submission into a FoxForge application service. The queue must remain vendor-neutral and must survive process restarts without accidentally starting the same print twice.
-
-The dependency path is:
+Queue dispatch is vendor-neutral and restart-safe. Common code reaches printers only through `FleetService` and `PrintExecutionCapability`.
 
 ```text
-QueueService
-    -> FleetService
-        -> PrintExecutionCapability
-            -> concrete adapter
+QueueService -> FleetService -> PrintExecutionCapability -> adapter
 ```
 
-Queue code never imports `BambuAdapter`, a future `MoonrakerAdapter`, MQTT/FTP clients, or vendor DTOs.
+## Durable start boundary
 
-## Durable idempotency boundary
+Every queue entry persists stable queue/printer/dispatch identity, artifact/request fingerprint, state, attempt metadata, assessment, receipt and normalized error.
 
-`PrintExecutionCapability` provides adapter-instance idempotency. The queue owns the stronger process-restart guarantee.
-
-For every queue entry, FoxForge persists:
-
-- stable `queue_id`;
-- target `printer_id`;
-- stable `dispatch_id`;
-- immutable print request/artifact fingerprint;
-- assessment and blockers when available;
-- current dispatch state;
-- dispatch attempt count and timestamp;
-- accepted receipt or normalized error.
-
-`dispatch_id` is created and stored before the queue calls either `assess()` or `submit()`.
-
-Immediately before calling `submit()`, the entry is durably moved to `DISPATCHING` and the attempt count is incremented. This ordering creates a conservative crash boundary:
+Before any potentially side-effecting submit, FoxForge durably writes `DISPATCHING` and increments the attempt count.
 
 ```text
 persist DISPATCHING
         |
-        v
 capability.submit(...)
-        |
-        +--> receipt -> persist ACCEPTED
-        |
-        +--> normalized failure -> persist FAILED
-        |
-        +--> INDETERMINATE -> persist INDETERMINATE
+        +--> receipt -> ACCEPTED
+        +--> definite normalized failure -> FAILED
+        `--> uncertain remote outcome -> INDETERMINATE
 ```
 
-If the process dies after `DISPATCHING` was written but before a receipt/failure was persisted, the next process must assume a side effect may have occurred. It must not blindly call `submit()` again.
+A process restart that finds `DISPATCHING` must assume a start may have happened and cannot blindly submit again.
+
+## Identities
+
+`dispatch_id` is the durable printer-side logical start identity. It is distinct from the HTTP `Idempotency-Key` used by public commands.
+
+Confirmed receipts are retained through the remote job lifecycle and prevent redispatch.
 
 ## Queue states
 
+The current durable lifecycle includes:
+
 ```text
 PENDING
-  | assess eligible
-  v
-DISPATCHING -------> ACCEPTED
-  |                     ^
-  | definite error      | reconciliation proves accepted
-  v                     |
-FAILED                  |
-                        |
-DISPATCHING/INDETERMINATE
-  |
-  | reconciliation proves not accepted
-  v
-PENDING
-
-PENDING/FAILED -- assess blocked --> BLOCKED
-BLOCKED -------- reassess ---------> PENDING or BLOCKED
+BLOCKED
+DISPATCHING
+ACCEPTED
+PREPARING
+PRINTING
+PAUSED
+COMPLETED
+CANCELLED
+INDETERMINATE
+FAILED
 ```
 
-### `PENDING`
-
-The request is persisted and may be assessed/dispatched.
-
-### `BLOCKED`
-
-The latest side-effect-free assessment is ineligible, or the printer does not currently expose `PrintExecutionCapability` v1. A later explicit dispatch attempt may reassess the entry.
-
-### `DISPATCHING`
-
-The queue persisted the pre-submit crash boundary and then attempted or was about to attempt the side effect. A persisted `DISPATCHING` entry discovered after restart requires reconciliation before any retry.
-
-### `ACCEPTED`
-
-A validated `PrintDispatchReceipt` is persisted. Calling queue dispatch again returns the persisted entry and does not call the adapter.
-
-### `INDETERMINATE`
-
-The adapter reported that the vendor may have accepted the start but the result could not be proven. Automatic retry is forbidden until reconciliation.
-
-### `FAILED`
-
-The adapter returned a definite normalized non-indeterminate failure. The error and retryability metadata are persisted. FoxForge v1 does not implement an automatic retry loop; a later explicit dispatch call reassesses and reuses the same `dispatch_id`.
+`FAILED` without a receipt may describe a pre-start dispatch failure. `FAILED` with a receipt describes a confirmed remote job that later failed; that receipt-bearing entry is never a retryable start.
 
 ## Reconciliation
 
-`QueueService.resolve_reconciliation()` records an outcome established by a trusted reconciliation mechanism.
+Explicit reconciliation can establish that an uncertain dispatch was accepted or not accepted without guessing from filenames or printer identity alone.
 
-The v1 method deliberately does not inspect Bambu/Moonraker raw state itself. The caller must first establish one of two facts:
+- accepted -> persist/retain receipt, never submit again;
+- proven not accepted -> return to a safe dispatchable state according to the queue contract;
+- unresolved ambiguity remains reconciliation-required.
 
-1. **accepted** — the previous dispatch is known to correspond to an accepted/current vendor job. The queue persists an `ACCEPTED` receipt without another submit.
-2. **not accepted** — the previous dispatch is known not to have taken effect. The queue returns to `PENDING`; a later explicit dispatch can safely reuse the same `dispatch_id`.
+Ordinary job-state events do not silently convert an `INDETERMINATE` entry into success.
 
-Automatic generic reconciliation based on printer/job events is deferred until FoxForge has enough cross-vendor evidence to define reliable matching rules. False certainty is more dangerous than requiring explicit reconciliation.
+## Persistence
 
-## Storage boundary
+`SQLiteQueueStore` provides current durable single-container storage. In-memory storage remains a test utility.
 
-`QueueService` depends on a synchronous `QueueStore` protocol:
+Queue safety survives process restart: accepted receipts and ambiguous dispatch states are restored before any new attempt can occur.
 
-```python
-create(entry)
-save(entry)
-get(queue_id)
-list()
-```
+## Evolution since the original dispatch slice
 
-Two implementations exist in Phase 4:
+Now implemented above this core boundary:
 
-- `InMemoryQueueStore` — deterministic tests/composition experiments only;
-- `SQLiteQueueStore` — durable single-container storage for the current Docker/ARM64/Umbrel architecture.
+- normalized post-acceptance event lifecycle tracking;
+- safe retry/backoff for explicitly retryable receipt-free pre-start failures;
+- public artifact/enqueue/dispatch/reconciliation APIs;
+- browser-safe file staging/queue workflow;
+- common job control as a separate exact-job capability;
+- artifact retention/capacity safeguards.
 
-The SQLite implementation stores a versioned JSON payload per entry. This is intentionally simple for the first application slice while still providing real restart durability. A later schema migration may normalize queue columns without changing the application service contract.
-
-## Receipt validation
-
-Before persisting `ACCEPTED`, QueueService verifies that the returned receipt has the same:
-
-- `dispatch_id`;
-- artifact SHA-256 fingerprint.
-
-A mismatch is recorded as `FAILED` with `INTERNAL_ADAPTER_ERROR`; common queue code never branches on vendor codes.
-
-## Out of scope for Phase 4
-
-This slice does not yet implement:
-
-- automatic scheduling among multiple pending jobs;
-- printer selection/scoring;
-- automatic retry/backoff;
-- automatic event-driven transition from accepted to printing/completed;
-- generic reconciliation heuristics;
-- cancellation/reordering;
-- REST/API endpoints;
-- inventory reservations;
-- distributed workers or multi-process write coordination.
-
-These can be layered on the persisted queue state after the dispatch safety boundary is proven.
+Persistent farm scheduling and distributed command leases remain separate future work.
 
 ## Acceptance criteria
 
-Phase 4 is complete when:
-
-1. Queue code imports no concrete vendor adapter or vendor DTO.
-2. `dispatch_id` is persisted before any adapter assessment/submission.
-3. The queue persists `DISPATCHING` before calling `submit()`.
-4. Re-dispatching an `ACCEPTED` entry never calls `submit()` again.
-5. `INDETERMINATE` and persisted `DISPATCHING` entries reject blind retry.
-6. Reconciliation can mark an uncertain dispatch accepted without a second submit.
-7. Reconciliation can prove non-acceptance and allow an explicit retry with the original `dispatch_id`.
-8. A printer without `PrintExecutionCapability` is blocked through common capability discovery, not vendor branching.
-9. SQLite persistence preserves accepted and indeterminate safety semantics across new store/adapter instances.
-10. Ruff and the full suite pass on Python 3.12 and 3.13.
+- queue code imports no vendor adapter/DTO;
+- `DISPATCHING` persists before submit;
+- receipt-bearing entries cannot be blindly redispatched;
+- `INDETERMINATE` cannot be retried without reconciliation;
+- restart preserves dispatch/receipt/ambiguity semantics;
+- safe retries reuse the durable logical dispatch identity;
+- public HTTP command idempotency remains a separate boundary;
+- physical start/control claims require real-device evidence.

@@ -1,100 +1,70 @@
 # SQLite inventory persistence
 
-Status: Phase 12 design specification
+- **Status:** implemented durable store
+- **Updated:** 2026-09-06
+- **Related:** [inventory foundation](inventory-foundation.md), [inventory atomicity](inventory-atomicity.md)
 
-Related: ADR 0001, ADR 0002, `docs/design/inventory-foundation.md`
+## Purpose
 
-## Context
-
-Phase 11 established FoxForge-owned spool metadata, an immutable mass-adjustment ledger and inventory-owned physical slot assignments behind `InventoryStore`. The next requirement is durable single-container persistence suitable for Docker, ARM64 and Umbrel without leaking database details into the inventory domain or the parallel frontend.
-
-FoxForge already uses SQLite successfully for durable print-queue state. Inventory follows the same deployment direction while retaining a separate store boundary and schema.
-
-## Decision
-
-Implement `SQLiteInventoryStore` under `backend/src/foxforge/infrastructure/inventory/`.
-
-The store implements the existing `InventoryStore` protocol; `InventoryService`, `domain.inventory`, printer adapters and frontend code remain unchanged.
+`SQLiteInventoryStore` provides restart-safe persistence for FoxForge spool metadata, append-only mass history and inventory-owned physical slot assignments without leaking SQLite details into domain/application/UI contracts.
 
 ## Storage model
 
-SQLite owns three tables:
+SQLite owns the inventory persistence tables for:
 
-- `inventory_spools` — current spool metadata as a versioned JSON payload;
-- `inventory_adjustments` — append-only ledger records with a database-level unique `idempotency_key`;
-- `inventory_assignments` — current one-spool/one-physical-slot mapping.
+- current spool metadata;
+- append-only adjustments with durable idempotency identity;
+- current spool-to-physical-slot assignments.
 
-Database constraints enforce:
-
-- unique spool IDs;
-- unique adjustment IDs;
-- unique adjustment idempotency keys;
-- adjustment foreign keys to existing spools;
-- one assignment per spool;
-- one assignment per `(printer_id, slot_id)` pair.
-
-The store enables SQLite foreign keys, WAL mode and a five-second busy timeout for the current single-container deployment model.
+Database constraints preserve spool/adjustment identity and one-to-one assignment uniqueness. Foreign keys, WAL mode and a bounded busy timeout support the current single-process/container deployment model.
 
 ## Serialization
 
-Each persisted domain object carries `schema_version = 1` in its JSON payload.
+Persisted payloads are versioned. `Decimal` mass values are stored as decimal strings, and dates/timestamps round-trip through domain constructors so validation remains active on read.
 
-`Decimal` filament masses are serialized as decimal strings rather than JSON floating-point numbers. Dates and timezone-aware datetimes use ISO 8601 values and are reconstructed through the existing domain constructors, so domain validation still runs on read.
+Unsupported payload/schema versions fail closed rather than being guessed.
 
-Explicit schema-version checking fails closed on unsupported payload versions instead of silently interpreting incompatible records.
+## Idempotency and atomicity
 
-## Idempotency and restart safety
+Semantic adjustment idempotency remains an application rule, with SQLite uniqueness as a durable backstop.
 
-The application service remains responsible for semantic idempotency: identical adjustment replay returns the existing record and materially different reuse raises `InventoryIdempotencyConflictError`.
+Current implementation also keeps balance validation, idempotency checks and adjustment insertion inside the required atomic persistence boundary. Concurrency/restart tests protect against duplicate deduction and invalid balance races.
 
-SQLite additionally enforces uniqueness of `idempotency_key` below the service layer. This protects the persistence boundary against accidental duplicate writes and establishes the durable prerequisite for future queue-driven exactly-once consumption.
+## Restart guarantees
 
-Restart tests must prove that:
+Durable tests cover:
 
-- spool metadata survives process/store recreation;
-- ledger balance is identical after restart;
-- adjustment idempotency survives restart;
-- a recorded adjustment remains replayable after the spool is later archived;
-- assignments survive restart;
-- slot uniqueness survives restart and explicit unassign/move operations.
+- spool metadata and editable empty-spool mass;
+- exact ledger/balance reconstruction;
+- idempotent adjustment replay after restart;
+- archived-spool replay safety;
+- physical assignments and slot uniqueness;
+- explicit unassign/move behavior.
 
-## Backend/frontend boundary
+## Boundary
 
-Phase 12 changes only `backend/**`, this design document and the project changelog. It does not modify `frontend/**`, root `README.md` or `docs/README.md`, which avoids conflicts with the parallel web-interface PR.
+Frontend/API clients never read SQLite directly. They consume `InventoryService` DTOs. Inventory persistence imports no vendor printer packages, and printer material snapshots remain free of FoxForge `spool_id`.
 
-The frontend must not read SQLite directly. A later public API will expose application read models from `InventoryService`; persistence layout and JSON payload schema remain backend implementation details.
+## Current scope
 
-## Concurrency boundary
+Implemented:
 
-This phase targets FoxForge's current one-process/one-container runtime. WAL and SQLite uniqueness constraints provide durable local consistency, but Phase 12 does not claim distributed transaction or multi-process scheduling support.
+- durable operator inventory workflow;
+- atomic/idempotent adjustments;
+- restart-safe assignments/history;
+- migration/version ownership through the shared persistence layer.
 
-Before multiple backend writers are introduced, inventory writes that combine balance validation and append operations will require an explicit transactional/CAS design.
+Not implemented as a released feature:
 
-## Out of scope
-
-- HTTP/REST inventory endpoints;
-- WebSocket/SSE inventory events;
-- automatic queue-completion deduction;
-- reservation of material before dispatch;
-- material-use extraction from 3MF/G-code;
-- RFID/tag-to-spool matching;
-- distributed/multi-process write coordination;
-- frontend changes.
+- automatic queue/job filament consumption;
+- material reservation/consumption P3 workflow;
+- distributed multi-process inventory writers.
 
 ## Acceptance criteria
 
-- `SQLiteInventoryStore` implements the existing `InventoryStore` contract without changing domain models;
-- inventory infrastructure imports no printer or vendor packages;
-- `Decimal` mass values round-trip exactly;
-- spool metadata, empty-spool weight and archive state survive restart;
-- adjustment ledger and computed balance survive restart;
-- database-level idempotency-key uniqueness is enforced;
-- identical adjustment replay remains exactly-once after restart and later archive;
-- physical slot assignments and uniqueness survive restart;
-- WAL, foreign keys and busy timeout are enabled;
-- no frontend files are modified;
-- Ruff, formatting and full pytest suite pass on Python 3.12 and 3.13.
-
-## Next implementation direction
-
-After durable inventory persistence is merged, the next backend slice should define a stable public application/API read boundary for fleet, queue and inventory so the parallel web UI can replace its mock gateway without importing backend internals. Automatic consumption should follow only after FoxForge has a trustworthy per-material usage estimate source and a durable queue-to-inventory accounting identity.
+- exact Decimal values survive round trip/restart;
+- idempotency survives restart and concurrency;
+- assignment uniqueness survives restart;
+- persistence details do not leak into domain/API contracts;
+- vendor adapters do not become inventory dependencies;
+- P3 automatic accounting remains separate from the normal durable inventory store.
