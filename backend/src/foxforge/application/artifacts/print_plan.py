@@ -22,7 +22,7 @@ from typing import BinaryIO
 
 from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat
 
-from ._bambu_3mf_toolheads import parse_bambu_toolhead_expectations
+from ._3mf_toolheads import parse_bambu_toolhead_expectations
 
 _MAX_ZIP_MEMBERS = 4096
 _MAX_ZIP_MEMBER_NAME = 1024
