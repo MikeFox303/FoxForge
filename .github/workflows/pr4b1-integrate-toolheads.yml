@@ -1,0 +1,144 @@
+name: PR4b1 integrate toolheads
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/src/foxforge/application/artifacts/_bambu_3mf_toolheads.py
+      - backend/src/foxforge/application/artifacts/print_plan.py
+      - backend/src/foxforge/api/v1/artifact_reads.py
+      - backend/tests/application/test_artifact_toolheads.py
+      - backend/tests/api/test_artifact_reads.py
+      - .github/workflows/pr4b1-integrate-toolheads.yml
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Integrate toolhead expectations into print plan and API
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          plan = Path("backend/src/foxforge/application/artifacts/print_plan.py")
+          text = plan.read_text()
+
+          replacements = [
+              (
+                  "from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat\n",
+                  "from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat\n\n"
+                  "from ._bambu_3mf_toolheads import parse_bambu_toolhead_expectations\n",
+              ),
+              (
+                  '    PROJECT_METADATA_INVALID = "project_metadata_invalid"\n',
+                  '    PROJECT_METADATA_INVALID = "project_metadata_invalid"\n'
+                  '    TOOLHEAD_METADATA_INVALID = "toolhead_metadata_invalid"\n',
+              ),
+              (
+                  "    profile_name: str | None\n\n    def __post_init__(self) -> None:\n"
+                  "        if self.material_index < 0:\n"
+                  '            raise ValueError("material_index must be zero-based and non-negative")\n',
+                  "    profile_name: str | None\n"
+                  "    expected_toolhead_position: int | None = None\n\n"
+                  "    def __post_init__(self) -> None:\n"
+                  "        if self.material_index < 0:\n"
+                  '            raise ValueError("material_index must be zero-based and non-negative")\n'
+                  "        if self.expected_toolhead_position is not None and self.expected_toolhead_position < 0:\n"
+                  '            raise ValueError("expected_toolhead_position must be non-negative when present")\n',
+              ),
+              (
+                  "            plates: list[PrintPlanPlate] = []\n"
+                  "            for plate_number, info in sorted(plate_infos.items()):\n",
+                  "            toolhead_expectations, toolhead_warnings = parse_bambu_toolhead_expectations(\n"
+                  "                archive,\n"
+                  "                infos,\n"
+                  "                plate_indices=tuple(plate_number - 1 for plate_number in sorted(plate_infos)),\n"
+                  "            )\n"
+                  "            issues.extend(\n"
+                  "                PrintPlanIssue(\n"
+                  "                    code=PrintPlanIssueCode.TOOLHEAD_METADATA_INVALID,\n"
+                  "                    severity=PrintPlanIssueSeverity.WARNING,\n"
+                  "                    message=warning.message,\n"
+                  "                    plate_index=warning.plate_index,\n"
+                  "                )\n"
+                  "                for warning in toolhead_warnings\n"
+                  "            )\n\n"
+                  "            plates: list[PrintPlanPlate] = []\n"
+                  "            for plate_number, info in sorted(plate_infos.items()):\n",
+              ),
+              (
+                  "                        profile_name=metadata.get(material_index, _EMPTY_METADATA).profile_name,\n"
+                  "                    )\n",
+                  "                        profile_name=metadata.get(material_index, _EMPTY_METADATA).profile_name,\n"
+                  "                        expected_toolhead_position=toolhead_expectations.get(plate_index, {}).get(\n"
+                  "                            material_index\n"
+                  "                        ),\n"
+                  "                    )\n",
+              ),
+          ]
+          for old, new in replacements:
+              if new in text:
+                  continue
+              if old not in text:
+                  raise SystemExit(f"print_plan integration anchor not found: {old[:80]!r}")
+              text = text.replace(old, new, 1)
+          plan.write_text(text)
+
+          api = Path("backend/src/foxforge/api/v1/artifact_reads.py")
+          text = api.read_text()
+          old = '                        "profileName": requirement.profile_name,\n'
+          new = (
+              '                        "profileName": requirement.profile_name,\n'
+              '                        "expectedToolheadPosition": requirement.expected_toolhead_position,\n'
+          )
+          if new not in text:
+              if old not in text:
+                  raise SystemExit("artifact_reads integration anchor not found")
+              text = text.replace(old, new, 1)
+          api.write_text(text)
+
+          test_api = Path("backend/tests/api/test_artifact_reads.py")
+          text = test_api.read_text()
+          old = '                            "profileName": None,\n'
+          new = '                            "profileName": None,\n                            "expectedToolheadPosition": None,\n'
+          if new not in text:
+              count = text.count(old)
+              if count < 2:
+                  raise SystemExit("artifact read test anchors not found")
+              text = text.replace(old, new)
+          test_api.write_text(text)
+          PY
+      - name: Install pinned Ruff
+        run: python -m pip install "ruff==0.15.20"
+      - name: Format touched Python files
+        run: |
+          ruff format \
+            backend/src/foxforge/application/artifacts/_bambu_3mf_toolheads.py \
+            backend/src/foxforge/application/artifacts/print_plan.py \
+            backend/src/foxforge/api/v1/artifact_reads.py \
+            backend/tests/api/test_artifact_reads.py
+      - name: Commit integration
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add \
+            backend/src/foxforge/application/artifacts/_bambu_3mf_toolheads.py \
+            backend/src/foxforge/application/artifacts/print_plan.py \
+            backend/src/foxforge/api/v1/artifact_reads.py \
+            backend/tests/api/test_artifact_reads.py
+          git commit -m "feat: expose plate toolhead expectations in print plans"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
