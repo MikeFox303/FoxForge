@@ -47,6 +47,7 @@ ADRs record durable decisions. Historical context inside an accepted ADR is not 
 
 - [Bambu adapter foundation](design/bambu-adapter-foundation.md)
 - [Bambu LAN transport](design/bambu-lan-transport.md)
+- [Private discovery subnet suggestions](design/private-discovery-subnet-suggestions.md)
 - [Bambu certificate trust](design/bambu-certificate-trust.md)
 - [Bambu project storage](design/bambu-project-storage.md)
 - [Pre-Alpha 5 physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
