@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 MikeFox303
 
-"""Composition-layer HTTP route for vendor-specific Bambu LAN discovery."""
+"""Composition-layer HTTP routes for vendor-specific Bambu LAN discovery."""
 
 from __future__ import annotations
 
@@ -10,20 +10,37 @@ from collections.abc import Awaitable, Callable
 from aiohttp import web
 
 from foxforge.adapters.bambu import BambuDiscoveryCandidate, scan_bambu_subnet
-from foxforge.api.v1.http import add_command_route, command_error
+from foxforge.api.v1.http import add_authenticated_route, add_command_route, command_error
 from foxforge.api.v1.security import CommandPermission
 
+from .local_networks import suggested_private_discovery_subnets
+
 BambuSubnetScanner = Callable[[str], Awaitable[tuple[BambuDiscoveryCandidate, ...]]]
+SubnetSuggester = Callable[[], tuple[str, ...]]
 
 
 def register_bambu_discovery_routes(
     app: web.Application,
     *,
     scanner: BambuSubnetScanner | None = None,
+    subnet_suggester: SubnetSuggester | None = None,
 ) -> None:
-    """Register operator-only Bambu candidate discovery at the composition boundary."""
+    """Register operator-only Bambu discovery and bounded subnet hints."""
 
     scan = scanner or _scan_default
+    suggest_subnets = subnet_suggester or suggested_private_discovery_subnets
+
+    async def suggestions(request: web.Request) -> web.Response:
+        try:
+            subnets = suggest_subnets()
+        except (OSError, ValueError, TypeError):
+            subnets = ()
+        return web.json_response(
+            {
+                "apiVersion": "1",
+                "subnets": list(subnets),
+            }
+        )
 
     async def discover(request: web.Request) -> web.Response:
         if request.content_type != "application/json":
@@ -54,6 +71,13 @@ def register_bambu_discovery_routes(
             }
         )
 
+    add_authenticated_route(
+        app,
+        "GET",
+        "/api/v1/printers/discovery/bambu/subnets",
+        CommandPermission.PRINTER_CONFIG,
+        suggestions,
+    )
     add_command_route(
         app,
         "POST",

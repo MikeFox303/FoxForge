@@ -30,7 +30,8 @@
 .setup-section-head,
 .configured-printer,
 .configured-actions,
-.setup-form-actions {
+.setup-form-actions,
+.setup-subnet-suggestions-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -51,7 +52,8 @@
 .setup-section-head p,
 .configured-printer span,
 .configured-printer small,
-.setup-form label small {
+.setup-form label small,
+.setup-subnet-suggestions small {
   color: var(--muted);
 }
 
@@ -73,7 +75,8 @@
 }
 
 .configured-printers,
-.setup-form {
+.setup-form,
+.setup-subnet-suggestions {
   display: grid;
   gap: 12px;
 }
@@ -149,6 +152,38 @@
   margin-top: 6px;
 }
 
+.setup-subnet-suggestions {
+  padding: 10px 0 2px;
+}
+
+.setup-subnet-suggestions-head {
+  align-items: baseline;
+  flex-wrap: wrap;
+}
+
+.setup-subnet-suggestions-head > span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.setup-subnet-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.setup-subnet-buttons .secondary-button {
+  min-height: 34px;
+  padding: 0 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.setup-subnet-buttons .secondary-button.active {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(249, 115, 22, 0.22);
+}
+
 .setup-message {
   display: grid;
   gap: 4px;
@@ -215,5 +250,21 @@
 
   .configured-actions {
     justify-content: flex-start;
+  }
+}
+
+@media (max-width: 520px) {
+  .setup-subnet-suggestions-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .setup-subnet-buttons {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .setup-subnet-buttons .secondary-button {
+    width: 100%;
   }
 }
