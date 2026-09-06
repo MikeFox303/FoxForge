@@ -37,23 +37,41 @@ def parse_bambu_toolhead_expectations(
     present for a plate. `filament_nozzle_map` is only a fallback when that
     plate exposes no group assignment at all. Ambiguous/partial actual metadata
     suppresses fallback for that plate rather than guessing.
+
+    Missing toolhead metadata is different from metadata that is present but
+    unsafe to parse. The latter produces an explicit warning so the routing
+    compiler cannot mistake parser failure for an unconstrained print plan.
     """
 
-    settings = _project_settings(archive, infos)
+    settings, settings_error = _project_settings(archive, infos)
+    if settings_error is not None:
+        return {}, _warnings_for_plates(plate_indices, settings_error)
     if settings is None:
         return {}, ()
 
+    if "physical_extruder_map" not in settings:
+        return {}, ()
     physical_map = _physical_extruder_map(settings.get("physical_extruder_map"))
-    if physical_map is None or len(physical_map) <= 1:
+    if physical_map is None:
+        return {}, _warnings_for_plates(
+            plate_indices,
+            "project_settings.config contains an invalid physical_extruder_map",
+        )
+    if len(physical_map) <= 1:
         return {}, ()
 
-    fallback = _fallback_expectations(settings.get("filament_nozzle_map"), physical_map)
+    fallback, fallback_error = _fallback_expectations(
+        settings.get("filament_nozzle_map"),
+        physical_map,
+        present="filament_nozzle_map" in settings,
+    )
     slice_root, slice_error = _slice_info_root(archive, infos)
     if slice_root is None:
-        if slice_error is None:
-            return {plate_index: dict(fallback) for plate_index in plate_indices}, ()
-        warnings = tuple(ToolheadMetadataWarning(plate_index, slice_error) for plate_index in plate_indices)
-        return {}, warnings
+        if slice_error is not None:
+            return {}, _warnings_for_plates(plate_indices, slice_error)
+        if fallback_error is not None:
+            return {}, _warnings_for_plates(plate_indices, fallback_error)
+        return {plate_index: dict(fallback) for plate_index in plate_indices}, ()
 
     results: dict[int, dict[int, int]] = {}
     warnings: list[ToolheadMetadataWarning] = []
@@ -77,7 +95,10 @@ def parse_bambu_toolhead_expectations(
         if state == "actual":
             results[plate_index] = actual
         elif state == "fallback":
-            results[plate_index] = dict(fallback)
+            if fallback_error is not None:
+                warnings.append(ToolheadMetadataWarning(plate_index, fallback_error))
+            else:
+                results[plate_index] = dict(fallback)
         else:
             warnings.append(
                 ToolheadMetadataWarning(
@@ -89,18 +110,36 @@ def parse_bambu_toolhead_expectations(
     return results, tuple(warnings)
 
 
-def _project_settings(archive: zipfile.ZipFile, infos: list[zipfile.ZipInfo]) -> dict[str, object] | None:
+def _warnings_for_plates(
+    plate_indices: tuple[int, ...],
+    message: str,
+) -> tuple[ToolheadMetadataWarning, ...]:
+    return tuple(ToolheadMetadataWarning(plate_index, message) for plate_index in plate_indices)
+
+
+def _project_settings(
+    archive: zipfile.ZipFile,
+    infos: list[zipfile.ZipInfo],
+) -> tuple[dict[str, object] | None, str | None]:
     members = [info for info in infos if info.filename == "Metadata/project_settings.config"]
+    if not members:
+        return None, None
     if len(members) != 1:
-        return None
+        return None, "3MF contains ambiguous duplicate project_settings.config members"
+
     info = members[0]
-    if info.flag_bits & 0x1 or info.file_size > _MAX_METADATA_BYTES:
-        return None
+    if info.flag_bits & 0x1:
+        return None, "Encrypted project_settings.config metadata is not supported for toolhead routing"
+    if info.file_size > _MAX_METADATA_BYTES:
+        return None, "project_settings.config exceeds the bounded toolhead-metadata inspection limit"
+
     try:
         data = json.loads(archive.read(info).decode("utf-8"))
     except (KeyError, UnicodeDecodeError, json.JSONDecodeError, RuntimeError, NotImplementedError):
-        return None
-    return data if isinstance(data, dict) else None
+        return None, "project_settings.config could not be parsed safely for toolhead routing"
+    if not isinstance(data, dict):
+        return None, "project_settings.config must contain a JSON object for toolhead routing"
+    return data, None
 
 
 def _physical_extruder_map(value: object) -> tuple[int, ...] | None:
@@ -115,16 +154,24 @@ def _physical_extruder_map(value: object) -> tuple[int, ...] | None:
     return tuple(parsed)
 
 
-def _fallback_expectations(value: object, physical_map: tuple[int, ...]) -> dict[int, int]:
+def _fallback_expectations(
+    value: object,
+    physical_map: tuple[int, ...],
+    *,
+    present: bool,
+) -> tuple[dict[int, int], str | None]:
+    if not present:
+        return {}, None
     if not isinstance(value, list):
-        return {}
+        return {}, "project_settings.config contains an invalid filament_nozzle_map fallback"
+
     result: dict[int, int] = {}
     for material_index, item in enumerate(value):
         slicer_extruder = _int_value(item)
         if slicer_extruder is None or not 0 <= slicer_extruder < len(physical_map):
-            continue
+            return {}, "project_settings.config contains an invalid filament_nozzle_map fallback"
         result[material_index] = physical_map[slicer_extruder]
-    return result
+    return result, None
 
 
 def _slice_info_root(
