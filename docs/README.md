@@ -15,9 +15,9 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 | --- | --- |
 | Semantic release | `v0.1.0-alpha.4.3` |
 | Active milestone | Pre-Alpha 5 / Bambu Lab connection and control |
-| Umbrel validation package | `0.1.0-alpha.4.3-umbrel.2` |
-| Candidate source | `37b253f385c19451c7ea075a4a4d12378cf17cf2` |
-| Candidate image | `ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f` |
+| Umbrel validation package | `0.1.0-alpha.4.3-umbrel.4` |
+| Candidate source | `c11f7145b4354aa79c8f0fad223648240e652bac` |
+| Candidate image | `ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a` |
 
 The validation package is not a final Alpha 5 semantic release. Documentation-only commits may advance `main` without changing the immutable candidate under test.
 
@@ -52,7 +52,7 @@ ADRs record durable decisions. Historical context inside an accepted ADR is not 
 - [Bambu project storage](design/bambu-project-storage.md)
 - [Pre-Alpha 5 physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
 
-Current source includes conservative LAN discovery, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project-storage foundations and AMS/external material observation. Physical X2D/AMS 2 Pro acceptance remains the active release gate.
+Current source includes bounded LAN discovery with private-subnet suggestions, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project storage, AMS/external observation, typed material topology and fail-closed 3MF material routing. Physical X2D/AMS 2 Pro acceptance remains the active release gate.
 
 ## Moonraker/Klipper
 

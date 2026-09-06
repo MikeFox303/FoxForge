@@ -9,9 +9,9 @@ The latest semantic release is `v0.1.0-alpha.4.3`.
 The current Umbrel package is a **Pre-Alpha 5 validation candidate**, not final Alpha 5:
 
 ```text
-package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
-source: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.4
+source: c11f7145b4354aa79c8f0fad223648240e652bac
+image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 ```
 
 ## Runtime model
@@ -50,7 +50,7 @@ Current printer transports use deployment-to-printer LAN connectivity:
 
 - Bambu MQTT/TLS and FTPS use configured/discovered printer addresses;
 - Moonraker uses the configured base URL;
-- Bambu discovery is an explicit, bounded scan of a user-selected RFC1918 IPv4 subnet and produces candidates only;
+- Bambu discovery can suggest server-visible private RFC1918 networks and performs an explicit bounded scan of the selected/manual CIDR; results remain candidates only;
 - discovered Bambu candidates still must pass normal authenticated test-before-save before configuration is persisted.
 
 No Docker socket, privileged mode or `network_mode: host` is required by the current package. Real bridge/container reachability to the printer LAN remains part of physical validation. Broader network features such as Virtual Printer require separate design and evidence.

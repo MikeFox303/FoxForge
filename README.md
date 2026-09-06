@@ -16,10 +16,10 @@ Bambu Lab is the current primary integration target. Moonraker/Klipper support r
 
 The latest published semantic pre-release is **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**.
 
-Development toward **`v0.1.0-alpha.5`** is currently in physical-validation stage under [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). The companion Umbrel Store currently carries validation candidate **`0.1.0-alpha.4.3-umbrel.2`**, built from FoxForge commit `37b253f385c19451c7ea075a4a4d12378cf17cf2` and pinned to:
+Development toward **`v0.1.0-alpha.5`** is currently in physical-validation stage under [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). The companion Umbrel Store currently carries validation candidate **`0.1.0-alpha.4.3-umbrel.4`**, built from FoxForge commit `c11f7145b4354aa79c8f0fad223648240e652bac` and pinned to:
 
 ```text
-ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 ```
 
 This package is deliberately **not** a final Alpha 5 release. Evidence collected against another image or package must not be relabeled as Alpha 5 evidence.
@@ -36,7 +36,7 @@ See the [Pre-Alpha 5 Bambu physical-validation runbook](docs/testing/pre-alpha-5
 - test-before-save for Add and Update, so invalid reachability or credentials do not replace durable working configuration;
 - rollback to the previous working adapter/configuration when a replacement connection fails;
 - deterministic idempotent replay of terminal sanitized setup failures;
-- conservative Bambu LAN discovery over an explicitly selected RFC1918 IPv4 subnet, with manual entry retained as fallback;
+- conservative Bambu LAN discovery over bounded RFC1918 IPv4 subnets, including server-visible private subnet suggestions plus manual CIDR entry as fallback;
 - restart-safe per-printer reconnect supervision with bounded backoff/jitter and secret-safe diagnostics.
 
 ### Bambu Lab depth
@@ -45,7 +45,9 @@ See the [Pre-Alpha 5 Bambu physical-validation runbook](docs/testing/pre-alpha-5
 - project-storage abstraction with FTPS implementation and fail-safe print-start semantics;
 - normalized X2D/printer state foundation;
 - AMS-family and external material-source observation through the common material-system capability;
+- typed `foxforge.material_topology` routes with explicit fixed/dynamic/unknown toolhead reachability and stale-state handling;
 - active source, remaining fraction, material identity and tag identity when reported by the printer;
+- Bambu print dispatch defense that revalidates compiled source/toolhead routing and emits `ams_mapping`, `ams_mapping2` and `nozzle_mapping` only from proven intent;
 - guarded common Pause / Resume / Cancel with exact active-job identity checks;
 - optional independent MQTT and FTPS SHA-256 certificate pins.
 
@@ -54,6 +56,8 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 ### Queue and inventory
 
 - durable SQLite-backed queue with lifecycle, retry and reconciliation boundaries;
+- immutable staged-3MF print-plan inspection with plate-scoped requirements, explicit operator material bindings and fail-closed routing compilation;
+- compiler-owned toolhead bindings persisted before submit and revalidated again at dispatch;
 - explicit `INDETERMINATE` handling instead of blind side-effect retry;
 - content-addressed `.gcode` / `.3mf` staging with quota and safe garbage collection;
 - durable spool inventory with exact `Decimal` accounting;
@@ -69,8 +73,9 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 - SSE application-event invalidation with canonical HTTP snapshots;
 - responsive phone, tablet, desktop and ultra-wide layouts;
 - Operator Access with a memory-only command credential;
-- Add Printer discovery/manual flow, structured setup errors and reconnect diagnostics;
-- queue, inventory and common job-control workflows.
+- Add Printer discovery/manual flow with safe subnet suggestions, structured setup errors and reconnect diagnostics;
+- Printer Detail Material Topology UI with fixed/dynamic/unknown/stale presentation;
+- explicit 3MF material-binding review plus queue, inventory and common job-control workflows.
 
 ## Current support status
 

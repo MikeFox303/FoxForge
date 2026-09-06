@@ -31,12 +31,12 @@ The browser acceptance layer separately checks that operator credentials remain 
 
 ## Umbrel contract
 
-The current Store package is Pre-Alpha 5 validation candidate 2:
+The current Store package is Pre-Alpha 5 validation candidate 4:
 
 ```text
-my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
-source 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+my3d-foxforge 0.1.0-alpha.4.3-umbrel.4
+source c11f7145b4354aa79c8f0fad223648240e652bac
+image ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 ```
 
 The package:

@@ -26,9 +26,9 @@ The verifier does not define the current release target.
 For the active Alpha 5 Bambu milestone, use:
 
 - [Pre-Alpha 5 Bambu physical validation](pre-alpha-5-bambu-physical-validation.md);
-- [`evidence/pre-alpha5-candidate2-manifest.template.json`](evidence/pre-alpha5-candidate2-manifest.template.json).
+- [`evidence/pre-alpha5-candidate4-manifest.template.json`](evidence/pre-alpha5-candidate4-manifest.template.json).
 
-The older `alpha4.2-manifest.template.json` remains a historical Alpha 4.2 template and must not be used for new Pre-Alpha 5 evidence.
+Candidate 1/2/3 templates and evidence remain historical and must not be relabeled for the Candidate 4 source/image identity. The older `alpha4.2-manifest.template.json` remains a historical Alpha 4.2 template and must not be used for new Pre-Alpha 5 evidence.
 
 ## Run the verifier
 

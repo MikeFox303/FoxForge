@@ -17,7 +17,7 @@ Release tags are immutable publication identities. Changes merged after a semant
 The current Umbrel physical-validation candidate is built from a development SHA and is documented here only so tests can reproduce the exact application image:
 
 ```text
-ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 ```
 
 Do not present this SHA image as `v0.1.0-alpha.5`.
