@@ -22,6 +22,8 @@ from typing import BinaryIO
 
 from foxforge.domain.printers.capabilities import LocalPrintArtifact, PrintArtifactFormat
 
+from ._bambu_3mf_toolheads import parse_bambu_toolhead_expectations
+
 _MAX_ZIP_MEMBERS = 4096
 _MAX_ZIP_MEMBER_NAME = 1024
 _MAX_PROJECT_SETTINGS_BYTES = 4 * 1024 * 1024
@@ -45,6 +47,7 @@ class PrintPlanIssueCode(StrEnum):
     MATERIAL_REQUIREMENTS_UNKNOWN = "material_requirements_unknown"
     MATERIAL_INDEX_OUT_OF_RANGE = "material_index_out_of_range"
     PROJECT_METADATA_INVALID = "project_metadata_invalid"
+    TOOLHEAD_METADATA_INVALID = "toolhead_metadata_invalid"
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,10 +70,13 @@ class PrintPlanMaterialRequirement:
     material_family: str | None
     color_rgba_hex: str | None
     profile_name: str | None
+    expected_toolhead_position: int | None = None
 
     def __post_init__(self) -> None:
         if self.material_index < 0:
             raise ValueError("material_index must be zero-based and non-negative")
+        if self.expected_toolhead_position is not None and self.expected_toolhead_position < 0:
+            raise ValueError("expected_toolhead_position must be non-negative when present")
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,6 +199,21 @@ def _inspect_verified_three_mf(handle: BinaryIO, artifact: LocalPrintArtifact) -
                     issues=tuple(issues),
                 )
 
+            toolhead_expectations, toolhead_warnings = parse_bambu_toolhead_expectations(
+                archive,
+                infos,
+                plate_indices=tuple(plate_number - 1 for plate_number in sorted(plate_infos)),
+            )
+            issues.extend(
+                PrintPlanIssue(
+                    code=PrintPlanIssueCode.TOOLHEAD_METADATA_INVALID,
+                    severity=PrintPlanIssueSeverity.WARNING,
+                    message=warning.message,
+                    plate_index=warning.plate_index,
+                )
+                for warning in toolhead_warnings
+            )
+
             plates: list[PrintPlanPlate] = []
             for plate_number, info in sorted(plate_infos.items()):
                 plate_index = plate_number - 1
@@ -204,6 +225,7 @@ def _inspect_verified_three_mf(handle: BinaryIO, artifact: LocalPrintArtifact) -
                         material_family=metadata.get(material_index, _EMPTY_METADATA).material_family,
                         color_rgba_hex=metadata.get(material_index, _EMPTY_METADATA).color_rgba_hex,
                         profile_name=metadata.get(material_index, _EMPTY_METADATA).profile_name,
+                        expected_toolhead_position=toolhead_expectations.get(plate_index, {}).get(material_index),
                     )
                     for material_index in sorted(material_indices)
                 )

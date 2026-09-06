@@ -82,12 +82,14 @@ def test_print_plan_read_requires_operator_auth_and_returns_staged_plan(tmp_path
                             "materialFamily": None,
                             "rgbaHex": None,
                             "profileName": None,
+                            "expectedToolheadPosition": None,
                         },
                         {
                             "materialIndex": 1,
                             "materialFamily": None,
                             "rgbaHex": None,
                             "profileName": None,
+                            "expectedToolheadPosition": None,
                         },
                     ],
                 }
