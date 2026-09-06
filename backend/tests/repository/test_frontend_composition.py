@@ -28,3 +28,15 @@ def test_shell_owns_navigation_and_operator_chrome() -> None:
     assert "<OperatorAccess" in shell
     assert '<aside className="sidebar">' not in app
     assert "<OperatorAccess" not in app
+
+
+def test_standard_printer_card_is_feature_owned_and_vendor_neutral() -> None:
+    root = Path(__file__).resolve().parents[3]
+    app = (root / "frontend/src/FoxForgeApp.tsx").read_text(encoding="utf-8")
+    card = (root / "frontend/src/features/printers/PrinterCard.tsx").read_text(encoding="utf-8")
+
+    assert "function PrinterCard(" not in app
+    assert "export function PrinterCard" in card
+    assert "queueCount" in card
+    assert "model ==" not in card
+    assert "model ===" not in card
