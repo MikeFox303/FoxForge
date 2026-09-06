@@ -75,6 +75,7 @@ def _print_plan_read_model(plan: ArtifactPrintPlan) -> dict[str, object]:
                         "materialFamily": requirement.material_family,
                         "rgbaHex": requirement.color_rgba_hex,
                         "profileName": requirement.profile_name,
+                        "expectedToolheadPosition": requirement.expected_toolhead_position,
                     }
                     for requirement in plate.material_requirements
                 ],
