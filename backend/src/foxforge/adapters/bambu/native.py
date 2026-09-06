@@ -91,6 +91,11 @@ class BambuNativeMaterialRoute:
     material_index: int
     ams_id: int
     tray_id: int
+    nozzle_index: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.nozzle_index is not None and self.nozzle_index not in {0, 1}:
+            raise ValueError("Bambu nozzle_index must be 0 or 1 when present")
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +105,11 @@ class BambuNativePrintRequest:
     plate_number: int | None
     material_routes: tuple[BambuNativeMaterialRoute, ...]
     requested_name: str | None
+
+    def __post_init__(self) -> None:
+        compiled = tuple(route.nozzle_index is not None for route in self.material_routes)
+        if compiled and any(compiled) and not all(compiled):
+            raise ValueError("Bambu native material routes must not contain a partial nozzle mapping")
 
 
 @dataclass(frozen=True, slots=True)
