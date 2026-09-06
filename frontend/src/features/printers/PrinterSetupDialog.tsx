@@ -8,6 +8,7 @@ import { CommandAuthenticationRequiredError } from '../../data/commandClient';
 import {
   addPrinter,
   discoverBambuPrinters,
+  loadBambuDiscoverySubnets,
   loadPrinterConfigurations,
   reconnectPrinter,
   removePrinter,
@@ -47,6 +48,11 @@ const copy = {
     bambuIdentityHint: 'FoxForge creates the stable local ID automatically from the Bambu serial number.',
     discovery: 'Find Bambu printers on the LAN',
     subnet: 'Subnet to scan',
+    suggestedSubnets: 'Server-visible private networks',
+    noSuggestedSubnets: 'No private LAN suggestion is visible to the FoxForge server. Enter the printer subnet manually.',
+    subnetHint: 'Suggestions are private, bounded scan hints only. Docker/Umbrel may expose bridge networks, so verify the CIDR before scanning.',
+    refreshSubnets: 'Refresh networks',
+    loadingSubnets: 'Finding networks…',
     scan: 'Scan subnet',
     scanning: 'Scanning…',
     noCandidates: 'No Bambu candidates found. You can still enter the printer details manually.',
@@ -96,6 +102,11 @@ const copy = {
     bambuIdentityHint: 'FoxForge автоматически создаёт постоянный локальный ID из серийного номера Bambu.',
     discovery: 'Найти принтеры Bambu в локальной сети',
     subnet: 'Подсеть для сканирования',
+    suggestedSubnets: 'Приватные сети, видимые серверу',
+    noSuggestedSubnets: 'FoxForge не видит подходящую приватную LAN-подсеть. Укажите подсеть принтера вручную.',
+    subnetHint: 'Подсказки — только приватные ограниченные диапазоны. Docker/Umbrel может показывать bridge-сети, поэтому проверьте CIDR перед сканированием.',
+    refreshSubnets: 'Обновить сети',
+    loadingSubnets: 'Поиск сетей…',
     scan: 'Сканировать подсеть',
     scanning: 'Сканирование…',
     noCandidates: 'Принтеры Bambu не найдены. Данные принтера можно ввести вручную.',
@@ -145,6 +156,11 @@ const copy = {
     bambuIdentityHint: 'FoxForge автоматично створює стабільний локальний ID із серійного номера Bambu.',
     discovery: 'Знайти принтери Bambu у локальній мережі',
     subnet: 'Підмережа для сканування',
+    suggestedSubnets: 'Приватні мережі, видимі серверу',
+    noSuggestedSubnets: 'FoxForge не бачить придатну приватну LAN-підмережу. Вкажіть підмережу принтера вручну.',
+    subnetHint: 'Підказки — лише приватні обмежені діапазони. Docker/Umbrel може показувати bridge-мережі, тому перевірте CIDR перед скануванням.',
+    refreshSubnets: 'Оновити мережі',
+    loadingSubnets: 'Пошук мереж…',
     scan: 'Сканувати підмережу',
     scanning: 'Сканування…',
     noCandidates: 'Принтери Bambu не знайдено. Дані принтера можна ввести вручну.',
@@ -204,7 +220,9 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const [accessCode, setAccessCode] = useState('');
   const [baseUrl, setBaseUrl] = useState('http://');
   const [apiKey, setApiKey] = useState('');
-  const [subnet, setSubnet] = useState('192.168.1.0/24');
+  const [subnet, setSubnet] = useState('');
+  const [subnetSuggestions, setSubnetSuggestions] = useState<string[]>([]);
+  const [loadingSubnets, setLoadingSubnets] = useState(false);
   const [candidates, setCandidates] = useState<BambuDiscoveryCandidate[]>([]);
   const [scanAttempted, setScanAttempted] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -244,8 +262,25 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
     }
   };
 
+  const refreshSubnetSuggestions = async () => {
+    if (loadingSubnets) return;
+    setLoadingSubnets(true);
+    try {
+      const suggestions = await loadBambuDiscoverySubnets();
+      setSubnetSuggestions(suggestions);
+      setSubnet((current) => current || suggestions[0] || '');
+    } catch (cause) {
+      if (cause instanceof CommandAuthenticationRequiredError) setSubnetSuggestions([]);
+    } finally {
+      setLoadingSubnets(false);
+    }
+  };
+
   useEffect(() => {
-    if (open) void refresh();
+    if (open) {
+      void refresh();
+      void refreshSubnetSuggestions();
+    }
   }, [open]);
 
   useEffect(() => {
@@ -400,6 +435,18 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
             {kind === 'bambu' ? <>
               <div className="setup-message warning">
                 <strong>{c.discovery}</strong>
+                <div className="setup-subnet-suggestions">
+                  <div className="setup-subnet-suggestions-head">
+                    <span>{c.suggestedSubnets}</span>
+                    <button className="text-button" type="button" disabled={loadingSubnets || scanning || testing || saving} onClick={() => void refreshSubnetSuggestions()}>{loadingSubnets ? c.loadingSubnets : c.refreshSubnets}</button>
+                  </div>
+                  {subnetSuggestions.length > 0 ? <div className="setup-subnet-buttons">
+                    {subnetSuggestions.map((suggestion) => (
+                      <button className={subnet === suggestion ? 'secondary-button active' : 'secondary-button'} type="button" key={suggestion} onClick={() => setSubnet(suggestion)}>{suggestion}</button>
+                    ))}
+                  </div> : !loadingSubnets && <small>{c.noSuggestedSubnets}</small>}
+                  <small>{c.subnetHint}</small>
+                </div>
                 <div className="setup-form-row">
                   <label><span>{c.subnet}</span><input value={subnet} onChange={(event) => setSubnet(event.target.value)} placeholder="192.168.1.0/24" /></label>
                   <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={scanning || testing || saving || !subnet.trim()} onClick={() => void scanBambu()}>{scanning ? c.scanning : c.scan}</button></div>
