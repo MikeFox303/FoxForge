@@ -140,7 +140,14 @@ export function routingReviewReady(options: {
 }): boolean {
   const { printer, plan, plateIndex, bindings } = options;
   const plate = selectedPlate(plan, plateIndex);
-  if (!printer || !plan || !plate || !plan.readyForRouting || !plate.readyForRouting) return false;
+  if (!printer || !plan || !plate || !plate.readyForRouting) return false;
+
+  const unsafeIssue = plan.issues.some((issue) => (
+    (issue.plateIndex === null || issue.plateIndex === plate.plateIndex)
+    && (issue.severity === 'blocking' || issue.code === 'toolhead_metadata_invalid')
+  ));
+  if (unsafeIssue) return false;
+
   if (!printer.materialSystem || !printer.materialTopology) return false;
   if (printer.materialSystem.stale || printer.materialTopology.stale) return false;
 
