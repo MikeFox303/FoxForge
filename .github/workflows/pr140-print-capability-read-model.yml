@@ -1,0 +1,59 @@
+name: PR140 print capability read model patch
+
+on:
+  push:
+    branches: [pre-alpha-5/queue-material-binding-ui]
+    paths:
+      - .github/workflows/pr140-print-capability-read-model.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: pre-alpha-5/queue-material-binding-ui
+      - name: Expose generic print execution descriptor fields
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("backend/src/foxforge/api/v1/read_models.py")
+          text = path.read_text()
+          old = '''            item: dict[str, Any] = {
+                "capabilityId": descriptor.capability_id,
+                "majorVersion": descriptor.major_version,
+            }
+            if material_topology is not None and capability is material_topology:
+                item["reportsDynamicRoutes"] = material_topology.descriptor.reports_dynamic_routes
+            capabilities.append(item)
+'''
+          new = '''            item: dict[str, Any] = {
+                "capabilityId": descriptor.capability_id,
+                "majorVersion": descriptor.major_version,
+            }
+            if print_execution is not None and capability is print_execution:
+                item["acceptedFormats"] = sorted(format_.value for format_ in print_execution.descriptor.accepted_formats)
+                item["supportsPlateSelection"] = print_execution.descriptor.supports_plate_selection
+                item["supportsMaterialBindings"] = print_execution.descriptor.supports_material_bindings
+            if material_topology is not None and capability is material_topology:
+                item["reportsDynamicRoutes"] = material_topology.descriptor.reports_dynamic_routes
+            capabilities.append(item)
+'''
+          if old not in text:
+              raise SystemExit("print capability read-model anchor not found")
+          path.write_text(text.replace(old, new, 1))
+          PY
+      - name: Format and commit without retaining helper workflow
+        run: |
+          python -m pip install "ruff==0.15.20"
+          ruff format backend/src/foxforge/api/v1/read_models.py
+          git rm .github/workflows/pr140-print-capability-read-model.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/foxforge/api/v1/read_models.py
+          git commit -m "feat: expose print execution descriptor metadata"
+          git push origin HEAD:pre-alpha-5/queue-material-binding-ui
