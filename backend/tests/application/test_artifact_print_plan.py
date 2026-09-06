@@ -119,7 +119,7 @@ def test_missing_project_metadata_does_not_invent_material_identity(tmp_path) ->
     assert requirement.profile_name is None
 
 
-def test_invalid_project_metadata_is_warning_only_when_gcode_requirements_are_known(tmp_path) -> None:
+def test_invalid_project_metadata_warns_for_description_and_toolhead_routing(tmp_path) -> None:
     artifact = _artifact(
         tmp_path,
         [
@@ -131,8 +131,9 @@ def test_invalid_project_metadata_is_warning_only_when_gcode_requirements_are_kn
     plan = inspect_print_plan(artifact)
 
     assert plan.ready_for_routing is True
-    assert [(issue.code, issue.severity) for issue in plan.issues] == [
-        (PrintPlanIssueCode.PROJECT_METADATA_INVALID, PrintPlanIssueSeverity.WARNING)
+    assert [(issue.code, issue.severity, issue.plate_index) for issue in plan.issues] == [
+        (PrintPlanIssueCode.PROJECT_METADATA_INVALID, PrintPlanIssueSeverity.WARNING, None),
+        (PrintPlanIssueCode.TOOLHEAD_METADATA_INVALID, PrintPlanIssueSeverity.WARNING, 0),
     ]
     assert plan.plates[0].material_requirements[0].material_index == 3
 
