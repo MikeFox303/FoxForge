@@ -151,9 +151,7 @@ class BambuLanCodec:
                 tray_now = _int_value(ams_data.get("tray_now"))
                 exist_bits = _hex_or_int(ams_data.get("tray_exist_bits"))
                 units_by_id = {
-                    ams_id: unit
-                    for ams_id, unit in units_by_id.items()
-                    if unit.kind == BambuMaterialUnitKind.EXTERNAL
+                    ams_id: unit for ams_id, unit in units_by_id.items() if unit.kind == BambuMaterialUnitKind.EXTERNAL
                 }
                 for raw_unit in raw_units:
                     unit = self._parse_ams_unit(raw_unit, tray_now=tray_now, exist_bits=exist_bits)
@@ -165,9 +163,7 @@ class BambuLanCodec:
             if raw_external is not None:
                 touched = True
                 units_by_id = {
-                    ams_id: unit
-                    for ams_id, unit in units_by_id.items()
-                    if unit.kind != BambuMaterialUnitKind.EXTERNAL
+                    ams_id: unit for ams_id, unit in units_by_id.items() if unit.kind != BambuMaterialUnitKind.EXTERNAL
                 }
                 for raw_tray, fallback_id in raw_external:
                     external = self._parse_external_tray(raw_tray, fallback_ams_id=fallback_id)
