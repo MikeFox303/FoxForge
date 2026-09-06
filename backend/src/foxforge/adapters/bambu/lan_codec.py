@@ -126,7 +126,13 @@ class BambuLanCodec:
             self._state = replace(
                 self._state,
                 material_units=tuple(
-                    replace(unit, kind=self._unit_kinds.get(unit.ams_id, unit.kind))
+                    replace(
+                        unit,
+                        kind=self._unit_kinds.get(unit.ams_id, unit.kind),
+                        label=_material_unit_label(self._unit_kinds.get(unit.ams_id, unit.kind), unit.ams_id),
+                    )
+                    if unit.kind != BambuMaterialUnitKind.EXTERNAL
+                    else unit
                     for unit in self._state.material_units
                 ),
                 observed_at=utc_now(),
@@ -135,7 +141,8 @@ class BambuLanCodec:
 
     def _parse_material_units(self, print_data: dict[str, object]) -> tuple[BambuNativeMaterialUnit, ...] | None:
         touched = False
-        units: list[BambuNativeMaterialUnit] = []
+        units_by_id = {unit.ams_id: unit for unit in self._state.material_units}
+
         ams_data = print_data.get("ams")
         if isinstance(ams_data, dict):
             raw_units = ams_data.get("ams")
@@ -143,21 +150,33 @@ class BambuLanCodec:
                 touched = True
                 tray_now = _int_value(ams_data.get("tray_now"))
                 exist_bits = _hex_or_int(ams_data.get("tray_exist_bits"))
+                units_by_id = {
+                    ams_id: unit
+                    for ams_id, unit in units_by_id.items()
+                    if unit.kind == BambuMaterialUnitKind.EXTERNAL
+                }
                 for raw_unit in raw_units:
                     unit = self._parse_ams_unit(raw_unit, tray_now=tray_now, exist_bits=exist_bits)
                     if unit is not None:
-                        units.append(unit)
+                        units_by_id[unit.ams_id] = unit
 
-        vt_tray = print_data.get("vt_tray")
-        if isinstance(vt_tray, dict):
-            touched = True
-            external = self._parse_external_tray(vt_tray)
-            if external is not None:
-                units.append(external)
+        if "vt_tray" in print_data:
+            raw_external = _external_tray_entries(print_data.get("vt_tray"))
+            if raw_external is not None:
+                touched = True
+                units_by_id = {
+                    ams_id: unit
+                    for ams_id, unit in units_by_id.items()
+                    if unit.kind != BambuMaterialUnitKind.EXTERNAL
+                }
+                for raw_tray, fallback_id in raw_external:
+                    external = self._parse_external_tray(raw_tray, fallback_ams_id=fallback_id)
+                    if external is not None:
+                        units_by_id[external.ams_id] = external
 
         if not touched:
             return None
-        return tuple(sorted(units, key=lambda item: item.ams_id))
+        return tuple(sorted(units_by_id.values(), key=lambda item: item.ams_id))
 
     def _parse_ams_unit(
         self,
@@ -178,17 +197,25 @@ class BambuLanCodec:
                 tray = _parse_tray(raw_tray, ams_id=ams_id, tray_now=tray_now, exist_bits=exist_bits)
                 if tray is not None:
                     trays.append(tray)
+        kind = self._unit_kinds.get(ams_id, _default_unit_kind(ams_id))
         return BambuNativeMaterialUnit(
             ams_id=ams_id,
-            kind=self._unit_kinds.get(ams_id, _default_unit_kind(ams_id)),
-            label=f"AMS {ams_id + 1}" if ams_id >= 0 else None,
+            kind=kind,
+            label=_material_unit_label(kind, ams_id),
             trays=tuple(sorted(trays, key=lambda item: item.tray_id)),
         )
 
-    def _parse_external_tray(self, raw_tray: dict[str, object]) -> BambuNativeMaterialUnit | None:
+    def _parse_external_tray(
+        self,
+        raw_tray: dict[str, object],
+        *,
+        fallback_ams_id: int | None = None,
+    ) -> BambuNativeMaterialUnit | None:
         ams_id = _int_value(raw_tray.get("id"))
         if ams_id is None:
-            ams_id = 254
+            ams_id = fallback_ams_id
+        if ams_id is None:
+            return None
         tray = BambuNativeTray(
             ams_id=ams_id,
             tray_id=0,
@@ -204,7 +231,7 @@ class BambuLanCodec:
         return BambuNativeMaterialUnit(
             ams_id=ams_id,
             kind=BambuMaterialUnitKind.EXTERNAL,
-            label="External spool",
+            label=_external_unit_label(ams_id),
             trays=(tray,),
         )
 
@@ -432,6 +459,35 @@ def _external_exists(raw_tray: dict[str, object]) -> bool | None:
     if state is not None:
         return state not in {9, 10}
     return True if any(raw_tray.get(key) for key in ("tray_type", "tray_color", "tag_uid")) else None
+
+
+def _external_tray_entries(value: object) -> list[tuple[dict[str, object], int | None]] | None:
+    if isinstance(value, dict):
+        return [(value, 254)]
+    if isinstance(value, list):
+        return [(entry, None) for entry in value if isinstance(entry, dict)]
+    return None
+
+
+def _material_unit_label(kind: BambuMaterialUnitKind, ams_id: int) -> str | None:
+    if ams_id < 0:
+        return None
+    position = ams_id + 1
+    if kind == BambuMaterialUnitKind.AMS_2_PRO:
+        return f"AMS 2 Pro {position}"
+    if kind == BambuMaterialUnitKind.AMS_HT:
+        return f"AMS HT {position}"
+    if kind == BambuMaterialUnitKind.AMS:
+        return f"AMS {position}"
+    return None
+
+
+def _external_unit_label(ams_id: int) -> str:
+    if ams_id == 254:
+        return "External Left"
+    if ams_id == 255:
+        return "External Right"
+    return "External spool"
 
 
 def _default_unit_kind(ams_id: int) -> BambuMaterialUnitKind:
