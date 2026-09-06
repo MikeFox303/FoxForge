@@ -172,11 +172,16 @@ class BambuLanCodec:
             raw_external = _external_tray_entries(print_data.get("vt_tray"))
             if raw_external is not None:
                 touched = True
+                dual_external = _has_dual_external_sources(raw_external)
                 units_by_id = {
                     ams_id: unit for ams_id, unit in units_by_id.items() if unit.kind != BambuMaterialUnitKind.EXTERNAL
                 }
                 for raw_tray, fallback_id in raw_external:
-                    external = self._parse_external_tray(raw_tray, fallback_ams_id=fallback_id)
+                    external = self._parse_external_tray(
+                        raw_tray,
+                        fallback_ams_id=fallback_id,
+                        dual_external=dual_external,
+                    )
                     if external is not None:
                         units_by_id[external.ams_id] = external
 
@@ -217,6 +222,7 @@ class BambuLanCodec:
         raw_tray: dict[str, object],
         *,
         fallback_ams_id: int | None = None,
+        dual_external: bool = False,
     ) -> BambuNativeMaterialUnit | None:
         ams_id = _int_value(raw_tray.get("id"))
         if ams_id is None:
@@ -238,7 +244,7 @@ class BambuLanCodec:
         return BambuNativeMaterialUnit(
             ams_id=ams_id,
             kind=BambuMaterialUnitKind.EXTERNAL,
-            label=_external_unit_label(ams_id),
+            label=_external_unit_label(ams_id, dual_external=dual_external),
             trays=(tray,),
         )
 
@@ -476,6 +482,11 @@ def _external_tray_entries(value: object) -> list[tuple[dict[str, object], int |
     return None
 
 
+def _has_dual_external_sources(entries: list[tuple[dict[str, object], int | None]]) -> bool:
+    ids = {_int_value(entry.get("id")) for entry, _fallback_id in entries}
+    return 254 in ids and 255 in ids
+
+
 def _ams_routed_extruder(value: object) -> int | None:
     info = _hex_or_int(value)
     if info is None:
@@ -497,10 +508,10 @@ def _material_unit_label(kind: BambuMaterialUnitKind, ams_id: int) -> str | None
     return None
 
 
-def _external_unit_label(ams_id: int) -> str:
-    if ams_id == 254:
+def _external_unit_label(ams_id: int, *, dual_external: bool) -> str:
+    if dual_external and ams_id == 254:
         return "External Left"
-    if ams_id == 255:
+    if dual_external and ams_id == 255:
         return "External Right"
     return "External spool"
 
