@@ -16,28 +16,32 @@ Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForg
 - Structured Bambu setup identity/model handling and normalized operator-facing setup errors.
 - Secret-safe reconnect diagnostics exposed through `/api/v1/diagnostics/reconnect` and the printer Diagnostics UI.
 - Per-printer reconnect context for last failure, retry state and recovery without exposing raw vendor exceptions or credentials.
+- Capability-driven application shell, printer-card density and Printer Detail Control/Materials presentation.
+- Staged Add Printer **Provider → Connection → Identity → Verify** workflow with exact-current-payload verification gating.
 
 ### Changed
 
-- Add Printer now validates live connectivity before creating durable printer configuration.
-- Update Printer now performs the same preflight before replacing a known-good configuration.
+- Add Printer now validates live connectivity before creating durable printer configuration; any payload change after a successful UI Verify disables Save until the changed payload is verified again.
+- Update Printer now performs the same backend preflight before replacing a known-good configuration.
 - A failed replacement connection rolls back durable configuration, secrets and runtime adapter state to the previous working printer.
 - Terminal sanitized Add/Update connection failures are replayed deterministically through durable HTTP idempotency rather than re-executing a failed setup side effect.
 - Queue assessment persists compiler-owned toolhead bindings, Bambu dispatch revalidates source/topology immediately before submit, and `project_file.nozzle_mapping` is emitted only from a complete proven route.
+- Present-but-invalid 3MF toolhead metadata now remains explicitly fail-closed as `TOOLHEAD_METADATA_INVALID`; a fixed physical source route cannot mask corrupt slicer intent.
+- Browser routing readiness follows the selected plate while preserving global and selected-plate blockers, so an unrelated blocked plate does not poison an otherwise safe selected plate.
 - External Bambu 254/255 sources remain `-1` in flat `ams_mapping` and retain their real source identity in `ams_mapping2`.
 - The Bambu milestone is explicitly focused on real X2D + AMS 2 Pro connection/control validation before broader P3/farm work resumes.
 
 ### Validation package
 
-The current companion Umbrel package is **`0.1.0-alpha.4.3-umbrel.4`**, a validation candidate rather than a semantic Alpha 5 release.
+The current companion Umbrel package is **Candidate 5: `0.1.0-alpha.4.3-umbrel.5`**, a validation candidate rather than a semantic Alpha 5 release.
 
 ```text
-source commit: c11f7145b4354aa79c8f0fad223648240e652bac
-image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
-Store commit: 07b8e8087ac9897d4c2f5dc45944b48dfb0938e1
+source commit: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
+image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
+Store commit: 16d57c486ce8e2b26abd5c7e9480188d95f080cb
 ```
 
-Final Alpha 5 remains blocked on the physical acceptance matrix in `docs/testing/pre-alpha-5-bambu-physical-validation.md`.
+Candidate 4 is retired for first-print acceptance. Candidate 5 passed the companion Store package/runtime gates on `amd64` and `arm64`, but final Alpha 5 remains blocked on the real-device acceptance matrix in `docs/testing/pre-alpha-5-bambu-physical-validation.md`. Physical Start remains forbidden until Candidate 5 no-print sections 1–6 pass.
 
 ## [0.1.0-alpha.4.3] - 2026-09-05
 
