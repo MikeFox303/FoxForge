@@ -225,7 +225,11 @@ def _queue_entry(entry: QueueEntry) -> dict[str, Any]:
             },
             "selection": (None if request.selection is None else {"plateIndex": request.selection.plate_index}),
             "materialBindings": [
-                {"materialIndex": binding.material_index, "slotId": binding.slot_id}
+                {
+                    "materialIndex": binding.material_index,
+                    "slotId": binding.slot_id,
+                    "toolheadId": binding.toolhead_id,
+                }
                 for binding in request.material_bindings
             ],
         },
