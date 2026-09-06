@@ -27,6 +27,8 @@ from foxforge.domain.printers import (
 from foxforge.domain.printers.capabilities import (
     MATERIAL_SYSTEM_CAPABILITY_ID,
     MATERIAL_SYSTEM_MAJOR_VERSION,
+    MATERIAL_TOPOLOGY_CAPABILITY_ID,
+    MATERIAL_TOPOLOGY_MAJOR_VERSION,
     PRINT_EXECUTION_CAPABILITY_ID,
     PRINT_EXECUTION_MAJOR_VERSION,
     LocalPrintArtifact,
@@ -35,6 +37,9 @@ from foxforge.domain.printers.capabilities import (
     MaterialSystemCapability,
     MaterialSystemDescriptor,
     MaterialSystemSnapshot,
+    MaterialTopologyCapability,
+    MaterialTopologyDescriptor,
+    MaterialTopologySnapshot,
     PrintArtifactFormat,
     PrintAssessmentBlocker,
     PrintAssessmentBlockerCode,
@@ -234,6 +239,40 @@ class FakeMaterialSystemCapability:
             raise ValueError("material snapshot printer_id must match adapter")
         self._snapshot = snapshot
         self._adapter._emit(PrinterEventKind.MATERIAL_SYSTEM_CHANGED, snapshot)
+
+
+class FakeMaterialTopologyCapability:
+    """Read-only material-topology capability with explicit state injection for tests."""
+
+    def __init__(
+        self,
+        adapter: FakePrinterAdapter,
+        snapshot: MaterialTopologySnapshot,
+        *,
+        reports_dynamic_routes: bool = False,
+    ) -> None:
+        if snapshot.printer_id != adapter.identity.printer_id:
+            raise ValueError("material topology printer_id must match adapter")
+        self._adapter = adapter
+        self._snapshot = snapshot
+        self._descriptor = MaterialTopologyDescriptor(
+            capability_id=MATERIAL_TOPOLOGY_CAPABILITY_ID,
+            major_version=MATERIAL_TOPOLOGY_MAJOR_VERSION,
+            reports_dynamic_routes=reports_dynamic_routes,
+        )
+
+    @property
+    def descriptor(self) -> MaterialTopologyDescriptor:
+        return self._descriptor
+
+    def snapshot(self) -> MaterialTopologySnapshot:
+        return self._snapshot
+
+    def set_snapshot(self, snapshot: MaterialTopologySnapshot) -> None:
+        if snapshot.printer_id != self._adapter.identity.printer_id:
+            raise ValueError("material topology printer_id must match adapter")
+        self._snapshot = snapshot
+        self._adapter._emit(PrinterEventKind.MATERIAL_TOPOLOGY_CHANGED, snapshot)
 
 
 class FakePrintExecutionCapability:
@@ -457,6 +496,7 @@ def build_fake_printer(
     identity: PrinterIdentity,
     *,
     material_snapshot: MaterialSystemSnapshot | None = None,
+    material_topology_snapshot: MaterialTopologySnapshot | None = None,
     accepted_formats: frozenset[PrintArtifactFormat] = frozenset(
         {PrintArtifactFormat.GCODE, PrintArtifactFormat.THREE_MF}
     ),
@@ -469,6 +509,9 @@ def build_fake_printer(
     if material_snapshot is not None:
         material = FakeMaterialSystemCapability(adapter, material_snapshot)
         adapter.register_capability(MaterialSystemCapability, material)
+    if material_topology_snapshot is not None:
+        topology = FakeMaterialTopologyCapability(adapter, material_topology_snapshot)
+        adapter.register_capability(MaterialTopologyCapability, topology)
     printing = FakePrintExecutionCapability(
         adapter,
         accepted_formats=accepted_formats,

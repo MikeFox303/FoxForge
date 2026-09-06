@@ -6,6 +6,7 @@ import type {
   JobControlAction,
   MaterialActivity,
   MaterialPresence,
+  MaterialRouteKind,
   MaterialUnitKind,
   PrinterViewModel,
   QueueEntryState,
@@ -17,6 +18,7 @@ interface ApiCapability {
   majorVersion: number;
   supportedActions?: JobControlAction[];
   requiresVendorJobIdentity?: boolean;
+  reportsDynamicRoutes?: boolean;
 }
 
 interface ApiActiveJob {
@@ -62,6 +64,22 @@ interface ApiMaterialSystem {
   stale: boolean;
 }
 
+interface ApiMaterialTopology {
+  printerId: string;
+  toolheads: Array<{
+    toolheadId: string;
+    label: string | null;
+    position: number;
+  }>;
+  routes: Array<{
+    sourceSlotId: string;
+    toolheadIds: string[];
+    kind: MaterialRouteKind;
+  }>;
+  observedAt: string;
+  stale: boolean;
+}
+
 interface ApiPrinter {
   identity: {
     printerId: string;
@@ -86,6 +104,7 @@ interface ApiPrinter {
   };
   capabilities: ApiCapability[];
   materialSystem?: ApiMaterialSystem;
+  materialTopology?: ApiMaterialTopology;
 }
 
 interface ApiFleetResponse {
@@ -187,8 +206,10 @@ function mapPrinter(printer: ApiPrinter): PrinterViewModel {
       label: capability.capabilityId,
       supportedActions: capability.supportedActions,
       requiresVendorJobIdentity: capability.requiresVendorJobIdentity,
+      reportsDynamicRoutes: capability.reportsDynamicRoutes,
     })),
     materialSystem: printer.materialSystem ? mapMaterialSystem(printer.materialSystem) : undefined,
+    materialTopology: printer.materialTopology ? mapMaterialTopology(printer.materialTopology) : undefined,
   };
 }
 
@@ -220,6 +241,24 @@ function mapMaterialSystem(system: ApiMaterialSystem): NonNullable<PrinterViewMo
             }
           : undefined,
       })),
+    })),
+  };
+}
+
+function mapMaterialTopology(topology: ApiMaterialTopology): NonNullable<PrinterViewModel['materialTopology']> {
+  return {
+    printerId: topology.printerId,
+    observedAt: topology.observedAt,
+    stale: topology.stale,
+    toolheads: topology.toolheads.map((toolhead) => ({
+      toolheadId: toolhead.toolheadId,
+      label: toolhead.label ?? undefined,
+      position: toolhead.position,
+    })),
+    routes: topology.routes.map((route) => ({
+      sourceSlotId: route.sourceSlotId,
+      toolheadIds: route.toolheadIds,
+      kind: route.kind,
     })),
   };
 }

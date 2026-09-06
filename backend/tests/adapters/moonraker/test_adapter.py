@@ -8,7 +8,11 @@ from dataclasses import replace
 
 from foxforge.adapters.moonraker import MoonrakerAdapter
 from foxforge.domain.printers import ConnectionState, OperationalState, PrinterEventKind, utc_now
-from foxforge.domain.printers.capabilities import MaterialSystemCapability, PrintExecutionCapability
+from foxforge.domain.printers.capabilities import (
+    MaterialSystemCapability,
+    MaterialTopologyCapability,
+    PrintExecutionCapability,
+)
 
 
 def test_moonraker_adapter_lifecycle_is_idempotent(moonraker_identity, fake_moonraker_transport) -> None:
@@ -35,6 +39,7 @@ def test_moonraker_adapter_resolves_common_capabilities(moonraker_identity, fake
 
     assert adapter.capability(PrintExecutionCapability) is not None
     assert adapter.capability(MaterialSystemCapability) is not None
+    assert adapter.capability(MaterialTopologyCapability) is None
     assert adapter.capability(dict) is None
 
 
@@ -103,7 +108,8 @@ def test_moonraker_reconnect_starts_new_event_epoch(
                 PrinterEventKind.PRINTER_STATE_CHANGED,
                 PrinterEventKind.MATERIAL_SYSTEM_CHANGED,
             ]
-            assert online_events[0].connection_epoch != offline_epoch
+            online_epoch = online_events[0].connection_epoch
+            assert online_epoch != offline_epoch
             assert [event.sequence for event in online_events] == [1, 2, 3]
         finally:
             await events.aclose()  # type: ignore[attr-defined]

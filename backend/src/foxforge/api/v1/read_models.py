@@ -15,6 +15,8 @@ from foxforge.domain.printers.capabilities import (
     JobControlCapability,
     MaterialSystemCapability,
     MaterialSystemSnapshot,
+    MaterialTopologyCapability,
+    MaterialTopologySnapshot,
     PrintExecutionCapability,
 )
 
@@ -30,19 +32,21 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
         snapshot = fleet.snapshot(printer_id)
         print_execution = fleet.capability(printer_id, PrintExecutionCapability)
         material_system = fleet.capability(printer_id, MaterialSystemCapability)
+        material_topology = fleet.capability(printer_id, MaterialTopologyCapability)
         job_control = fleet.capability(printer_id, JobControlCapability)
 
         capabilities: list[dict[str, Any]] = []
-        for capability in (print_execution, material_system):
+        for capability in (print_execution, material_system, material_topology):
             if capability is None:
                 continue
             descriptor = capability.descriptor
-            capabilities.append(
-                {
-                    "capabilityId": descriptor.capability_id,
-                    "majorVersion": descriptor.major_version,
-                }
-            )
+            item: dict[str, Any] = {
+                "capabilityId": descriptor.capability_id,
+                "majorVersion": descriptor.major_version,
+            }
+            if material_topology is not None and capability is material_topology:
+                item["reportsDynamicRoutes"] = material_topology.descriptor.reports_dynamic_routes
+            capabilities.append(item)
         if job_control is not None:
             descriptor = job_control.descriptor
             capabilities.append(
@@ -68,6 +72,8 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
         }
         if material_system is not None:
             printer["materialSystem"] = _material_system_snapshot(material_system.snapshot())
+        if material_topology is not None:
+            printer["materialTopology"] = _material_topology_snapshot(material_topology.snapshot())
         printers.append(printer)
 
     return {"apiVersion": API_VERSION, "printers": printers}
@@ -164,6 +170,30 @@ def _material_system_snapshot(snapshot: MaterialSystemSnapshot) -> dict[str, Any
                 ],
             }
             for unit in snapshot.units
+        ],
+        "observedAt": _datetime(snapshot.observed_at),
+        "stale": snapshot.stale,
+    }
+
+
+def _material_topology_snapshot(snapshot: MaterialTopologySnapshot) -> dict[str, Any]:
+    return {
+        "printerId": snapshot.printer_id,
+        "toolheads": [
+            {
+                "toolheadId": toolhead.toolhead_id,
+                "label": toolhead.label,
+                "position": toolhead.position,
+            }
+            for toolhead in snapshot.toolheads
+        ],
+        "routes": [
+            {
+                "sourceSlotId": route.source_slot_id,
+                "toolheadIds": list(route.toolhead_ids),
+                "kind": route.kind.value,
+            }
+            for route in snapshot.routes
         ],
         "observedAt": _datetime(snapshot.observed_at),
         "stale": snapshot.stale,

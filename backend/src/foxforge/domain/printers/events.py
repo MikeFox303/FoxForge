@@ -18,6 +18,7 @@ class PrinterEventKind(StrEnum):
     JOB_PROGRESS_CHANGED = "job_progress_changed"
     CAPABILITY_CHANGED = "capability_changed"
     MATERIAL_SYSTEM_CHANGED = "material_system_changed"
+    MATERIAL_TOPOLOGY_CHANGED = "material_topology_changed"
     SNAPSHOT_RECONCILED = "snapshot_reconciled"
 
 
