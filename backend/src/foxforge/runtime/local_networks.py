@@ -60,7 +60,8 @@ def private_discovery_subnets(
         if _is_rfc1918_network(suggestion):
             suggestions.add(suggestion)
 
-    return tuple(str(network) for network in sorted(suggestions, key=lambda item: (int(item.network_address), item.prefixlen)))
+    ordered = sorted(suggestions, key=lambda item: (int(item.network_address), item.prefixlen))
+    return tuple(str(network) for network in ordered)
 
 
 def local_ipv4_interfaces() -> tuple[LocalIPv4Interface, ...]:
