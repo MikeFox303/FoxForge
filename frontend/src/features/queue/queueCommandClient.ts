@@ -1,16 +1,50 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 // Copyright (C) 2026 MikeFox303
 
-import type { QueueEntryState } from '../../domain';
+import type { PrintArtifactFormat, QueueEntryState } from '../../domain';
 import { authenticatedCommandJson } from '../../data/commandClient';
 
 export interface StagedArtifact {
   artifactId: string;
   filename: string;
-  format: 'gcode' | '3mf';
+  format: PrintArtifactFormat;
   sizeBytes: number;
   sha256: string;
   replayed: boolean;
+}
+
+export interface PrintPlanMaterialRequirement {
+  materialIndex: number;
+  materialFamily: string | null;
+  rgbaHex: string | null;
+  profileName: string | null;
+  expectedToolheadPosition: number | null;
+}
+
+export interface PrintPlanPlate {
+  plateIndex: number;
+  readyForRouting: boolean;
+  materialRequirements: PrintPlanMaterialRequirement[];
+}
+
+export interface PrintPlanIssue {
+  code: string;
+  severity: string;
+  message: string;
+  plateIndex: number | null;
+}
+
+export interface ArtifactPrintPlan {
+  artifactId: string;
+  artifactSha256: string;
+  readyForRouting: boolean;
+  plates: PrintPlanPlate[];
+  issues: PrintPlanIssue[];
+}
+
+export interface MaterialBindingIntent {
+  materialIndex: number;
+  slotId: string;
 }
 
 export interface QueueCommandResult {
@@ -59,11 +93,19 @@ export async function stagePrintArtifact(file: File, sha256: string): Promise<St
   });
 }
 
+export async function inspectArtifactPrintPlan(artifactId: string): Promise<ArtifactPrintPlan> {
+  return authenticatedCommandJson<ArtifactPrintPlan>(
+    `/api/v1/artifacts/${encodeURIComponent(artifactId)}/print-plan`,
+  );
+}
+
 export async function enqueuePrintJob(options: {
   identity: QueueJobIdentity;
   printerId: string;
   artifactId: string;
   requestedName?: string;
+  plateIndex?: number;
+  materialBindings?: MaterialBindingIntent[];
 }): Promise<QueueCommandResult> {
   return authenticatedCommandJson<QueueCommandResult>('/api/v1/queue', {
     method: 'POST',
@@ -73,6 +115,11 @@ export async function enqueuePrintJob(options: {
       dispatchId: options.identity.dispatchId,
       printerId: options.printerId,
       artifactId: options.artifactId,
+      selection: options.plateIndex === undefined ? undefined : { plateIndex: options.plateIndex },
+      materialBindings: options.materialBindings?.map((binding) => ({
+        materialIndex: binding.materialIndex,
+        slotId: binding.slotId,
+      })),
       requestedName: options.requestedName || undefined,
     },
   });

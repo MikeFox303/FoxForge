@@ -8,6 +8,7 @@ import {
   createQueueJobIdentity,
   dispatchPrintJob,
   enqueuePrintJob,
+  inspectArtifactPrintPlan,
   sha256File,
   stagePrintArtifact,
 } from './queueCommandClient';
@@ -74,6 +75,56 @@ describe('queue command client', () => {
     expect(headers.get('X-FoxForge-Filename')).toBe('part.gcode');
     expect(request?.[1]?.body).toBe(file);
     expect(JSON.stringify(request?.[1])).not.toContain('C:\\');
+  });
+
+  it('reads the immutable staged 3mf print plan through the authenticated queue boundary', async () => {
+    setOperatorCommandToken('operator-token-0123456789abcdef0123456789');
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      artifactId: 'b'.repeat(64),
+      artifactSha256: 'b'.repeat(64),
+      readyForRouting: true,
+      plates: [{ plateIndex: 1, readyForRouting: true, materialRequirements: [] }],
+      issues: [],
+    }), { status: 200 }));
+
+    const plan = await inspectArtifactPrintPlan('b'.repeat(64));
+
+    expect(plan.readyForRouting).toBe(true);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(`/api/v1/artifacts/${'b'.repeat(64)}/print-plan`);
+    const headers = fetchMock.mock.calls[0]?.[1]?.headers as Headers;
+    expect(headers.get('Authorization')).toBe('Bearer operator-token-0123456789abcdef0123456789');
+  });
+
+  it('sends only operator material source intent and never a client toolhead decision', async () => {
+    setOperatorCommandToken('operator-token-0123456789abcdef0123456789');
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({
+      queueId: 'queue-1', printerId: 'x2d', state: 'pending',
+    }), { status: 201 }));
+
+    const identity = {
+      queueId: '153b6d90-5bb1-49fd-b90a-4316ba57db88',
+      dispatchId: 'b9132e98-22d5-43ae-8d4f-f52c72bc921e',
+      enqueueIdempotencyKey: 'enqueue-fixed',
+    };
+    await enqueuePrintJob({
+      identity,
+      printerId: 'x2d',
+      artifactId: 'a'.repeat(64),
+      requestedName: 'Dual material part',
+      plateIndex: 2,
+      materialBindings: [
+        { materialIndex: 0, slotId: 'bambu:unit:0:tray:0' },
+        { materialIndex: 1, slotId: 'bambu:external:255' },
+      ],
+    });
+
+    const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as Record<string, unknown>;
+    expect(body.selection).toEqual({ plateIndex: 2 });
+    expect(body.materialBindings).toEqual([
+      { materialIndex: 0, slotId: 'bambu:unit:0:tray:0' },
+      { materialIndex: 1, slotId: 'bambu:external:255' },
+    ]);
+    expect(JSON.stringify(body)).not.toContain('toolheadId');
   });
 
   it('keeps queue dispatchId stable while the caller controls each HTTP dispatch idempotency key', async () => {

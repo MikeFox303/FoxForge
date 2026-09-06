@@ -24,6 +24,7 @@ export type JobState =
   | 'cancelled'
   | 'unknown';
 export type JobControlAction = 'pause' | 'resume' | 'cancel';
+export type PrintArtifactFormat = 'gcode' | '3mf';
 export type QueueEntryState =
   | 'pending'
   | 'blocked'
@@ -82,6 +83,9 @@ export interface CapabilityDescriptor {
   capabilityId: string;
   majorVersion: number;
   label: string;
+  acceptedFormats?: PrintArtifactFormat[];
+  supportsPlateSelection?: boolean;
+  supportsMaterialBindings?: boolean;
   supportedActions?: JobControlAction[];
   requiresVendorJobIdentity?: boolean;
   reportsDynamicRoutes?: boolean;
@@ -154,7 +158,7 @@ export interface QueueViewModel {
   printerId: string;
   requestedName: string;
   filename: string;
-  format: 'gcode' | '3mf';
+  format: PrintArtifactFormat;
   state: QueueEntryState;
   createdAt: string;
   updatedAt: string;

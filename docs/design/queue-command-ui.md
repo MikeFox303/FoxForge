@@ -10,6 +10,8 @@ The browser is a thin orchestration layer over the durable queue contract. It mu
 
 ## Browser print flow
 
+For ordinary formats that do not require material routing:
+
 ```text
 select File
   -> WebCrypto SHA-256
@@ -24,7 +26,41 @@ select File
        `-> INDETERMINATE -> reconciliation only
 ```
 
-The browser never sends an arbitrary client/server path.
+For a 3MF-capable printer that advertises material bindings, Pre-Alpha 5 inserts a mandatory review gate:
+
+```text
+select 3MF
+  -> WebCrypto SHA-256
+  -> authenticated byte staging
+  -> immutable print-plan inspection
+  -> choose plate when required
+  -> review every logical material requirement
+  -> explicitly bind each materialIndex to one loaded slotId
+  -> preview material-family + source/toolhead compatibility
+  -> enqueue(queueId + dispatchId + artifactId + plateIndex + materialBindings)
+  -> server routing compiler revalidates and owns toolheadId
+  -> PENDING / BLOCKED
+  -> explicit dispatch
+```
+
+The browser never sends an arbitrary client/server path and never supplies compiler-owned `toolheadId`.
+
+## Material-routing review
+
+The material review is capability-driven. Generic UI checks `foxforge.print_execution` metadata such as accepted formats, plate-selection support and material-binding support. It does not branch on Bambu/X2D model names.
+
+The browser displays only material sources currently reported as loaded. A selection is considered ready only when:
+
+- the immutable print plan and selected plate are routing-ready;
+- material-system and topology snapshots are present and not stale;
+- every required material index has an explicit source binding;
+- a constrained material family is known and matches the selected source;
+- the source has a proven compatible toolhead route;
+- an expected 3MF toolhead, when present, is reachable through that source.
+
+Color is not an automatic chooser and is not used to infer a route. The browser preview is advisory defense-in-depth only; the server routing compiler performs the authoritative validation again before adapter assessment, and the Bambu adapter revalidates native source/topology state again before transport submission.
+
+Changing the selected plate or any material binding creates a new logical enqueue identity and clears any prior queue result. The browser never silently reuses a previously reviewed route after operator intent changes.
 
 ## Identity model
 
@@ -69,13 +105,20 @@ The original queue UI has since been joined by:
 - SSE query invalidation/replay-resync handling;
 - production-browser acceptance;
 - artifact lifecycle/capacity safeguards;
-- current Bambu setup/reconnect diagnostics work.
+- Bambu setup/reconnect diagnostics;
+- immutable 3MF inspection and explicit material-binding review.
 
-Plate/material binding UX may evolve as trusted cross-vendor contracts are expanded. Automatic filament accounting remains frozen P3 work.
+Automatic filament accounting remains frozen P3 work.
 
 ## Acceptance criteria
 
 - file staging sends bytes + filename/hash only;
+- 3MF material-binding capable printers require immutable inspection before enqueue;
+- multi-plate jobs require explicit plate selection when the backend capability requires it;
+- every routed material has an explicit operator-selected `slotId`;
+- browser requests never include `toolheadId`;
+- incompatible/unknown/stale material routes keep enqueue disabled;
+- routing review remains usable without horizontal overflow on the phone acceptance viewport;
 - queue/dispatch/HTTP identities are never conflated;
 - only canonical retryable receipt-free failures expose retry;
 - `INDETERMINATE` remains reconciliation-only;

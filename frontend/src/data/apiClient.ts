@@ -8,6 +8,7 @@ import type {
   MaterialPresence,
   MaterialRouteKind,
   MaterialUnitKind,
+  PrintArtifactFormat,
   PrinterViewModel,
   QueueEntryState,
   QueueViewModel,
@@ -16,6 +17,9 @@ import type {
 interface ApiCapability {
   capabilityId: string;
   majorVersion: number;
+  acceptedFormats?: PrintArtifactFormat[];
+  supportsPlateSelection?: boolean;
+  supportsMaterialBindings?: boolean;
   supportedActions?: JobControlAction[];
   requiresVendorJobIdentity?: boolean;
   reportsDynamicRoutes?: boolean;
@@ -123,7 +127,7 @@ interface ApiQueueEntry {
     requestedName: string | null;
     artifact: {
       filename: string;
-      format: 'gcode' | '3mf';
+      format: PrintArtifactFormat;
     };
   };
   assessment: {
@@ -204,6 +208,9 @@ function mapPrinter(printer: ApiPrinter): PrinterViewModel {
       capabilityId: capability.capabilityId,
       majorVersion: capability.majorVersion,
       label: capability.capabilityId,
+      acceptedFormats: capability.acceptedFormats,
+      supportsPlateSelection: capability.supportsPlateSelection,
+      supportsMaterialBindings: capability.supportsMaterialBindings,
       supportedActions: capability.supportedActions,
       requiresVendorJobIdentity: capability.requiresVendorJobIdentity,
       reportsDynamicRoutes: capability.reportsDynamicRoutes,

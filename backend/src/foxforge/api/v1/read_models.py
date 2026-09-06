@@ -44,6 +44,12 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
                 "capabilityId": descriptor.capability_id,
                 "majorVersion": descriptor.major_version,
             }
+            if print_execution is not None and capability is print_execution:
+                item["acceptedFormats"] = sorted(
+                    format_.value for format_ in print_execution.descriptor.accepted_formats
+                )
+                item["supportsPlateSelection"] = print_execution.descriptor.supports_plate_selection
+                item["supportsMaterialBindings"] = print_execution.descriptor.supports_material_bindings
             if material_topology is not None and capability is material_topology:
                 item["reportsDynamicRoutes"] = material_topology.descriptor.reports_dynamic_routes
             capabilities.append(item)
