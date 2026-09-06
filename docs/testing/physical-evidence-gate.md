@@ -26,15 +26,26 @@ The verifier does not define the current release target.
 For the active Alpha 5 Bambu milestone, use:
 
 - [Pre-Alpha 5 Bambu physical validation](pre-alpha-5-bambu-physical-validation.md);
-- [`evidence/pre-alpha5-candidate4-manifest.template.json`](evidence/pre-alpha5-candidate4-manifest.template.json).
+- [`evidence/pre-alpha5-candidate5-manifest.template.json`](evidence/pre-alpha5-candidate5-manifest.template.json).
 
-Candidate 1/2/3 templates and evidence remain historical and must not be relabeled for the Candidate 4 source/image identity. The older `alpha4.2-manifest.template.json` remains a historical Alpha 4.2 template and must not be used for new Pre-Alpha 5 evidence.
+Candidate 1/2/3/4 templates and evidence remain historical and must not be relabeled for the Candidate 5 source/image identity. The older `alpha4.2-manifest.template.json` remains a historical Alpha 4.2 template and must not be used for new Pre-Alpha 5 evidence.
+
+Candidate 5 binds evidence to:
+
+```text
+source: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
+package/image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
+Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.5
+Umbrel Store commit: 16d57c486ce8e2b26abd5c7e9480188d95f080cb
+```
+
+The Store/package fields above are operator evidence context; the generic verifier's closed schema remains unchanged and still machine-binds `sourceCommit` plus `packageIdentity` only. Do not add undeclared fields to a manifest merely to encode richer Candidate 5 notes.
 
 ## Run the verifier
 
 ```bash
-SOURCE_COMMIT='<exact source commit>'
-PACKAGE_IDENTITY='<exact image@sha256:digest>'
+SOURCE_COMMIT='0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2'
+PACKAGE_IDENTITY='ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39'
 
 python -m foxforge.testing.physical_evidence \
   docs/testing/evidence/<validation>/manifest.json \
