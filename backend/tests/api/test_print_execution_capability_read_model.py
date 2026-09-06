@@ -17,9 +17,7 @@ def test_fleet_read_model_exposes_print_execution_descriptor_without_vendor_fiel
     fleet = FleetService([adapter])
 
     printer = fleet_read_model(fleet)["printers"][0]
-    capability = next(
-        item for item in printer["capabilities"] if item["capabilityId"] == "foxforge.print_execution"
-    )
+    capability = next(item for item in printer["capabilities"] if item["capabilityId"] == "foxforge.print_execution")
 
     assert capability == {
         "capabilityId": "foxforge.print_execution",
