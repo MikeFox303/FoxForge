@@ -15,6 +15,7 @@ from .job_control import BambuJobControlCapability
 from .lan_transport import BambuLanTransport
 from .lan_wire import BambuLanSettings
 from .material_system import BambuMaterialSystemCapability
+from .material_topology import BambuMaterialTopologyCapability, map_bambu_material_topology
 from .native import (
     BambuMaterialUnitKind,
     BambuNativeDispatchResult,
@@ -45,6 +46,7 @@ __all__ = [
     "BambuLanSettings",
     "BambuLanTransport",
     "BambuMaterialSystemCapability",
+    "BambuMaterialTopologyCapability",
     "BambuMaterialUnitKind",
     "BambuNativeDispatchResult",
     "BambuNativeFault",
@@ -65,6 +67,7 @@ __all__ = [
     "FtpsBambuProjectStorage",
     "create_bambu_lan_adapter",
     "discovery_network",
+    "map_bambu_material_topology",
     "parse_bambu_ssdp_response",
     "scan_bambu_subnet",
 ]
