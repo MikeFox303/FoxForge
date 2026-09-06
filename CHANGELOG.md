@@ -14,6 +14,11 @@ Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForg
 - Structured Bambu setup identity/model handling and normalized operator-facing setup errors.
 - Secret-safe reconnect diagnostics exposed through `/api/v1/diagnostics/reconnect` and the printer Diagnostics UI.
 - Per-printer reconnect context for last failure, retry state and recovery without exposing raw vendor exceptions or credentials.
+- Vendor-neutral material-topology capability for truthful source-to-toolhead reachability without Bambu wire fields in the common domain.
+- Immutable staged `.3mf` print-plan inspection with normalized material requirements and toolhead intent.
+- Fail-closed material-routing compiler that joins print-plan requirements, explicit physical bindings, current material-system state and material topology.
+- Queue routing integration that durably persists compiler-owned toolhead bindings before adapter assessment and prepares routing again before dispatch.
+- Bambu final source/topology/toolhead revalidation from one native snapshot plus compiler-owned per-material `project_file.nozzle_mapping`.
 
 ### Changed
 
@@ -21,17 +26,21 @@ Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForg
 - Update Printer now performs the same preflight before replacing a known-good configuration.
 - A failed replacement connection rolls back durable configuration, secrets and runtime adapter state to the previous working printer.
 - Terminal sanitized Add/Update connection failures are replayed deterministically through durable HTTP idempotency rather than re-executing a failed setup side effect.
+- Routed Bambu `.3mf` jobs now require explicit physical source bindings; missing, stale, ambiguous or incompatible routes block before adapter submission instead of selecting a spool/nozzle heuristically.
+- Bambu external source IDs 254/255 remain `-1` in flat `ams_mapping`, keep real identities in `ams_mapping2`, and obtain nozzle indices only from the compiler-owned proven toolhead route.
 - The Bambu milestone is explicitly focused on real X2D + AMS 2 Pro connection/control validation before broader P3/farm work resumes.
 
 ### Validation package
 
-The current companion Umbrel package is **`0.1.0-alpha.4.3-umbrel.2`**, a validation candidate rather than a semantic Alpha 5 release.
+The current companion Umbrel package is **`0.1.0-alpha.4.3-umbrel.3`**, a validation candidate rather than a semantic Alpha 5 release.
 
 ```text
-source commit: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
-Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
+source commit: 37d1cbed8f73d62acdc1994545bc2f5ee57e816a
+image: ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
+Store commit: cc6010fdff4823b671a92be3b307155f26db85bc
 ```
+
+Candidate 3 supersedes candidate 2 for current physical evidence because the material-routing, queue and Bambu native print-command path changed after candidate 2. Candidate 1/2 evidence remains historical.
 
 Final Alpha 5 remains blocked on the physical acceptance matrix in `docs/testing/pre-alpha-5-bambu-physical-validation.md`.
 
