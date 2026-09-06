@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "c11f7145b4354aa79c8f0fad223648240e652bac",
+  "packageIdentity": "ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a",
+  "validationDate": "YYYY-MM-DD",
+  "probeFiles": [
+    "foxforge-physical-prerequisites.json",
+    "x2d-certificates-before-restart.json",
+    "x2d-certificates-after-restart.json"
+  ],
+  "observations": {
+    "umbrel": {
+      "installSucceeded": false,
+      "restartPersistence": false,
+      "browserProxyWriteAuth": false,
+      "directBackendNoAnonymousBootstrap": false,
+      "x2dReachableFromDeployment": false,
+      "moonrakerReachableFromDeployment": false,
+      "sseReconnectResync": false
+    },
+    "bambu": {
+      "connectReconnect": false,
+      "stateSynchronization": false,
+      "projectStorage": false,
+      "printStartAcknowledgement": false,
+      "pause": false,
+      "resume": false,
+      "cancel": false,
+      "completion": false,
+      "ambiguousOutcomeHandling": false,
+      "fingerprintsStableAcrossRestart": false,
+      "correctPinsSucceed": false,
+      "wrongMqttPinFailsClosed": false,
+      "wrongFtpsPinFailsClosed": false,
+      "pinRecovery": false
+    },
+    "moonraker": {
+      "connectReconnect": false,
+      "uploadChecksumStart": false,
+      "pause": false,
+      "resume": false,
+      "cancel": false,
+      "completionFailure": false,
+      "ambiguousOutcomeHandling": false
+    }
+  }
+}
