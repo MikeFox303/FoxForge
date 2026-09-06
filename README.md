@@ -1,7 +1,7 @@
 # FoxForge
 
 [![Release](https://img.shields.io/badge/pre--release-v0.1.0--alpha.4.3-orange)](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)
-[![Alpha 5](https://img.shields.io/badge/Alpha%205-physical%20validation-yellow)](docs/testing/pre-alpha-5-bambu-physical-validation.md)
+[![Alpha 5](https://img.shields.io/badge/Alpha%205-replacement%20candidate%20pending-yellow)](docs/testing/pre-alpha-5-bambu-physical-validation.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-lightgrey)](deployment/README.md)
 
@@ -16,13 +16,15 @@ Bambu Lab is the current primary integration target. Moonraker/Klipper support r
 
 The latest published semantic pre-release is **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**.
 
-Development toward **`v0.1.0-alpha.5`** is currently in physical-validation stage under [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). The companion Umbrel Store currently carries validation candidate **`0.1.0-alpha.4.3-umbrel.4`**, built from FoxForge commit `c11f7145b4354aa79c8f0fad223648240e652bac` and pinned to:
+Development toward **`v0.1.0-alpha.5`** is tracked by [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). Candidate 4 (`0.1.0-alpha.4.3-umbrel.4`, application source `c11f7145b4354aa79c8f0fad223648240e652bac`) was the previous physical-validation target, pinned to:
 
 ```text
 ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 ```
 
-This package is deliberately **not** a final Alpha 5 release. Evidence collected against another image or package must not be relabeled as Alpha 5 evidence.
+Candidate 4 is now **retired for first-print acceptance** after a release-readiness audit found that some present-but-invalid 3MF toolhead metadata could be treated like absent metadata before routing compilation. PR #145 closes that fail-closed gap and aligns browser review with selected-plate routing semantics.
+
+Physical validation is paused until a new immutable FoxForge image and matching Umbrel package are published. Candidate 1/2/3/4 evidence must not be relabeled or silently carried to the replacement digest.
 
 See the [Pre-Alpha 5 Bambu physical-validation runbook](docs/testing/pre-alpha-5-bambu-physical-validation.md).
 
@@ -56,7 +58,9 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 ### Queue and inventory
 
 - durable SQLite-backed queue with lifecycle, retry and reconciliation boundaries;
-- immutable staged-3MF print-plan inspection with plate-scoped requirements, explicit operator material bindings and fail-closed routing compilation;
+- immutable staged-3MF print-plan inspection with selected-plate logical requirements, explicit operator material bindings and fail-closed routing compilation;
+- explicit distinction between missing toolhead metadata and present-but-invalid slicer/toolhead metadata;
+- selected-plate routing semantics: an unrelated blocked plate does not poison a safe selected plate, while global/selected unsafe metadata remains blocking;
 - compiler-owned toolhead bindings persisted before submit and revalidated again at dispatch;
 - explicit `INDETERMINATE` handling instead of blind side-effect retry;
 - content-addressed `.gcode` / `.3mf` staging with quota and safe garbage collection;
@@ -75,15 +79,15 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 - Operator Access with a memory-only command credential;
 - Add Printer discovery/manual flow with safe subnet suggestions, structured setup errors and reconnect diagnostics;
 - Printer Detail Material Topology UI with fixed/dynamic/unknown/stale presentation;
-- explicit 3MF material-binding review plus queue, inventory and common job-control workflows.
+- explicit selected-plate 3MF material-binding review plus queue, inventory and common job-control workflows.
 
 ## Current support status
 
 | Area | Status |
 | --- | --- |
 | Common printer architecture | Implemented |
-| Bambu Lab adapter | Functional alpha; real X2D/AMS acceptance in progress |
-| Bambu LAN discovery | Implemented foundation; real deployment-network validation in progress |
+| Bambu Lab adapter | Functional alpha; replacement physical candidate pending |
+| Bambu LAN discovery | Implemented foundation; real deployment-network validation pending |
 | Moonraker/Klipper adapter | Functional alpha; physical OpenKE validation pending |
 | Fleet/reconnect supervision | Implemented foundation |
 | Durable print queue | Implemented foundation |
@@ -95,7 +99,7 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 | Automatic filament accounting | Frozen / not released |
 | Persistent farm scheduler | Not implemented |
 | Docker `amd64` / `arm64` | Published alpha foundation |
-| Umbrel | Pre-Alpha 5 validation candidate 2 published |
+| Umbrel | Candidate 4 historical; replacement validation candidate pending |
 
 ## Installation
 
@@ -103,7 +107,9 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 
 FoxForge is available from the [MikeFox303 3D Printing Community App Store](https://github.com/MikeFox303/umbrel-3d-printing-store) as `my3d-foxforge`.
 
-The current Store package is a **Pre-Alpha 5 validation candidate**. Umbrel exposes the app password in its UI and maps the same per-app password to `FOXFORGE_COMMAND_TOKEN`. Enter it in **Operator Access / Unlock writes** when protected actions are required. The browser keeps that credential only in memory for the current tab.
+The Store may still expose historical Candidate 4 until its replacement is published. Candidate 4 can be used for controlled non-print development checks, but it is **not** the accepted target for the first physical Alpha 5 print after the routing audit.
+
+Umbrel exposes the FoxForge app password in its UI and maps the same per-app password to `FOXFORGE_COMMAND_TOKEN`. Enter it in **Operator Access / Unlock writes** when protected actions are required. The browser keeps that credential only in memory for the current tab.
 
 See [Umbrel deployment](deployment/umbrel/README.md).
 
@@ -191,6 +197,8 @@ Repository guardrails are documented in [`AGENTS.md`](AGENTS.md).
 - [Documentation index](docs/README.md)
 - [Current project status](docs/project-status.md)
 - [Pre-Alpha 5 Bambu physical validation](docs/testing/pre-alpha-5-bambu-physical-validation.md)
+- [Immutable 3MF print-plan inspection](docs/design/immutable-3mf-print-plan.md)
+- [Material routing compiler](docs/design/material-routing-compiler.md)
 - [Printer setup contract](docs/design/app-managed-printer-setup.md)
 - [Reconnect supervision](docs/design/reconnect-supervision.md)
 - [Bambu LAN transport](docs/design/bambu-lan-transport.md)
