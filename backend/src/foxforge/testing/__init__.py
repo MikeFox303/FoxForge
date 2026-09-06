@@ -3,6 +3,7 @@
 
 from .fake_printer import (
     FakeMaterialSystemCapability,
+    FakeMaterialTopologyCapability,
     FakePrinterAdapter,
     FakePrintExecutionCapability,
     build_fake_printer,
@@ -10,6 +11,7 @@ from .fake_printer import (
 
 __all__ = [
     "FakeMaterialSystemCapability",
+    "FakeMaterialTopologyCapability",
     "FakePrintExecutionCapability",
     "FakePrinterAdapter",
     "build_fake_printer",
