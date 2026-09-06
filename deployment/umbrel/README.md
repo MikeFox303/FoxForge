@@ -4,19 +4,21 @@ FoxForge is packaged as `my3d-foxforge` in the companion `MikeFox303/umbrel-3d-p
 
 ## Current package
 
-The Store currently carries the **second Pre-Alpha 5 physical-validation candidate**:
+The Store currently carries the **third Pre-Alpha 5 physical-validation candidate**:
 
 ```text
-package version: 0.1.0-alpha.4.3-umbrel.2
+package version: 0.1.0-alpha.4.3-umbrel.3
 package role: pre-alpha-5-validation-candidate
 base semantic release: 0.1.0-alpha.4.3
 target semantic release: 0.1.0-alpha.5
-source commit: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+source commit: 37d1cbed8f73d62acdc1994545bc2f5ee57e816a
+Store commit: cc6010fdff4823b671a92be3b307155f26db85bc
+image: ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
 Umbrel app port: 8283
 internal server port: 8000
 ```
+
+Candidate 3 replaces Candidate 2 as the current physical target because the material-routing compiler, queue routing integration and Bambu native nozzle-mapping path changed after Candidate 2.
 
 > [!IMPORTANT]
 > This is an installable validation candidate, **not** final `v0.1.0-alpha.5`.
@@ -53,6 +55,8 @@ The package uses:
 - `/healthz` container health check;
 - the same FoxForge application image used by the project runtime.
 
+The Candidate 3 Store gates verified the package contract plus anonymous public runtime startup on both `linux/amd64` and `linux/arm64` using the exact digest above.
+
 ## Printer networking and discovery
 
 Bambu and Moonraker communication occurs from the FoxForge container to printer addresses on the LAN.
@@ -68,10 +72,25 @@ Pre-Alpha 5 adds conservative Bambu discovery:
 
 Manual Bambu entry remains available and is the fallback when discovery cannot see the printer from the deployment network namespace.
 
+## Safe routed Bambu print path
+
+Candidate 3 adds the software gate required before the first real X2D print:
+
+- immutable staged `.3mf` print-plan/material-requirement inspection;
+- explicit physical source bindings rather than material/color auto-selection;
+- vendor-neutral source→toolhead routing compilation;
+- queue persistence of compiler-owned toolhead bindings;
+- final Bambu source-presence/topology/toolhead revalidation from one native snapshot;
+- `project_file` `ams_mapping` / `ams_mapping2` / `nozzle_mapping` derived only from the proven route;
+- external source IDs 254/255 retained in `ams_mapping2` while flat `ams_mapping` uses `-1`;
+- ambiguous or stale routing blocks before transport instead of guessing a nozzle.
+
+These are software guarantees only until the Candidate 3 X2D physical matrix is completed.
+
 ## Install for current physical validation
 
 1. Add/refresh `https://github.com/MikeFox303/umbrel-3d-printing-store` as a Community App Store.
-2. Confirm FoxForge version `0.1.0-alpha.4.3-umbrel.2` is offered.
+2. Confirm FoxForge version `0.1.0-alpha.4.3-umbrel.3` is offered.
 3. Install/update FoxForge without manual Compose/container modifications.
 4. Confirm the app starts and `/healthz` succeeds.
 5. Obtain the app password from the Umbrel UI and unlock FoxForge writes.
@@ -87,4 +106,4 @@ A changed source commit/image digest is a new physical-test target. Evidence fro
 
 ## Remaining gate
 
-Final Alpha 5 remains blocked on real Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro acceptance, including setup negative paths, safe update rollback, reconnect recovery, live AMS state, real project upload/start and guarded job control.
+Final Alpha 5 remains blocked on real Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro acceptance, including setup negative paths, safe update rollback, reconnect recovery, live AMS/external-source state, explicit `.3mf` material routing, real project upload/start and guarded job control.
