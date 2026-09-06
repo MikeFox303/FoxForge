@@ -37,8 +37,13 @@ not provide a toolhead identity through the enqueue API.
 - a single-plate plan may omit an explicit plate selection;
 - a multi-plate plan must select one plate explicitly;
 - a selected plate must exist and be `ready_for_routing`;
+- a selected plate with `TOOLHEAD_METADATA_INVALID` is blocked even when its chosen source has a fixed route;
 - bindings must cover exactly the material indices used by that plate;
 - bindings for materials belonging only to other plates are rejected.
+
+The extra toolhead-metadata rule prevents topology from masking corrupt or partial slicer intent on dual-nozzle
+printers. A fixed physical route proves where a source can go; it does not prove that the sliced plate intended that
+toolhead.
 
 This intentionally differs from silently defaulting to plate 1. A default that is convenient for a transport is not
 sufficient evidence for a safety gate.
@@ -85,7 +90,7 @@ Blocked compilations expose an empty binding tuple. Downstream code must never c
 Representative blockers include:
 
 - plate selection missing/not found;
-- print-plan blocker;
+- print-plan or unsafe toolhead-metadata blocker;
 - missing/extra material binding;
 - stale or cross-printer snapshots;
 - unknown/unloaded source;
@@ -123,6 +128,7 @@ This PR intentionally keeps the compiler pure. The following integration slice m
 - [x] compiler has no vendor adapter imports;
 - [x] multi-plate plans require explicit selection;
 - [x] binding coverage is exact for the selected plate;
+- [x] invalid plate toolhead metadata blocks even a fixed physical route;
 - [x] stale snapshots fail closed;
 - [x] unknown/unloaded sources fail closed;
 - [x] known material-family mismatch fails closed;
