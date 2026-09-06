@@ -8,6 +8,7 @@ import { BrowserRouter } from 'react-router-dom';
 import '../alphaTranslations';
 import '../alphaTranslationsExtra';
 import '../i18n';
+import '../queueRoutingTranslations';
 import { RealtimeQueryBridge } from '../data/realtime';
 
 const queryClient = new QueryClient({
