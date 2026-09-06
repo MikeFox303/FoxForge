@@ -280,31 +280,44 @@ def build_project_file_command(
     ams_mapping2 = [{"ams_id": route.ams_id, "slot_id": route.tray_id} for route in routes if 0 <= route.ams_id <= 255]
     use_ams = bool(ams_mapping2)
     subtask_name = (request.requested_name or Path(remote_filename).stem).strip() or Path(remote_filename).stem
-    return {
-        "print": {
-            "sequence_id": sequence_id,
-            "command": "project_file",
-            "param": f"Metadata/plate_{plate_number}.gcode",
-            "project_id": "0",
-            "profile_id": "0",
-            "task_id": "0",
-            "subtask_id": "0",
-            "subtask_name": subtask_name,
-            "file": remote_filename,
-            "url": project_url,
-            "md5": "",
-            "timelapse": False,
-            "bed_type": "auto",
-            "bed_leveling": True,
-            "bed_levelling": True,
-            "flow_cali": True,
-            "vibration_cali": True,
-            "layer_inspect": False,
-            "use_ams": use_ams,
-            "ams_mapping": ams_mapping,
-            "ams_mapping2": ams_mapping2,
-        }
+    print_payload: dict[str, object] = {
+        "sequence_id": sequence_id,
+        "command": "project_file",
+        "param": f"Metadata/plate_{plate_number}.gcode",
+        "project_id": "0",
+        "profile_id": "0",
+        "task_id": "0",
+        "subtask_id": "0",
+        "subtask_name": subtask_name,
+        "file": remote_filename,
+        "url": project_url,
+        "md5": "",
+        "timelapse": False,
+        "bed_type": "auto",
+        "bed_leveling": True,
+        "bed_levelling": True,
+        "flow_cali": True,
+        "vibration_cali": True,
+        "layer_inspect": False,
+        "use_ams": use_ams,
+        "ams_mapping": ams_mapping,
+        "ams_mapping2": ams_mapping2,
     }
+    if routes and all(route.nozzle_index is not None for route in routes):
+        print_payload["nozzle_mapping"] = _nozzle_mapping(routes)
+    return {"print": print_payload}
+
+
+def _nozzle_mapping(routes: tuple[BambuNativeMaterialRoute, ...]) -> list[int]:
+    if not routes:
+        return []
+    max_index = max(route.material_index for route in routes)
+    result = [-1] * (max_index + 1)
+    for route in routes:
+        if route.material_index < 0 or route.nozzle_index is None:
+            continue
+        result[route.material_index] = route.nozzle_index
+    return result
 
 
 def _ams_mapping(routes: tuple[BambuNativeMaterialRoute, ...]) -> list[int]:
