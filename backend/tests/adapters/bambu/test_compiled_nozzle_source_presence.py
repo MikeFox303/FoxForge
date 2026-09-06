@@ -41,9 +41,7 @@ def test_compiled_bambu_route_blocks_when_source_is_no_longer_confirmed_loaded(
         request = PrintExecutionRequest(
             uuid4(),
             bambu_3mf,
-            material_bindings=(
-                MaterialBinding(0, "bambu:unit:0:tray:0", "bambu:toolhead:0"),
-            ),
+            material_bindings=(MaterialBinding(0, "bambu:unit:0:tray:0", "bambu:toolhead:0"),),
         )
 
         assessment = await printing.assess(request)
@@ -74,9 +72,7 @@ def test_compiled_bambu_route_blocks_stale_native_topology(
         request = PrintExecutionRequest(
             uuid4(),
             bambu_3mf,
-            material_bindings=(
-                MaterialBinding(0, "bambu:unit:0:tray:0", "bambu:toolhead:0"),
-            ),
+            material_bindings=(MaterialBinding(0, "bambu:unit:0:tray:0", "bambu:toolhead:0"),),
         )
 
         assessment = await printing.assess(request)
