@@ -70,6 +70,7 @@ Queue:
 - [Queue command API and artifact staging](design/queue-command-api.md)
 - [Queue command UI](design/queue-command-ui.md)
 - [Artifact lifecycle](design/artifact-lifecycle.md)
+- [Immutable 3MF print-plan inspection](design/immutable-3mf-print-plan.md)
 
 Inventory:
 
