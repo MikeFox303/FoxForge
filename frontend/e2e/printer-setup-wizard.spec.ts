@@ -91,7 +91,7 @@ test('Add Printer requires verification of the exact current payload before save
   await dialog.getByRole('button', { name: /^Next$/i }).click();
 
   await dialog.getByLabel(/^Display name$/i).fill('X2D Main');
-  await dialog.getByLabel(/^Model$/i).selectOption('X2D');
+  await dialog.getByLabel(/Model/i).selectOption('X2D');
   await dialog.getByLabel(/^Serial number$/i).fill('01P00A000000001');
   await dialog.getByRole('button', { name: /^Next$/i }).click();
 
