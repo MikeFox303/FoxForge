@@ -19,12 +19,12 @@ import { ReconnectDiagnosticsPanel } from './ReconnectDiagnosticsPanel';
 import {
   materialSlots,
   printerByRouteId,
+  printerDetailTabs,
+  type PrinterDetailTab,
   printerTelemetryPhase,
   queueForPrinter,
   summarizePrinterMaterials,
 } from './printerDetailViewModel';
-
-type PrinterDetailTab = 'overview' | 'materials' | 'queue' | 'diagnostics';
 
 export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
   const { printerId } = useParams();
@@ -51,6 +51,12 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
   const materialSummary = summarizePrinterMaterials(printer);
   const telemetryPhase = printerTelemetryPhase(printer);
   const locale = i18n.resolvedLanguage ?? i18n.language;
+  const tabs = printerDetailTabs(printer);
+  const selectedTab: PrinterDetailTab = tabs.includes(tab) ? tab : 'overview';
+
+  const tabLabel = (item: PrinterDetailTab): string => (
+    item === 'control' ? t('jobControl.controls') : t(`printerDetail.tabs.${item}`)
+  );
 
   return (
     <div className="stack-lg printer-detail-page">
@@ -70,9 +76,9 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
       </section>
 
       <nav className="printer-detail-tabs" aria-label={t('printerDetail.sections')}>
-        {(['overview', 'materials', 'queue', 'diagnostics'] as PrinterDetailTab[]).map((item) => (
-          <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>
-            {t(`printerDetail.tabs.${item}`)}
+        {tabs.map((item) => (
+          <button key={item} className={selectedTab === item ? 'active' : ''} onClick={() => setTab(item)}>
+            {tabLabel(item)}
             {item === 'queue' && queue.length > 0 && <span>{queue.length}</span>}
           </button>
         ))}
@@ -88,7 +94,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
         </section>
       )}
 
-      {tab === 'overview' && (
+      {selectedTab === 'overview' && (
         <div className="stack-lg">
           <section className="printer-detail-kpis">
             <DetailKpi label={t('printerDetail.connection')} value={t(`alpha.status.${printer.snapshot.connection}`)} />
@@ -120,7 +126,6 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
                 <Fact label={t('printerDetail.layer')} value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} />
                 <Fact label={t('printerDetail.jobState')} value={t(`alpha.status.${job.state}`)} />
               </div>
-              <JobControlActions printer={printer} />
             </section>
           ) : (
             <section className="panel printer-ready-panel">
@@ -181,7 +186,53 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
         </div>
       )}
 
-      {tab === 'materials' && (
+      {selectedTab === 'control' && tabs.includes('control') && (
+        <section className="stack-lg printer-control-tab">
+          <div className="printer-tab-intro">
+            <div>
+              <div className="eyebrow">{t('jobControl.controls')}</div>
+              <h3>{job?.name ?? t('printerDetail.ready')}</h3>
+              <p>{job ? t('printerDetail.capabilityText') : t('printerDetail.readyText')}</p>
+            </div>
+            {job && (
+              <div className="printer-tab-stat">
+                <strong>{formatPercent(job.progress)}</strong>
+                <span>{t(`alpha.status.${job.state}`)}</span>
+              </div>
+            )}
+          </div>
+
+          {job ? (
+            <section className="panel printer-active-job printer-control-panel">
+              <div className="printer-section-heading">
+                <div>
+                  <div className="eyebrow">{t('printerDetail.activeJob')}</div>
+                  <h3>{job.name ?? t('printerDetail.unnamedJob')}</h3>
+                </div>
+                <strong className="printer-job-percent">{formatPercent(job.progress)}</strong>
+              </div>
+              <Progress value={job.progress} />
+              <div className="printer-job-facts">
+                <Fact label={t('printerDetail.elapsed')} value={formatDuration(job.elapsedSeconds)} />
+                <Fact label={t('printerDetail.remainingTime')} value={formatDuration(job.remainingSeconds)} />
+                <Fact label={t('printerDetail.layer')} value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} />
+                <Fact label={t('printerDetail.jobState')} value={t(`alpha.status.${job.state}`)} />
+              </div>
+              <JobControlActions printer={printer} />
+            </section>
+          ) : (
+            <section className="panel printer-ready-panel">
+              <div className="ready-indicator"><span className={`status-dot ${telemetryPhase === 'live' ? 'good' : telemetryPhase === 'unavailable' ? 'danger' : 'warning'}`} /></div>
+              <div>
+                <h3>{t('printerDetail.ready')}</h3>
+                <p>{t('printerDetail.readyText')}</p>
+              </div>
+            </section>
+          )}
+        </section>
+      )}
+
+      {selectedTab === 'materials' && tabs.includes('materials') && (
         <section className="stack-lg">
           <div className="printer-tab-intro">
             <div><div className="eyebrow">{t('printerDetail.materialSystem')}</div><h3>{t('printerDetail.materialsTitle')}</h3><p>{t('printerDetail.materialsText')}</p></div>
@@ -200,7 +251,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
         </section>
       )}
 
-      {tab === 'queue' && (
+      {selectedTab === 'queue' && (
         <section className="panel table-panel printer-detail-queue-panel">
           <div className="printer-section-heading">
             <div><div className="eyebrow">{t('printerDetail.nextWork')}</div><h3>{t('printerDetail.printerQueue')}</h3></div>
@@ -221,7 +272,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
         </section>
       )}
 
-      {tab === 'diagnostics' && (
+      {selectedTab === 'diagnostics' && (
         <div className="two-column printer-diagnostics-grid">
           <section className="panel definition-list">
             <div><span>{t('printerDetail.diagnostics.printerId')}</span><strong>{printer.identity.printerId}</strong></div>
