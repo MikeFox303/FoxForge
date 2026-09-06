@@ -4,16 +4,16 @@ FoxForge is packaged as `my3d-foxforge` in the companion `MikeFox303/umbrel-3d-p
 
 ## Current package
 
-The Store currently carries the **second Pre-Alpha 5 physical-validation candidate**:
+The Store currently carries the **fourth Pre-Alpha 5 physical-validation candidate**:
 
 ```text
-package version: 0.1.0-alpha.4.3-umbrel.2
+package version: 0.1.0-alpha.4.3-umbrel.4
 package role: pre-alpha-5-validation-candidate
 base semantic release: 0.1.0-alpha.4.3
 target semantic release: 0.1.0-alpha.5
-source commit: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+source commit: c11f7145b4354aa79c8f0fad223648240e652bac
+Store commit: 07b8e8087ac9897d4c2f5dc45944b48dfb0938e1
+image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 Umbrel app port: 8283
 internal server port: 8000
 ```
@@ -59,7 +59,8 @@ Bambu and Moonraker communication occurs from the FoxForge container to printer 
 
 Pre-Alpha 5 adds conservative Bambu discovery:
 
-- the operator selects a private RFC1918 IPv4 subnet;
+- FoxForge may suggest bounded private RFC1918 networks visible from the server/container;
+- the operator explicitly selects a suggestion or enters the private CIDR manually;
 - scanning is limited to `/22` or smaller networks;
 - a candidate must expose the expected Bambu MQTT and FTPS service ports;
 - SSDP metadata may fill serial/name/model;
@@ -71,7 +72,7 @@ Manual Bambu entry remains available and is the fallback when discovery cannot s
 ## Install for current physical validation
 
 1. Add/refresh `https://github.com/MikeFox303/umbrel-3d-printing-store` as a Community App Store.
-2. Confirm FoxForge version `0.1.0-alpha.4.3-umbrel.2` is offered.
+2. Confirm FoxForge version `0.1.0-alpha.4.3-umbrel.4` is offered.
 3. Install/update FoxForge without manual Compose/container modifications.
 4. Confirm the app starts and `/healthz` succeeds.
 5. Obtain the app password from the Umbrel UI and unlock FoxForge writes.

@@ -10,7 +10,9 @@ Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForg
 
 ### Added
 
-- Conservative Bambu LAN discovery over an explicitly selected RFC1918 IPv4 subnet, requiring the expected Bambu LAN service ports before presenting a candidate.
+- Conservative Bambu LAN discovery over explicit RFC1918 IPv4 subnets, with bounded server-visible private subnet suggestions and the expected Bambu LAN service ports required before presenting a candidate.
+- Typed `foxforge.material_topology` read models and Printer Detail routing UI with explicit fixed/dynamic/unknown/stale states.
+- Immutable staged-3MF print-plan inspection, plate-scoped toolhead expectations, explicit queue material-binding review and fail-closed material routing compilation.
 - Structured Bambu setup identity/model handling and normalized operator-facing setup errors.
 - Secret-safe reconnect diagnostics exposed through `/api/v1/diagnostics/reconnect` and the printer Diagnostics UI.
 - Per-printer reconnect context for last failure, retry state and recovery without exposing raw vendor exceptions or credentials.
@@ -21,16 +23,18 @@ Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForg
 - Update Printer now performs the same preflight before replacing a known-good configuration.
 - A failed replacement connection rolls back durable configuration, secrets and runtime adapter state to the previous working printer.
 - Terminal sanitized Add/Update connection failures are replayed deterministically through durable HTTP idempotency rather than re-executing a failed setup side effect.
+- Queue assessment persists compiler-owned toolhead bindings, Bambu dispatch revalidates source/topology immediately before submit, and `project_file.nozzle_mapping` is emitted only from a complete proven route.
+- External Bambu 254/255 sources remain `-1` in flat `ams_mapping` and retain their real source identity in `ams_mapping2`.
 - The Bambu milestone is explicitly focused on real X2D + AMS 2 Pro connection/control validation before broader P3/farm work resumes.
 
 ### Validation package
 
-The current companion Umbrel package is **`0.1.0-alpha.4.3-umbrel.2`**, a validation candidate rather than a semantic Alpha 5 release.
+The current companion Umbrel package is **`0.1.0-alpha.4.3-umbrel.4`**, a validation candidate rather than a semantic Alpha 5 release.
 
 ```text
-source commit: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
-Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
+source commit: c11f7145b4354aa79c8f0fad223648240e652bac
+image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
+Store commit: 07b8e8087ac9897d4c2f5dc45944b48dfb0938e1
 ```
 
 Final Alpha 5 remains blocked on the physical acceptance matrix in `docs/testing/pre-alpha-5-bambu-physical-validation.md`.

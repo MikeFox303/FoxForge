@@ -4,7 +4,7 @@
 **Canonical branch:** `main`  
 **Latest semantic pre-release:** `v0.1.0-alpha.4.3`  
 **Active milestone:** Pre-Alpha 5 / Bambu Lab connection and control ([#115](https://github.com/MikeFox303/FoxForge/issues/115))  
-**Current installable Umbrel validation candidate:** `0.1.0-alpha.4.3-umbrel.2`  
+**Current installable Umbrel validation candidate:** `0.1.0-alpha.4.3-umbrel.4`  
 **Maturity:** runnable/installable alpha; not production-ready
 
 This page is the concise current-state snapshot. ADRs/design documents remain normative for architecture. `release/` remains immutable release history, and dated Alpha 4.x status/evidence documents remain historical records.
@@ -18,10 +18,10 @@ The latest semantic GitHub pre-release remains `v0.1.0-alpha.4.3`, released from
 The current physical-validation package is deliberately separate:
 
 ```text
-Umbrel package: 0.1.0-alpha.4.3-umbrel.2
-candidate source: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-Store commit: 1d7d78d7a0f3c36805071dd6d8078033c59672ac
-exact image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+Umbrel package: 0.1.0-alpha.4.3-umbrel.4
+candidate source: c11f7145b4354aa79c8f0fad223648240e652bac
+Store commit: 07b8e8087ac9897d4c2f5dc45944b48dfb0938e1
+exact image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
 target release: v0.1.0-alpha.5
 ```
 
@@ -32,23 +32,23 @@ Documentation-only commits may advance `main` beyond the candidate source withou
 | Area | Status | Notes |
 | --- | --- | --- |
 | Common printer domain | Implemented | FoxForge-owned identities, snapshots/events/errors and typed capabilities. |
-| Bambu adapter | Functional alpha | MQTT/TLS state, project storage, material-system observation and common job control; physical X2D validation in progress. |
-| Bambu discovery | Implemented foundation | Explicit RFC1918 IPv4 subnet scan, bounded `/22` or smaller, candidate-only until normal authenticated setup succeeds. |
+| Bambu adapter | Functional alpha | MQTT/TLS state, project storage, material-system/topology observation, fail-closed compiled 3MF routing and common job control; physical X2D validation in progress. |
+| Bambu discovery | Implemented foundation | Server-visible RFC1918 suggestions plus explicit manual CIDR scan, bounded `/22` or smaller and candidate-only until normal authenticated setup succeeds. |
 | Bambu Add Printer | Implemented | Test-before-save prevents invalid connectivity/credentials from creating durable dead configuration. |
 | Bambu Update Printer | Implemented | Preflight before replacement; failed replacement restores previous durable config, secrets and adapter state. |
 | Moonraker adapter | Functional alpha | Production HTTP/WebSocket/control foundation implemented; physical OpenKE validation pending. |
 | Fleet management | Implemented | Dynamic composition and normalized lifecycle/events. |
 | Reconnect supervision | Implemented foundation | Per-printer workers, bounded concurrency/backoff/jitter and secret-safe diagnostics. |
-| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation with explicit `INDETERMINATE`. |
+| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation, immutable 3MF inspection, explicit physical material intent, compiler-owned toolhead routing and explicit `INDETERMINATE`. |
 | Artifact staging | Implemented | Content-addressed storage, quota/min-free reserve and safe GC. |
 | Filament/spool inventory | Operator workflow implemented | Exact `Decimal` ledger plus create/correct/empty-mass/assignment/archive/history. |
 | Command security | Implemented foundation | Explicit bearer auth, permissions, durable idempotency, normalized errors and audit. |
 | Printer credentials | Implemented | `SecretStore` separates Bambu access codes and Moonraker API keys from ordinary config. |
 | Pause/Resume/Cancel | Implemented | Exact observed vendor-job guard; physical Bambu/Moonraker validation remains. |
 | Realtime application events | Implemented | SSE replay/resync invalidation plus canonical HTTP snapshots. |
-| Web UI | Functional alpha | Live API, setup/discovery, queue, inventory, job control and reconnect diagnostics. |
+| Web UI | Functional alpha | Live API, setup/discovery with subnet suggestions, explicit 3MF binding review, Material Topology, queue, inventory, job control and reconnect diagnostics. |
 | Docker/ARM64 | Published alpha foundation | Linux `amd64` + `arm64`; physical Raspberry Pi validation remains package-specific. |
-| Umbrel | Candidate 2 published | `APP_PASSWORD` maps to `FOXFORGE_COMMAND_TOKEN`; app password is exposed through Umbrel UI for GUI-only operator unlock. |
+| Umbrel | Candidate 4 published | `APP_PASSWORD` maps to `FOXFORGE_COMMAND_TOKEN`; app password is exposed through Umbrel UI for GUI-only operator unlock. |
 | Automatic filament accounting | **Frozen / not merged** | P3 remains behind physical/deployment gate. |
 | Persistent farm scheduler | Not implemented | Deferred until printer/deployment and P3 foundations are stable. |
 
@@ -63,10 +63,13 @@ Issue #115 is intentionally Bambu-first. Current source has already closed the m
 - rollback-safe failed updates;
 - durable replay of terminal failed setup requests;
 - reconnect diagnostics API/UI;
-- live Bambu material-system foundation;
+- live Bambu material-system and typed material-topology foundation;
+- immutable 3MF print-plan inspection, explicit source binding and fail-closed compiler-owned toolhead routing;
+- adapter-side source/topology revalidation plus Bambu `nozzle_mapping` from the proven compiled route;
+- operator-facing Material Topology and 3MF binding review UI;
 - GUI-visible Umbrel app password/operator-token path.
 
-What remains before final Alpha 5 is primarily **real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro evidence**, including real print dispatch and guarded job control.
+What remains before final Alpha 5 is the **real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro gate**: first the complete no-print setup/material-topology/reconnect matrix, then one explicitly reviewed 3MF dispatch and guarded job control.
 
 ## Current physical release gate
 
