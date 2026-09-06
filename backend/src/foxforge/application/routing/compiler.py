@@ -16,6 +16,7 @@ from enum import StrEnum
 
 from foxforge.application.artifacts import (
     ArtifactPrintPlan,
+    PrintPlanIssueCode,
     PrintPlanMaterialRequirement,
     PrintPlanPlate,
 )
@@ -106,6 +107,24 @@ def compile_material_routing(
     if plate_blocker is not None:
         return _blocked(None, plate_blocker)
     assert plate is not None
+
+    invalid_toolhead_metadata = next(
+        (
+            issue
+            for issue in plan.issues
+            if issue.code == PrintPlanIssueCode.TOOLHEAD_METADATA_INVALID
+            and (issue.plate_index is None or issue.plate_index == plate.plate_index)
+        ),
+        None,
+    )
+    if invalid_toolhead_metadata is not None:
+        return _blocked(
+            plate.plate_index,
+            MaterialRoutingBlocker(
+                MaterialRoutingBlockerCode.PRINT_PLAN_BLOCKED,
+                f"plate {plate.plate_index} has unsafe toolhead metadata: {invalid_toolhead_metadata.message}",
+            ),
+        )
 
     if not plate.ready_for_routing:
         return _blocked(
