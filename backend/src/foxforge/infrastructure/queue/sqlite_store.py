@@ -165,7 +165,11 @@ def _encode_request(request: PrintExecutionRequest) -> dict[str, object]:
         },
         "selection": ({"plate_index": request.selection.plate_index} if request.selection is not None else None),
         "material_bindings": [
-            {"material_index": binding.material_index, "slot_id": binding.slot_id}
+            {
+                "material_index": binding.material_index,
+                "slot_id": binding.slot_id,
+                "toolhead_id": binding.toolhead_id,
+            }
             for binding in request.material_bindings
         ],
         "requested_name": request.requested_name,
@@ -193,19 +197,23 @@ def _decode_request(payload: dict[str, object]) -> PrintExecutionRequest:
         plate_index = selection_dict.get("plate_index")
         selection = PrintArtifactSelection(plate_index=None if plate_index is None else int(plate_index))
 
-    bindings = tuple(
-        MaterialBinding(
-            material_index=int(_require_dict(binding)["material_index"]),
-            slot_id=str(_require_dict(binding)["slot_id"]),
-        )
-        for binding in raw_bindings
-    )
+    bindings = tuple(_decode_material_binding(binding) for binding in raw_bindings)
     return PrintExecutionRequest(
         dispatch_id=UUID(str(payload["dispatch_id"])),
         artifact=artifact,
         selection=selection,
         material_bindings=bindings,
         requested_name=(None if payload.get("requested_name") is None else str(payload["requested_name"])),
+    )
+
+
+def _decode_material_binding(payload: object) -> MaterialBinding:
+    data = _require_dict(payload)
+    raw_toolhead_id = data.get("toolhead_id")
+    return MaterialBinding(
+        material_index=int(data["material_index"]),
+        slot_id=str(data["slot_id"]),
+        toolhead_id=None if raw_toolhead_id is None else str(raw_toolhead_id),
     )
 
 
