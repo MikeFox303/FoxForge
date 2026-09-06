@@ -15,11 +15,12 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 | --- | --- |
 | Semantic release | `v0.1.0-alpha.4.3` |
 | Active milestone | Pre-Alpha 5 / Bambu Lab connection and control |
-| Umbrel validation package | `0.1.0-alpha.4.3-umbrel.2` |
-| Candidate source | `37b253f385c19451c7ea075a4a4d12378cf17cf2` |
-| Candidate image | `ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f` |
+| Umbrel validation package | `0.1.0-alpha.4.3-umbrel.3` |
+| Candidate source | `37d1cbed8f73d62acdc1994545bc2f5ee57e816a` |
+| Candidate image | `ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82` |
+| Umbrel Store commit | `cc6010fdff4823b671a92be3b307155f26db85bc` |
 
-The validation package is not a final Alpha 5 semantic release. Documentation-only commits may advance `main` without changing the immutable candidate under test.
+The validation package is not a final Alpha 5 semantic release. Candidate 3 replaces candidate 2 because material-routing/queue/Bambu print-command behavior changed after the earlier physical package. Documentation-only commits may advance `main` without changing the immutable candidate under test.
 
 ## Architecture Decision Records
 
@@ -49,9 +50,10 @@ ADRs record durable decisions. Historical context inside an accepted ADR is not 
 - [Bambu LAN transport](design/bambu-lan-transport.md)
 - [Bambu certificate trust](design/bambu-certificate-trust.md)
 - [Bambu project storage](design/bambu-project-storage.md)
+- [Compiled Bambu nozzle mapping](design/bambu-compiled-nozzle-mapping.md)
 - [Pre-Alpha 5 physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
 
-Current source includes conservative LAN discovery, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project-storage foundations and AMS/external material observation. Physical X2D/AMS 2 Pro acceptance remains the active release gate.
+Current source includes conservative LAN discovery, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project-storage foundations, AMS/external material observation, vendor-neutral material topology, immutable 3MF print-plan inspection and fail-closed compiler-owned Bambu source/toolhead/nozzle routing. Physical X2D/AMS 2 Pro acceptance remains the active release gate.
 
 ## Moonraker/Klipper
 
@@ -71,6 +73,8 @@ Queue:
 - [Queue command UI](design/queue-command-ui.md)
 - [Artifact lifecycle](design/artifact-lifecycle.md)
 - [Immutable 3MF print-plan inspection](design/immutable-3mf-print-plan.md)
+- [Print material routing](design/print-material-routing.md)
+- [Queue material routing integration](design/queue-material-routing.md)
 
 Inventory:
 
@@ -98,6 +102,7 @@ The normal spool operator workflow is implemented. Automatic queue-to-filament a
 - [Release publishing](deployment/release-publishing.md)
 - [Deployment authentication contract](testing/deployment-auth-contract.md)
 - [Coverage policy](testing/coverage-policy.md)
+- [Candidate 3 evidence manifest template](testing/evidence/pre-alpha5-candidate3-manifest.template.json)
 
 ## Upstream/provenance records
 
@@ -115,6 +120,7 @@ These files are records, not a second FoxForge architecture.
 - [Umbrel mobile validation — 2026-09-04](validation/2026-09-04-umbrel-mobile.md) — historical Alpha 2 real-install/mobile evidence.
 - [`testing/alpha4.2-validation-tooling-bootstrap.md`](testing/alpha4.2-validation-tooling-bootstrap.md) — historical Alpha 4.2 tooling handoff.
 - [`testing/evidence/alpha4.2-manifest.template.json`](testing/evidence/alpha4.2-manifest.template.json) — historical Alpha 4.2 template.
+- [`testing/evidence/pre-alpha5-candidate2-manifest.template.json`](testing/evidence/pre-alpha5-candidate2-manifest.template.json) — historical Candidate 2 template retained for provenance.
 - [P3 frozen state](status/p3-frozen-state-2026-09-04.md) — frozen implementation snapshot; current resume gate is defined by project-status/current physical-validation docs.
 
 Do not rewrite immutable release notes, audit snapshots or dated evidence records to look current. Link to them with their historical role clearly labeled.
