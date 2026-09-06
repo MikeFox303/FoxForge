@@ -26,6 +26,15 @@ import {
   type SetupLanguage,
 } from './printerSetupErrors';
 import { normalizeBambuSerial, stableBambuPrinterId } from './printerSetupIdentity';
+import {
+  canAdvancePrinterSetupStep,
+  isPrinterSetupPayloadVerified,
+  nextPrinterSetupStep,
+  previousPrinterSetupStep,
+  printerSetupPayloadFingerprint,
+  printerSetupWizardSteps,
+  type PrinterSetupWizardStep,
+} from './printerSetupWizard';
 
 type Props = {
   open: boolean;
@@ -69,8 +78,8 @@ const copy = {
     accessCode: 'LAN access code',
     baseUrl: 'Moonraker URL',
     apiKey: 'Moonraker API key (optional)',
-    test: 'Test connection',
-    testing: 'Testing…',
+    test: 'Verify connection',
+    testing: 'Verifying…',
     save: 'Save and connect',
     saving: 'Saving…',
     reachable: 'Connection succeeded. FoxForge received a live printer state.',
@@ -87,6 +96,18 @@ const copy = {
     writesLocked: 'FoxForge write controls are locked. Open Operator access; on Umbrel use the FoxForge app password.',
     saveError: 'Unable to save printer.',
     deleteError: 'Unable to delete printer.',
+    stepProvider: 'Provider',
+    stepConnection: 'Connection',
+    stepIdentity: 'Identity',
+    stepVerify: 'Verify',
+    providerHint: 'Choose the printer family first. Vendor-specific fields stay behind the provider boundary.',
+    connectionHint: 'Discover a candidate or enter the connection details manually.',
+    identityHint: 'Confirm the printer identity that FoxForge will use in the fleet.',
+    verifyHint: 'Review the non-secret settings, verify the current payload, then save.',
+    verifyRequired: 'Verify this exact configuration before saving. Any change after verification requires a new check.',
+    verified: 'Current configuration verified. Save is enabled; FoxForge will still repeat backend preflight before persistence.',
+    next: 'Next',
+    back: 'Back',
   },
   ru: {
     title: 'Подключение принтеров',
@@ -103,7 +124,7 @@ const copy = {
     discovery: 'Найти принтеры Bambu в локальной сети',
     subnet: 'Подсеть для сканирования',
     suggestedSubnets: 'Приватные сети, видимые серверу',
-    noSuggestedSubnets: 'FoxForge не видит подходящую приватную LAN-подсеть. Укажите подсеть принтера вручную.',
+    noSuggestedSubnets: 'FoxForge не видит подходящей приватной LAN-подсети. Укажите подсеть принтера вручную.',
     subnetHint: 'Подсказки — только приватные ограниченные диапазоны. Docker/Umbrel может показывать bridge-сети, поэтому проверьте CIDR перед сканированием.',
     refreshSubnets: 'Обновить сети',
     loadingSubnets: 'Поиск сетей…',
@@ -141,6 +162,18 @@ const copy = {
     writesLocked: 'Управление FoxForge заблокировано. Откройте «Токен оператора»; в Umbrel используйте пароль приложения FoxForge.',
     saveError: 'Не удалось сохранить принтер.',
     deleteError: 'Не удалось удалить принтер.',
+    stepProvider: 'Провайдер',
+    stepConnection: 'Подключение',
+    stepIdentity: 'Идентификация',
+    stepVerify: 'Проверка',
+    providerHint: 'Сначала выберите семейство принтера. Поля конкретного производителя остаются внутри его провайдера.',
+    connectionHint: 'Найдите принтер в сети или укажите параметры подключения вручную.',
+    identityHint: 'Проверьте идентификацию принтера, которую FoxForge будет использовать в парке.',
+    verifyHint: 'Проверьте параметры без секретов, выполните проверку текущей конфигурации и только затем сохраните её.',
+    verifyRequired: 'Перед сохранением проверьте именно эту конфигурацию. Любое изменение после проверки требует повторной проверки.',
+    verified: 'Текущая конфигурация проверена. Сохранение разрешено; перед записью FoxForge всё равно повторит backend preflight.',
+    next: 'Далее',
+    back: 'Назад',
   },
   uk: {
     title: 'Підключення принтерів',
@@ -157,14 +190,14 @@ const copy = {
     discovery: 'Знайти принтери Bambu у локальній мережі',
     subnet: 'Підмережа для сканування',
     suggestedSubnets: 'Приватні мережі, видимі серверу',
-    noSuggestedSubnets: 'FoxForge не бачить придатну приватну LAN-підмережу. Вкажіть підмережу принтера вручну.',
+    noSuggestedSubnets: 'FoxForge не бачить придатної приватної LAN-підмережі. Вкажіть підмережу принтера вручну.',
     subnetHint: 'Підказки — лише приватні обмежені діапазони. Docker/Umbrel може показувати bridge-мережі, тому перевірте CIDR перед скануванням.',
     refreshSubnets: 'Оновити мережі',
     loadingSubnets: 'Пошук мереж…',
     scan: 'Сканувати підмережу',
     scanning: 'Сканування…',
     noCandidates: 'Принтери Bambu не знайдено. Дані принтера можна ввести вручну.',
-    candidateHint: 'Виявлення лише допомагає заповнити форму. Перед збереженням FoxForge все одно перевірить MQTT та облікові дані.',
+    candidateHint: 'Виявлення лише допомагає заповнити форму. Перед збереженням FoxForge усе одно перевірить MQTT та облікові дані.',
     useCandidate: 'Вибрати принтер',
     displayName: 'Назва',
     model: 'Модель',
@@ -195,6 +228,18 @@ const copy = {
     writesLocked: 'Керування FoxForge заблоковано. Відкрийте «Токен оператора»; в Umbrel використовуйте пароль застосунку FoxForge.',
     saveError: 'Не вдалося зберегти принтер.',
     deleteError: 'Не вдалося видалити принтер.',
+    stepProvider: 'Провайдер',
+    stepConnection: 'Підключення',
+    stepIdentity: 'Ідентифікація',
+    stepVerify: 'Перевірка',
+    providerHint: 'Спочатку виберіть сімейство принтера. Поля конкретного виробника залишаються в межах його провайдера.',
+    connectionHint: 'Знайдіть принтер у мережі або введіть параметри підключення вручну.',
+    identityHint: 'Перевірте ідентифікацію принтера, яку FoxForge використовуватиме у парку.',
+    verifyHint: 'Перегляньте параметри без секретів, перевірте поточну конфігурацію і лише потім збережіть її.',
+    verifyRequired: 'Перед збереженням перевірте саме цю конфігурацію. Будь-яка зміна після перевірки вимагає нової перевірки.',
+    verified: 'Поточну конфігурацію перевірено. Збереження дозволено; перед записом FoxForge однаково повторить backend preflight.',
+    next: 'Далі',
+    back: 'Назад',
   },
 } as const;
 
@@ -209,6 +254,8 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   const [busyPrinter, setBusyPrinter] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<PrinterSetupOutcome | null>(null);
+  const [step, setStep] = useState<PrinterSetupWizardStep>('provider');
+  const [verifiedFingerprint, setVerifiedFingerprint] = useState<string | null>(null);
   const [kind, setKind] = useState<PrinterSetupKind>('bambu');
   const [printerId, setPrinterId] = useState('');
   const [displayName, setDisplayName] = useState('');
@@ -248,6 +295,8 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       ? { host: host.trim(), accessCode: accessCode.trim() }
       : { baseUrl: baseUrl.trim(), apiKey: apiKey.trim() || undefined },
   }), [accessCode, apiKey, baseUrl, displayName, host, kind, model, normalizedBambuSerial, printerId, serialNumber, vendor]);
+  const payloadFingerprint = printerSetupPayloadFingerprint(payload);
+  const verified = isPrinterSetupPayloadVerified(payload, verifiedFingerprint);
 
   const refresh = async () => {
     setLoading(true);
@@ -278,10 +327,20 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
 
   useEffect(() => {
     if (open) {
+      setStep('provider');
+      setVerifiedFingerprint(null);
+      setOutcome(null);
       void refresh();
       void refreshSubnetSuggestions();
     }
   }, [open]);
+
+  useEffect(() => {
+    if (verifiedFingerprint !== null && verifiedFingerprint !== payloadFingerprint) {
+      setVerifiedFingerprint(null);
+      setOutcome(null);
+    }
+  }, [payloadFingerprint, verifiedFingerprint]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -324,11 +383,15 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
   };
 
   const testConnection = async () => {
+    const testedFingerprint = payloadFingerprint;
     setTesting(true);
     setError(null);
     setOutcome(null);
+    setVerifiedFingerprint(null);
     try {
-      setOutcome(await testPrinterConnection(payload));
+      const result = await testPrinterConnection(payload);
+      setOutcome(result);
+      setVerifiedFingerprint(result.reachable ? testedFingerprint : null);
     } catch (cause) {
       setError(errorMessage(cause, c.unreachable));
     } finally {
@@ -338,6 +401,10 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
 
   const save = async (event: FormEvent) => {
     event.preventDefault();
+    if (!verified) {
+      setError(c.verifyRequired);
+      return;
+    }
     setSaving(true);
     setError(null);
     setOutcome(null);
@@ -354,9 +421,12 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       setSerialNumber('');
       setHost('');
       setAccessCode('');
+      setBaseUrl('http://');
       setApiKey('');
       setCandidates([]);
       setScanAttempted(false);
+      setVerifiedFingerprint(null);
+      setStep('provider');
     } catch (cause) {
       setError(errorMessage(cause, c.saveError));
     } finally {
@@ -391,6 +461,22 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
       setBusyPrinter(null);
     }
   };
+
+  const stepLabel = (item: PrinterSetupWizardStep): string => {
+    if (item === 'provider') return c.stepProvider;
+    if (item === 'connection') return c.stepConnection;
+    if (item === 'identity') return c.stepIdentity;
+    return c.stepVerify;
+  };
+  const stepHint = step === 'provider'
+    ? c.providerHint
+    : step === 'connection'
+      ? c.connectionHint
+      : step === 'identity'
+        ? c.identityHint
+        : c.verifyHint;
+  const currentStepIndex = printerSetupWizardSteps.indexOf(step);
+  const canAdvance = canAdvancePrinterSetupStep(step, payload);
 
   return (
     <div className="setup-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
@@ -429,78 +515,152 @@ export function PrinterSetupDialog({ open, onClose, onChanged }: Props) {
             )}
           </section>
 
-          <form className="setup-section setup-form" onSubmit={save}>
-            <h3>{c.add}</h3>
-            <label><span>{c.kind}</span><select value={kind} onChange={(event) => setKind(event.target.value as PrinterSetupKind)}><option value="bambu">{c.bambu}</option><option value="moonraker">{c.moonraker}</option></select></label>
-            {kind === 'bambu' ? <>
-              <div className="setup-message warning">
-                <strong>{c.discovery}</strong>
-                <div className="setup-subnet-suggestions">
-                  <div className="setup-subnet-suggestions-head">
-                    <span>{c.suggestedSubnets}</span>
-                    <button className="text-button" type="button" disabled={loadingSubnets || scanning || testing || saving} onClick={() => void refreshSubnetSuggestions()}>{loadingSubnets ? c.loadingSubnets : c.refreshSubnets}</button>
+          <form className="setup-section setup-form setup-wizard" onSubmit={save}>
+            <div className="setup-wizard-head">
+              <div><h3>{c.add}</h3><p>{stepHint}</p></div>
+              <span>{currentStepIndex + 1}/{printerSetupWizardSteps.length}</span>
+            </div>
+            <ol className="setup-wizard-steps" aria-label={c.add}>
+              {printerSetupWizardSteps.map((item, index) => (
+                <li key={item} className={`${item === step ? 'active' : ''} ${index < currentStepIndex ? 'complete' : ''}`} aria-current={item === step ? 'step' : undefined}>
+                  <span>{index + 1}</span><strong>{stepLabel(item)}</strong>
+                </li>
+              ))}
+            </ol>
+
+            {step === 'provider' && (
+              <div className="setup-provider-grid">
+                <button className={`setup-provider-card ${kind === 'bambu' ? 'active' : ''}`} type="button" onClick={() => setKind('bambu')}>
+                  <span>Bambu</span><strong>{c.bambu}</strong><small>MQTT · FTPS · AMS</small>
+                </button>
+                <button className={`setup-provider-card ${kind === 'moonraker' ? 'active' : ''}`} type="button" onClick={() => setKind('moonraker')}>
+                  <span>Klipper</span><strong>{c.moonraker}</strong><small>Moonraker HTTP API</small>
+                </button>
+              </div>
+            )}
+
+            {step === 'connection' && kind === 'bambu' && (
+              <>
+                <div className="setup-message warning">
+                  <strong>{c.discovery}</strong>
+                  <div className="setup-subnet-suggestions">
+                    <div className="setup-subnet-suggestions-head">
+                      <span>{c.suggestedSubnets}</span>
+                      <button className="text-button" type="button" disabled={loadingSubnets || scanning || testing || saving} onClick={() => void refreshSubnetSuggestions()}>{loadingSubnets ? c.loadingSubnets : c.refreshSubnets}</button>
+                    </div>
+                    {subnetSuggestions.length > 0 ? <div className="setup-subnet-buttons">
+                      {subnetSuggestions.map((suggestion) => (
+                        <button className={subnet === suggestion ? 'secondary-button active' : 'secondary-button'} type="button" key={suggestion} onClick={() => setSubnet(suggestion)}>{suggestion}</button>
+                      ))}
+                    </div> : !loadingSubnets && <small>{c.noSuggestedSubnets}</small>}
+                    <small>{c.subnetHint}</small>
                   </div>
-                  {subnetSuggestions.length > 0 ? <div className="setup-subnet-buttons">
-                    {subnetSuggestions.map((suggestion) => (
-                      <button className={subnet === suggestion ? 'secondary-button active' : 'secondary-button'} type="button" key={suggestion} onClick={() => setSubnet(suggestion)}>{suggestion}</button>
+                  <div className="setup-form-row">
+                    <label><span>{c.subnet}</span><input value={subnet} onChange={(event) => setSubnet(event.target.value)} placeholder="192.168.1.0/24" /></label>
+                    <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={scanning || testing || saving || !subnet.trim()} onClick={() => void scanBambu()}>{scanning ? c.scanning : c.scan}</button></div>
+                  </div>
+                  <small>{c.candidateHint}</small>
+                  {scanAttempted && !scanning && candidates.length === 0 && <span>{c.noCandidates}</span>}
+                  {candidates.length > 0 && <div className="configured-printers">
+                    {candidates.map((candidate) => (
+                      <article className="configured-printer" key={`${candidate.host}-${candidate.serialNumber ?? ''}`}>
+                        <div>
+                          <strong>{candidate.displayName || candidate.model || candidate.host}</strong>
+                          <span>{candidate.model || c.bambu}</span>
+                          <small>{candidate.host}{candidate.serialNumber ? ` · ${candidate.serialNumber}` : ''}</small>
+                        </div>
+                        <div className="configured-actions"><button className="secondary-button" type="button" onClick={() => useCandidate(candidate)}>{c.useCandidate}</button></div>
+                      </article>
                     ))}
-                  </div> : !loadingSubnets && <small>{c.noSuggestedSubnets}</small>}
-                  <small>{c.subnetHint}</small>
+                  </div>}
                 </div>
                 <div className="setup-form-row">
-                  <label><span>{c.subnet}</span><input value={subnet} onChange={(event) => setSubnet(event.target.value)} placeholder="192.168.1.0/24" /></label>
-                  <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={scanning || testing || saving || !subnet.trim()} onClick={() => void scanBambu()}>{scanning ? c.scanning : c.scan}</button></div>
+                  <label><span>{c.host}</span><input value={host} onChange={(event) => setHost(event.target.value)} required placeholder="192.168.1.50" /></label>
+                  <label><span>{c.accessCode}</span><input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} required type="password" autoComplete="off" /></label>
                 </div>
-                <small>{c.candidateHint}</small>
-                {scanAttempted && !scanning && candidates.length === 0 && <span>{c.noCandidates}</span>}
-                {candidates.length > 0 && <div className="configured-printers">
-                  {candidates.map((candidate) => (
-                    <article className="configured-printer" key={`${candidate.host}-${candidate.serialNumber ?? ''}`}>
-                      <div>
-                        <strong>{candidate.displayName || candidate.model || candidate.host}</strong>
-                        <span>{candidate.model || c.bambu}</span>
-                        <small>{candidate.host}{candidate.serialNumber ? ` · ${candidate.serialNumber}` : ''}</small>
-                      </div>
-                      <div className="configured-actions"><button className="secondary-button" type="button" onClick={() => useCandidate(candidate)}>{c.useCandidate}</button></div>
-                    </article>
-                  ))}
-                </div>}
-              </div>
+              </>
+            )}
+
+            {step === 'connection' && kind === 'moonraker' && (
               <div className="setup-form-row">
-                <label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label>
-                <label>
-                  <span>{c.model}</span>
-                  <select
-                    value={customBambuModel ? '__custom__' : model}
-                    onChange={(event) => {
-                      if (event.target.value === '__custom__') {
-                        setCustomBambuModel(true);
-                        setModel('');
-                      } else {
-                        setCustomBambuModel(false);
-                        setModel(event.target.value);
-                      }
-                    }}
-                  >
-                    <option value="">{c.modelPlaceholder}</option>
-                    {bambuModelGroups.map((group) => (
-                      <optgroup key={group.series} label={group.series}>
-                        {group.models.map((bambuModel) => <option key={bambuModel} value={bambuModel}>{bambuModel}</option>)}
-                      </optgroup>
-                    ))}
-                    <option value="__custom__">{c.modelOther}</option>
-                  </select>
-                  {customBambuModel && <input value={model} onChange={(event) => setModel(event.target.value)} placeholder={c.modelCustom} />}
-                </label>
+                <label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.100:7125" /></label>
+                <label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label>
               </div>
-              <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value.toUpperCase())} required /><small>{c.bambuIdentityHint}</small></label>
-              <div className="setup-form-row"><label><span>{c.host}</span><input value={host} onChange={(event) => setHost(event.target.value)} required placeholder="192.168.1.50" /></label><label><span>{c.accessCode}</span><input value={accessCode} onChange={(event) => setAccessCode(event.target.value)} required type="password" autoComplete="off" /></label></div>
-            </> : <>
-              <div className="setup-form-row"><label><span>{c.printerId}</span><input value={printerId} onChange={(event) => setPrinterId(event.target.value)} required pattern="[A-Za-z0-9._-]{1,64}" /><small>{c.printerIdHint}</small></label><label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label></div>
-              <div className="setup-form-row"><label><span>{c.vendor}</span><input value={vendor} onChange={(event) => setVendor(event.target.value)} placeholder="Klipper" /></label><label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Ender-3 V3 KE" /></label></div>
-              <div className="setup-form-row"><label><span>{c.baseUrl}</span><input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} required placeholder="http://192.168.1.100:7125" /></label><label><span>{c.apiKey}</span><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type="password" autoComplete="off" /></label></div>
-            </>}
-            <div className="setup-form-actions"><button className="secondary-button" type="button" disabled={testing || saving || scanning} onClick={() => void testConnection()}>{testing ? c.testing : c.test}</button><button className="primary-button" type="submit" disabled={testing || saving || scanning}>{saving ? c.saving : c.save}</button></div>
+            )}
+
+            {step === 'identity' && kind === 'bambu' && (
+              <>
+                <div className="setup-form-row">
+                  <label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label>
+                  <label>
+                    <span>{c.model}</span>
+                    <select
+                      value={customBambuModel ? '__custom__' : model}
+                      onChange={(event) => {
+                        if (event.target.value === '__custom__') {
+                          setCustomBambuModel(true);
+                          setModel('');
+                        } else {
+                          setCustomBambuModel(false);
+                          setModel(event.target.value);
+                        }
+                      }}
+                    >
+                      <option value="">{c.modelPlaceholder}</option>
+                      {bambuModelGroups.map((group) => (
+                        <optgroup key={group.series} label={group.series}>
+                          {group.models.map((bambuModel) => <option key={bambuModel} value={bambuModel}>{bambuModel}</option>)}
+                        </optgroup>
+                      ))}
+                      <option value="__custom__">{c.modelOther}</option>
+                    </select>
+                    {customBambuModel && <input value={model} onChange={(event) => setModel(event.target.value)} placeholder={c.modelCustom} />}
+                  </label>
+                </div>
+                <label><span>{c.serial}</span><input value={serialNumber} onChange={(event) => setSerialNumber(event.target.value.toUpperCase())} required /><small>{c.bambuIdentityHint}</small></label>
+              </>
+            )}
+
+            {step === 'identity' && kind === 'moonraker' && (
+              <>
+                <div className="setup-form-row">
+                  <label><span>{c.printerId}</span><input value={printerId} onChange={(event) => setPrinterId(event.target.value)} required pattern="[A-Za-z0-9._-]{1,64}" /><small>{c.printerIdHint}</small></label>
+                  <label><span>{c.displayName}</span><input value={displayName} onChange={(event) => setDisplayName(event.target.value)} required /></label>
+                </div>
+                <div className="setup-form-row">
+                  <label><span>{c.vendor}</span><input value={vendor} onChange={(event) => setVendor(event.target.value)} placeholder="Klipper" /></label>
+                  <label><span>{c.model}</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder="Ender-3 V3 KE" /></label>
+                </div>
+              </>
+            )}
+
+            {step === 'verify' && (
+              <>
+                <div className="setup-review-grid">
+                  <div><span>{c.kind}</span><strong>{kind === 'bambu' ? c.bambu : c.moonraker}</strong></div>
+                  <div><span>{c.displayName}</span><strong>{payload.displayName}</strong></div>
+                  <div><span>{kind === 'bambu' ? c.host : c.baseUrl}</span><strong>{kind === 'bambu' ? payload.connection.host : payload.connection.baseUrl}</strong></div>
+                  <div><span>{c.model}</span><strong>{payload.model || '—'}</strong></div>
+                  <div><span>{kind === 'bambu' ? c.serial : c.printerId}</span><strong>{kind === 'bambu' ? payload.serialNumber : payload.printerId}</strong></div>
+                </div>
+                <div className={`setup-verification-state ${verified ? 'success' : 'pending'}`} role="status">
+                  <span className={`status-dot ${verified ? 'good' : 'warning'}`} aria-hidden="true" />
+                  <strong>{verified ? c.verified : c.verifyRequired}</strong>
+                </div>
+              </>
+            )}
+
+            <div className="setup-form-actions setup-wizard-actions">
+              {step !== 'provider' && <button className="secondary-button" type="button" disabled={testing || saving || scanning} onClick={() => setStep(previousPrinterSetupStep(step))}>{c.back}</button>}
+              {step !== 'verify' ? (
+                <button className="primary-button" type="button" disabled={!canAdvance || testing || saving || scanning} onClick={() => { setError(null); setStep(nextPrinterSetupStep(step)); }}>{c.next}</button>
+              ) : (
+                <>
+                  <button className="secondary-button" type="button" disabled={testing || saving || scanning} onClick={() => void testConnection()}>{testing ? c.testing : c.test}</button>
+                  <button className="primary-button" type="submit" disabled={!verified || testing || saving || scanning}>{saving ? c.saving : c.save}</button>
+                </>
+              )}
+            </div>
           </form>
         </div>
       </section>
