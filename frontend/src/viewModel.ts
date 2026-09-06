@@ -74,18 +74,22 @@ export function formatRelativeTime(observedAt: string, nowMs: number = Date.now(
   return `Updated ${Math.floor(deltaMs / 86_400_000)}d ago`;
 }
 
-export function describeMaterialSource(printer: PrinterViewModel): string {
+export function describeMaterialSource(
+  printer: PrinterViewModel,
+  emptyLabel = 'No material loaded',
+  genericLabel = 'Material loaded',
+): string {
   const slots = printer.materialSystem?.units.flatMap((unit) => unit.slots) ?? [];
   const active = slots.find((slot) => slot.activity === 'active' && slot.detectedMaterial);
   const loaded = slots.find((slot) => slot.presence === 'loaded' && slot.detectedMaterial);
   const material = (active ?? loaded)?.detectedMaterial;
 
-  if (!material) return 'No material loaded';
-  return [material.materialFamily, material.vendorName].filter(Boolean).join(' · ') || 'Material loaded';
+  if (!material) return emptyLabel;
+  return [material.materialFamily, material.vendorName].filter(Boolean).join(' · ') || genericLabel;
 }
 
 export function printerStatusLabel(printer: PrinterViewModel): string {
-  if (printer.snapshot.stale) return 'Stale';
+  if (printer.snapshot.stale) return 'stale';
   if (printer.snapshot.connection !== 'connected') return printer.snapshot.connection;
   return printer.snapshot.operationalState;
 }
