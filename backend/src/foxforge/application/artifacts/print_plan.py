@@ -107,8 +107,12 @@ class ArtifactPrintPlan:
 
     @property
     def ready_for_routing(self) -> bool:
-        return bool(self.plates) and all(plate.ready_for_routing for plate in self.plates) and not any(
-            issue.severity == PrintPlanIssueSeverity.BLOCKING and issue.plate_index is None for issue in self.issues
+        return (
+            bool(self.plates)
+            and all(plate.ready_for_routing for plate in self.plates)
+            and not any(
+                issue.severity == PrintPlanIssueSeverity.BLOCKING and issue.plate_index is None for issue in self.issues
+            )
         )
 
 
