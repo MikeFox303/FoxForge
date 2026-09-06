@@ -119,9 +119,29 @@ def test_legacy_single_external_dict_keeps_254_compatibility() -> None:
     assert len(state.material_units) == 1
     external = state.material_units[0]
     assert external.ams_id == 254
-    assert external.label == "External Left"
+    assert external.label == "External spool"
     assert external.trays[0].material_type == "TPU"
     assert external.trays[0].exists is True
+
+
+def test_single_explicit_254_external_source_does_not_imply_left_toolhead() -> None:
+    codec = BambuLanCodec()
+
+    state = codec.apply(
+        {
+            "print": {
+                "command": "push_status",
+                "vt_tray": [{"id": 254, "tray_type": "PLA", "tray_color": "FFFFFFFF", "remain": 51}],
+            }
+        }
+    )
+
+    assert state is not None
+    assert len(state.material_units) == 1
+    external = state.material_units[0]
+    assert external.ams_id == 254
+    assert external.label == "External spool"
+    assert external.trays[0].material_type == "PLA"
 
 
 def test_incremental_ams_and_external_updates_do_not_erase_each_other() -> None:
