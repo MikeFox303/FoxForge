@@ -21,12 +21,14 @@ from foxforge.domain.printers import (
 from foxforge.domain.printers.capabilities import (
     JobControlCapability,
     MaterialSystemCapability,
+    MaterialTopologyCapability,
     PrintExecutionCapability,
 )
 
 from .job_control import BambuJobControlCapability
 from .mapping import map_bambu_material_system, map_bambu_state
 from .material_system import BambuMaterialSystemCapability
+from .material_topology import BambuMaterialTopologyCapability, map_bambu_material_topology
 from .native import BambuNativeState
 from .print_execution import BambuPrintExecutionCapability, normalize_bambu_transport_error
 from .transport import BambuTransport, BambuTransportError
@@ -71,6 +73,7 @@ class BambuAdapter:
         self._sequence = 0
         self._pump_task: asyncio.Task[None] | None = None
         self._material = BambuMaterialSystemCapability(identity.printer_id, self.native_snapshot)
+        self._material_topology = BambuMaterialTopologyCapability(identity.printer_id, self.native_snapshot)
         self._printing = BambuPrintExecutionCapability(
             transport,
             self.snapshot,
@@ -79,6 +82,7 @@ class BambuAdapter:
         self._job_control = BambuJobControlCapability(transport, self.snapshot)
         self._capabilities: dict[type[object], object] = {
             cast(type[object], MaterialSystemCapability): self._material,
+            cast(type[object], MaterialTopologyCapability): self._material_topology,
             cast(type[object], PrintExecutionCapability): self._printing,
             cast(type[object], JobControlCapability): self._job_control,
         }
@@ -180,6 +184,11 @@ class BambuAdapter:
         current_material = map_bambu_material_system(self._identity.printer_id, native)
         if previous_material.units != current_material.units or previous_material.stale != current_material.stale:
             self._emit(PrinterEventKind.MATERIAL_SYSTEM_CHANGED, current_material)
+
+        previous_topology = map_bambu_material_topology(self._identity.printer_id, previous_native)
+        current_topology = map_bambu_material_topology(self._identity.printer_id, native)
+        if previous_topology.routes != current_topology.routes or previous_topology.stale != current_topology.stale:
+            self._emit(PrinterEventKind.MATERIAL_TOPOLOGY_CHANGED, current_topology)
 
         if reconcile:
             self._emit(PrinterEventKind.SNAPSHOT_RECONCILED, current)
