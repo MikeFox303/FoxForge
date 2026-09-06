@@ -1,0 +1,47 @@
+name: PR4a wire fix
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - backend/src/foxforge/adapters/bambu/lan_codec.py
+      - backend/tests/adapters/bambu/test_lan_codec_dispatch_mapping.py
+      - .github/workflows/pr4a-wire-fix.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Include external source IDs in ams_mapping2
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("backend/src/foxforge/adapters/bambu/lan_codec.py")
+          text = path.read_text()
+          old = 'ams_mapping2 = [{"ams_id": route.ams_id, "slot_id": route.tray_id} for route in routes if 0 <= route.ams_id < 254]'
+          new = 'ams_mapping2 = [{"ams_id": route.ams_id, "slot_id": route.tray_id} for route in routes if 0 <= route.ams_id <= 255]'
+          if old in text:
+              text = text.replace(old, new, 1)
+              path.write_text(text)
+          elif new not in text:
+              raise SystemExit("expected ams_mapping2 expression not found")
+          PY
+      - name: Commit scoped wire fix
+        shell: bash
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add backend/src/foxforge/adapters/bambu/lan_codec.py
+          git commit -m "fix: encode Bambu external sources in mapping2"
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
