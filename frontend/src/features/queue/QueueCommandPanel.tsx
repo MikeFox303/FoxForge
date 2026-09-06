@@ -6,24 +6,40 @@ import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { CommandApiError } from '../../data/commandClient';
-import type { FleetData, QueueViewModel } from '../../domain';
+import type { FleetData, PrinterViewModel, QueueViewModel } from '../../domain';
 import '../../queue-command.css';
 import {
   createQueueJobIdentity,
   dispatchPrintJob,
   enqueuePrintJob,
+  inspectArtifactPrintPlan,
   reconcilePrintJob,
   sha256File,
   stagePrintArtifact,
+  type ArtifactPrintPlan,
+  type MaterialBindingIntent,
+  type PrintPlanMaterialRequirement,
   type QueueCommandResult,
   type QueueJobIdentity,
   type StagedArtifact,
 } from './queueCommandClient';
+import {
+  artifactFormatFromFilename,
+  loadedMaterialSources,
+  materialCompatibility,
+  printerAcceptsFormat,
+  requiresExplicitMaterialRouting,
+  routePreview,
+  routingReviewReady,
+  selectedPlate,
+} from './queueMaterialRouting';
 
 type SubmitPhase =
   | 'idle'
   | 'hashing'
   | 'staging'
+  | 'inspecting'
+  | 'reviewing'
   | 'enqueuing'
   | 'queued'
   | 'dispatching'
@@ -40,6 +56,9 @@ interface PendingJob {
   requestedName: string;
   sha256?: string;
   artifact?: StagedArtifact;
+  printPlan?: ArtifactPrintPlan;
+  plateIndex?: number;
+  materialBindings: MaterialBindingIntent[];
   queue?: QueueCommandResult;
   dispatchIdempotencyKey?: string;
 }
@@ -49,7 +68,7 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
   const queryClient = useQueryClient();
   const printers = useMemo(
     () => fleet.printers.filter((printer) => (
-      printer.capabilities.some((item) => item.capabilityId === 'foxforge.print_execution')
+      printer.capabilities.some((item) => item.capabilityId === 'foxforge.print_execution' && item.majorVersion === 1)
     )),
     [fleet.printers],
   );
@@ -60,8 +79,29 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
   const [phase, setPhase] = useState<SubmitPhase>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  const busy = ['hashing', 'staging', 'enqueuing', 'dispatching'].includes(phase);
-  const canEnqueue = file !== null && printerId !== '' && !busy && !pending?.queue;
+  const selectedPrinter = printers.find((printer) => printer.identity.printerId === printerId);
+  const selectedFormat = file ? artifactFormatFromFilename(file.name) : undefined;
+  const formatAccepted = selectedPrinter ? printerAcceptsFormat(selectedPrinter, selectedFormat) : false;
+  const routingRequired = requiresExplicitMaterialRouting(selectedPrinter, selectedFormat);
+  const routingReady = routingReviewReady({
+    printer: selectedPrinter,
+    plan: pending?.printPlan,
+    plateIndex: pending?.plateIndex,
+    bindings: pending?.materialBindings ?? [],
+  });
+  const currentPlate = selectedPlate(pending?.printPlan, pending?.plateIndex);
+  const sources = loadedMaterialSources(selectedPrinter);
+  const busy = ['hashing', 'staging', 'inspecting', 'enqueuing', 'dispatching'].includes(phase);
+  const reviewRequiredBeforeEnqueue = routingRequired && !pending?.printPlan;
+  const canPrepareOrEnqueue = Boolean(
+    file
+      && printerId
+      && selectedFormat
+      && formatAccepted
+      && !busy
+      && !pending?.queue
+      && (!routingRequired || reviewRequiredBeforeEnqueue || routingReady),
+  );
   const canDispatch = Boolean(
     pending?.queue
       && !busy
@@ -79,6 +119,11 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
   const onFileChange = (selected: File | null) => {
     setFile(selected);
     setRequestedName(selected ? stripKnownExtension(selected.name) : '');
+    const nextFormat = selected ? artifactFormatFromFilename(selected.name) : undefined;
+    if (printerId) {
+      const currentPrinter = printers.find((printer) => printer.identity.printerId === printerId);
+      if (!printerAcceptsFormat(currentPrinter, nextFormat)) setPrinterId('');
+    }
     resetLogicalJob();
   };
 
@@ -87,14 +132,47 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
     resetLogicalJob();
   };
 
+  const changePlate = (plateIndex: number | undefined) => {
+    setPending((current) => current ? {
+      ...current,
+      identity: createQueueJobIdentity(),
+      plateIndex,
+      materialBindings: [],
+      queue: undefined,
+      dispatchIdempotencyKey: undefined,
+    } : current);
+    setPhase('reviewing');
+    setError(null);
+  };
+
+  const changeBinding = (materialIndex: number, slotId: string) => {
+    setPending((current) => {
+      if (!current) return current;
+      const remaining = current.materialBindings.filter((binding) => binding.materialIndex !== materialIndex);
+      const materialBindings = slotId
+        ? [...remaining, { materialIndex, slotId }].sort((left, right) => left.materialIndex - right.materialIndex)
+        : remaining;
+      return {
+        ...current,
+        identity: createQueueJobIdentity(),
+        materialBindings,
+        queue: undefined,
+        dispatchIdempotencyKey: undefined,
+      };
+    });
+    setPhase('reviewing');
+    setError(null);
+  };
+
   const addToQueue = async () => {
-    if (!file || !printerId) return;
+    if (!file || !printerId || !selectedPrinter || !selectedFormat || !formatAccepted) return;
     setError(null);
     const logicalJob = pending ?? {
       identity: createQueueJobIdentity(),
       file,
       printerId,
       requestedName: requestedName.trim(),
+      materialBindings: [],
     };
     setPending(logicalJob);
 
@@ -106,17 +184,40 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
 
       setPhase('staging');
       const artifact = logicalJob.artifact ?? await stagePrintArtifact(logicalJob.file, sha256);
-      const withArtifact = { ...withHash, artifact };
-      setPending(withArtifact);
+      let prepared: PendingJob = { ...withHash, artifact };
+      setPending(prepared);
+
+      if (requiresExplicitMaterialRouting(selectedPrinter, artifact.format)) {
+        if (!prepared.printPlan) {
+          setPhase('inspecting');
+          const printPlan = await inspectArtifactPrintPlan(artifact.artifactId);
+          const plateIndex = printPlan.plates.length === 1 ? printPlan.plates[0].plateIndex : undefined;
+          prepared = { ...prepared, printPlan, plateIndex, materialBindings: [] };
+          setPending(prepared);
+          setPhase('reviewing');
+          return;
+        }
+        if (!routingReviewReady({
+          printer: selectedPrinter,
+          plan: prepared.printPlan,
+          plateIndex: prepared.plateIndex,
+          bindings: prepared.materialBindings,
+        })) {
+          setPhase('reviewing');
+          return;
+        }
+      }
 
       setPhase('enqueuing');
       const queue = await enqueuePrintJob({
-        identity: logicalJob.identity,
-        printerId: logicalJob.printerId,
+        identity: prepared.identity,
+        printerId: prepared.printerId,
         artifactId: artifact.artifactId,
-        requestedName: logicalJob.requestedName,
+        requestedName: prepared.requestedName,
+        plateIndex: prepared.plateIndex,
+        materialBindings: prepared.materialBindings.length ? prepared.materialBindings : undefined,
       });
-      setPending({ ...withArtifact, queue });
+      setPending({ ...prepared, queue });
       setPhase('queued');
       await refreshQueue(queryClient);
     } catch (cause) {
@@ -183,12 +284,22 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
           >
             <option value="">{t('alpha.queueCommand.choosePrinter')}</option>
             {printers.map((printer) => (
-              <option key={printer.identity.printerId} value={printer.identity.printerId}>
+              <option
+                key={printer.identity.printerId}
+                value={printer.identity.printerId}
+                disabled={Boolean(selectedFormat) && !printerAcceptsFormat(printer, selectedFormat)}
+              >
                 {printer.identity.displayName}
               </option>
             ))}
           </select>
-          <small>{printers.length ? t('alpha.queueCommand.printerHint') : t('alpha.queueCommand.noCapablePrinter')}</small>
+          <small>
+            {selectedPrinter && selectedFormat && !formatAccepted
+              ? t('queueRouting.formatUnsupported')
+              : printers.length
+                ? t('alpha.queueCommand.printerHint')
+                : t('alpha.queueCommand.noCapablePrinter')}
+          </small>
         </label>
 
         <label className="queue-command-field">
@@ -207,9 +318,24 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
         </label>
       </div>
 
+      {routingRequired && pending?.printPlan && (
+        <MaterialRoutingReview
+          printer={selectedPrinter}
+          plan={pending.printPlan}
+          plateIndex={pending.plateIndex}
+          bindings={pending.materialBindings}
+          onPlateChange={changePlate}
+          onBindingChange={changeBinding}
+        />
+      )}
+
       <div className="queue-command-status" role="status" aria-live="polite">
         <strong>{phaseLabel(phase, t)}</strong>
-        <span>{phaseText(phase, t)}</span>
+        <span>
+          {phase === 'reviewing'
+            ? t(routingReady ? 'queueRouting.reviewReady' : 'queueRouting.reviewBlocked')
+            : phaseText(phase, t)}
+        </span>
         {pending?.sha256 && <code title={pending.sha256}>{pending.sha256.slice(0, 12)}…</code>}
       </div>
 
@@ -229,8 +355,19 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
 
       <div className="queue-command-actions">
         {!pending?.queue && (
-          <button className="primary-button" type="button" disabled={!canEnqueue} onClick={() => void addToQueue()}>
-            {phase === 'error' ? t('alpha.queueCommand.retryAddRequest') : t('alpha.queueCommand.addToQueue')}
+          <button
+            className="primary-button"
+            type="button"
+            disabled={!canPrepareOrEnqueue}
+            onClick={() => void addToQueue()}
+          >
+            {routingRequired && !pending?.printPlan
+              ? t('queueRouting.inspect')
+              : routingRequired
+                ? t('queueRouting.addBoundJob')
+                : phase === 'error'
+                  ? t('alpha.queueCommand.retryAddRequest')
+                  : t('alpha.queueCommand.addToQueue')}
           </button>
         )}
         {pending?.queue && canDispatch && (
@@ -260,6 +397,148 @@ export function QueueCommandPanel({ fleet }: { fleet: FleetData }) {
       )}
     </section>
   );
+}
+
+function MaterialRoutingReview({
+  printer,
+  plan,
+  plateIndex,
+  bindings,
+  onPlateChange,
+  onBindingChange,
+}: {
+  printer: PrinterViewModel | undefined;
+  plan: ArtifactPrintPlan;
+  plateIndex: number | undefined;
+  bindings: MaterialBindingIntent[];
+  onPlateChange: (plateIndex: number | undefined) => void;
+  onBindingChange: (materialIndex: number, slotId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const plate = selectedPlate(plan, plateIndex);
+  const sources = loadedMaterialSources(printer);
+  const missingSnapshots = !printer?.materialSystem || !printer.materialTopology;
+  const staleSnapshots = Boolean(printer?.materialSystem?.stale || printer?.materialTopology?.stale);
+  const relevantIssues = plan.issues.filter((issue) => issue.plateIndex === null || issue.plateIndex === plateIndex);
+
+  return (
+    <section className="queue-routing-review" aria-labelledby="queue-routing-review-title">
+      <div className="queue-routing-heading">
+        <div>
+          <div className="eyebrow accent">{t('queueRouting.reviewTitle')}</div>
+          <h4 id="queue-routing-review-title">{t('queueRouting.reviewTitle')}</h4>
+          <p>{t('queueRouting.reviewText')}</p>
+        </div>
+        <span className="queue-routing-explicit">{t('alpha.queueCommand.safeBoundary')}</span>
+      </div>
+
+      {plan.plates.length > 1 && (
+        <label className="queue-command-field queue-routing-plate">
+          <span>{t('queueRouting.plate')}</span>
+          <select
+            value={plateIndex ?? ''}
+            onChange={(event) => onPlateChange(event.currentTarget.value ? Number(event.currentTarget.value) : undefined)}
+          >
+            <option value="">{t('queueRouting.choosePlate')}</option>
+            {plan.plates.map((candidate) => (
+              <option key={candidate.plateIndex} value={candidate.plateIndex}>
+                {t('queueRouting.plate')} {candidate.plateIndex}{candidate.readyForRouting ? '' : ' · blocked'}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+
+      {!plan.readyForRouting && <RoutingAlert text={t('queueRouting.planBlocked')} />}
+      {plate && !plate.readyForRouting && <RoutingAlert text={t('queueRouting.plateBlocked')} />}
+      {missingSnapshots && <RoutingAlert text={t('queueRouting.systemMissing')} />}
+      {staleSnapshots && <RoutingAlert text={t('queueRouting.systemStale')} />}
+      {relevantIssues.map((issue, index) => (
+        <RoutingAlert key={`${issue.code}-${issue.plateIndex ?? 'all'}-${index}`} text={t('queueRouting.planIssue', { message: issue.message })} />
+      ))}
+
+      {plate && (
+        <div className="queue-routing-requirements">
+          {plate.materialRequirements.map((requirement) => (
+            <MaterialRequirementBinding
+              key={requirement.materialIndex}
+              printer={printer}
+              requirement={requirement}
+              slotId={bindings.find((binding) => binding.materialIndex === requirement.materialIndex)?.slotId ?? ''}
+              sources={sources}
+              onChange={(slotId) => onBindingChange(requirement.materialIndex, slotId)}
+            />
+          ))}
+        </div>
+      )}
+
+      {plate && sources.length === 0 && <RoutingAlert text={t('queueRouting.noLoadedSources')} />}
+      <div className={`queue-routing-gate ${routingReviewReady({ printer, plan, plateIndex, bindings }) ? 'ready' : 'blocked'}`}>
+        {t(routingReviewReady({ printer, plan, plateIndex, bindings }) ? 'queueRouting.reviewReady' : 'queueRouting.reviewBlocked')}
+      </div>
+    </section>
+  );
+}
+
+function MaterialRequirementBinding({
+  printer,
+  requirement,
+  slotId,
+  sources,
+  onChange,
+}: {
+  printer: PrinterViewModel | undefined;
+  requirement: PrintPlanMaterialRequirement;
+  slotId: string;
+  sources: ReturnType<typeof loadedMaterialSources>;
+  onChange: (slotId: string) => void;
+}) {
+  const { t } = useTranslation();
+  const selectedSource = sources.find((source) => source.slot.slotId === slotId);
+  const compatibility = selectedSource ? materialCompatibility(requirement, selectedSource.slot) : undefined;
+  const route = selectedSource ? routePreview(printer, requirement, selectedSource.slot.slotId) : undefined;
+
+  return (
+    <article className="queue-routing-requirement">
+      <div className="queue-routing-requirement-head">
+        <strong>{t('queueRouting.requirement', { index: requirement.materialIndex })}</strong>
+        <div className="queue-routing-meta">
+          <span>{t('queueRouting.material')}: {requirement.materialFamily ?? '—'}</span>
+          {requirement.profileName && <span>{t('queueRouting.profile')}: {requirement.profileName}</span>}
+          <span>
+            {t('queueRouting.expectedToolhead')}: {requirement.expectedToolheadPosition ?? t('queueRouting.toolheadUnknown')}
+          </span>
+        </div>
+      </div>
+
+      <label className="queue-command-field">
+        <span>{t('queueRouting.source')}</span>
+        <select value={slotId} onChange={(event) => onChange(event.currentTarget.value)}>
+          <option value="">{t('queueRouting.chooseSource')}</option>
+          {sources.map((source) => (
+            <option key={source.slot.slotId} value={source.slot.slotId}>
+              {source.unitLabel} · {source.slotLabel} · {source.slot.detectedMaterial?.materialFamily ?? 'unknown'}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      {selectedSource && (
+        <div className="queue-routing-source-status">
+          <span className={`queue-routing-status ${compatibility === 'match' || compatibility === 'unconstrained' ? 'ready' : 'blocked'}`}>
+            {compatibilityText(compatibility, t)}
+          </span>
+          <span className={`queue-routing-status ${route?.state === 'ready' ? 'ready' : 'blocked'}`}>
+            {routeText(route, t)}
+          </span>
+        </div>
+      )}
+    </article>
+  );
+}
+
+function RoutingAlert({ text }: { text: string }) {
+  return <div className="queue-routing-alert" role="alert">{text}</div>;
 }
 
 export function QueueEntryActions({ entry }: { entry: QueueViewModel }) {
@@ -375,6 +654,8 @@ function dispatchButtonLabel(phase: SubmitPhase, t: (key: string) => string): st
 function phaseLabel(phase: SubmitPhase, t: (key: string) => string): string {
   if (phase === 'hashing') return t('alpha.queueCommand.hashing');
   if (phase === 'staging') return t('alpha.queueCommand.uploading');
+  if (phase === 'inspecting') return t('queueRouting.inspecting');
+  if (phase === 'reviewing') return t('queueRouting.reviewTitle');
   if (phase === 'enqueuing') return t('alpha.queueCommand.enqueuing');
   if (phase === 'queued') return t('alpha.queueCommand.queued');
   if (phase === 'dispatching') return t('alpha.queueCommand.dispatching');
@@ -393,6 +674,30 @@ function phaseText(phase: SubmitPhase, t: (key: string) => string): string {
   if (phase === 'indeterminate') return t('alpha.queueCommand.indeterminateShort');
   if (phase === 'failed') return t('alpha.queueCommand.failedText');
   if (phase === 'error') return t('alpha.queueCommand.retrySameCommand');
-  if (['hashing', 'staging', 'enqueuing', 'dispatching'].includes(phase)) return t('alpha.queueCommand.workingText');
+  if (['hashing', 'staging', 'inspecting', 'enqueuing', 'dispatching'].includes(phase)) {
+    return t('alpha.queueCommand.workingText');
+  }
   return t('alpha.queueCommand.readyText');
+}
+
+function compatibilityText(
+  compatibility: ReturnType<typeof materialCompatibility> | undefined,
+  t: (key: string) => string,
+): string {
+  if (compatibility === 'match') return t('queueRouting.materialMatch');
+  if (compatibility === 'mismatch') return t('queueRouting.materialMismatch');
+  if (compatibility === 'unknown') return t('queueRouting.materialUnknown');
+  return t('queueRouting.materialUnconstrained');
+}
+
+function routeText(
+  route: ReturnType<typeof routePreview> | undefined,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string {
+  if (!route) return t('queueRouting.routeUnknown');
+  if (route.state === 'ready') return t('queueRouting.routeReady', { toolheads: route.toolheadLabels.join(', ') });
+  if (route.state === 'ambiguous') return t('queueRouting.routeAmbiguous');
+  if (route.state === 'incompatible') return t('queueRouting.routeIncompatible');
+  if (route.state === 'stale') return t('queueRouting.routeStale');
+  return t('queueRouting.routeUnknown');
 }
