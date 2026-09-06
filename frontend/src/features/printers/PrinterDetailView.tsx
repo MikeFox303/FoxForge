@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate, useParams } from 'react-router-dom';
 
-import type { FleetData, MaterialSlotSnapshot, PrinterViewModel } from '../../domain';
+import type { FleetData, MaterialRouteSnapshot, MaterialSlotSnapshot, PrinterViewModel } from '../../domain';
 import {
   describeMaterialSource,
   formatDuration,
@@ -189,6 +189,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
               <div className="slot-grid printer-detail-slot-grid">{unit.slots.map((slot) => <MaterialSlot slot={slot} key={slot.slotId} />)}</div>
             </section>
           )) ?? <div className="panel empty-state">{t('printerDetail.noMaterialData')}</div>}
+          <MaterialTopologyPanel printer={printer} />
         </section>
       )}
 
@@ -276,6 +277,92 @@ function MaterialSlot({ slot }: { slot: MaterialSlotSnapshot }) {
           {fraction !== undefined && <Progress value={fraction} />}
         </>
       ) : <div className="empty-slot-label">{t('printerDetail.empty')}</div>}
+    </article>
+  );
+}
+
+function MaterialTopologyPanel({ printer }: { printer: PrinterViewModel }) {
+  const { t } = useTranslation();
+  const topology = printer.materialTopology;
+  if (!topology) {
+    return (
+      <section className="panel material-topology-panel">
+        <div className="material-topology-head">
+          <div>
+            <div className="eyebrow">{t('printerDetail.topology.eyebrow')}</div>
+            <h3>{t('printerDetail.topology.title')}</h3>
+          </div>
+        </div>
+        <div className="empty-state material-topology-empty">{t('printerDetail.topology.noData')}</div>
+      </section>
+    );
+  }
+
+  const slots = materialSlots(printer);
+  return (
+    <section className={`panel material-topology-panel ${topology.stale ? 'stale' : ''}`}>
+      <div className="material-topology-head">
+        <div>
+          <div className="eyebrow">{t('printerDetail.topology.eyebrow')}</div>
+          <h3>{t('printerDetail.topology.title')}</h3>
+          <p>{t('printerDetail.topology.text')}</p>
+        </div>
+        <span className={`material-topology-health ${topology.stale ? 'stale' : 'fresh'}`}>
+          {t(`printerDetail.topology.${topology.stale ? 'stale' : 'fresh'}`)}
+        </span>
+      </div>
+      {topology.stale && <div className="material-topology-warning" role="status">{t('printerDetail.topology.staleText')}</div>}
+      {topology.routes.length ? (
+        <div className="material-topology-grid">
+          {topology.routes.map((route) => (
+            <MaterialTopologyRoute
+              key={route.sourceSlotId}
+              printer={printer}
+              route={route}
+              sourceSlot={slots.find((slot) => slot.slotId === route.sourceSlotId)}
+            />
+          ))}
+        </div>
+      ) : <div className="empty-state material-topology-empty">{t('printerDetail.topology.noRoutes')}</div>}
+    </section>
+  );
+}
+
+function MaterialTopologyRoute({
+  printer,
+  route,
+  sourceSlot,
+}: {
+  printer: PrinterViewModel;
+  route: MaterialRouteSnapshot;
+  sourceSlot?: MaterialSlotSnapshot;
+}) {
+  const { t } = useTranslation();
+  const topology = printer.materialTopology;
+  const material = sourceSlot?.detectedMaterial;
+  const targetToolheads = route.toolheadIds
+    .map((toolheadId) => topology?.toolheads.find((toolhead) => toolhead.toolheadId === toolheadId))
+    .filter((toolhead) => toolhead !== undefined);
+  const hasUnresolvedTarget = route.toolheadIds.length === 0 || targetToolheads.length !== route.toolheadIds.length;
+  const warning = topology?.stale || route.kind === 'unknown' || hasUnresolvedTarget;
+
+  return (
+    <article className={`material-topology-route kind-${route.kind} ${warning ? 'warning' : ''}`}>
+      <div className="material-topology-source">
+        <span>{t('printerDetail.topology.source')}</span>
+        <strong>{sourceSlot?.label ?? route.sourceSlotId}</strong>
+        {material?.materialFamily && <small>{material.materialFamily}</small>}
+      </div>
+      <div className="material-topology-arrow" aria-hidden="true">→</div>
+      <div className="material-topology-target">
+        <span className={`material-route-kind kind-${route.kind}`}>{t(`printerDetail.topology.routeKinds.${route.kind}`)}</span>
+        {targetToolheads.length ? targetToolheads.map((toolhead) => (
+          <strong key={toolhead.toolheadId}>
+            {toolhead.label ?? t('printerDetail.topology.toolheadPosition', { position: toolhead.position + 1 })}
+          </strong>
+        )) : <strong>{t('printerDetail.topology.unresolved')}</strong>}
+        {hasUnresolvedTarget && route.toolheadIds.length > 0 && <small>{t('printerDetail.topology.incompleteTarget')}</small>}
+      </div>
     </article>
   );
 }

@@ -64,6 +64,23 @@ Routing-only changes emit `material_topology_changed` so realtime clients can in
 
 Moonraker does not advertise this capability merely because the common contract exists.
 
+## Printer Detail UI contract
+
+The generic Printer Detail `Materials` view renders topology only from the typed `materialTopology` read model. It does not inspect `vendor`, `model`, Bambu AMS IDs, external source IDs or protocol fields.
+
+Presentation rules:
+
+- source names are resolved from `material_system` by opaque `sourceSlotId` when a friendly slot label is available;
+- toolhead names come from topology display metadata, with physical position used only as a generic label fallback;
+- `fixed`, `dynamic` and `unknown` remain visually distinct rather than being flattened into a single connection type;
+- `unknown` routes never display a guessed toolhead;
+- unresolved toolhead IDs are visibly incomplete rather than silently discarded;
+- stale topology is marked as last-reported data and must not look equivalent to a fresh route;
+- absence of the capability is shown as unavailable topology, not inferred from the printer model;
+- responsive layout must preserve route/source/target readability without horizontal viewport overflow.
+
+This UI remains observational. It does not choose print bindings or authorize dispatch. The queue routing compiler remains the authority for fresh material/toolhead validation immediately before a physical print side effect.
+
 ## Safety rules
 
 1. Unknown routing is represented explicitly; it is never defaulted to toolhead/extruder 0.
@@ -98,7 +115,10 @@ Automated tests must prove at minimum:
 - partial AMS updates that omit routing metadata preserve the last authoritative reading;
 - an explicit later unsupported/uninitialized routing value clears the prior fixed route;
 - Bambu advertises the capability while Moonraker does not;
-- fleet/API serialization contains only common topology fields.
+- fleet/API serialization contains only common topology fields;
+- Printer Detail renders fixed Left/Right topology from common fields only;
+- stale and unknown routes are visibly non-authoritative;
+- phone viewport rendering does not overflow horizontally.
 
 Physical validation of the final Alpha 5 candidate is still required on Raspberry Pi 5 + Umbrel + the real X2D.
 
