@@ -40,6 +40,7 @@ export type FaultSeverity = 'info' | 'warning' | 'error' | 'critical';
 export type MaterialUnitKind = 'multi_slot' | 'external' | 'toolhead' | 'other';
 export type MaterialPresence = 'empty' | 'loaded' | 'unknown';
 export type MaterialActivity = 'inactive' | 'active' | 'unknown';
+export type MaterialRouteKind = 'fixed' | 'dynamic' | 'unknown';
 
 export interface PrinterIdentity {
   printerId: string;
@@ -83,6 +84,7 @@ export interface CapabilityDescriptor {
   label: string;
   supportedActions?: JobControlAction[];
   requiresVendorJobIdentity?: boolean;
+  reportsDynamicRoutes?: boolean;
 }
 
 export interface DetectedMaterial {
@@ -119,11 +121,32 @@ export interface MaterialSystemSnapshot {
   stale: boolean;
 }
 
+export interface MaterialToolheadSnapshot {
+  toolheadId: string;
+  label?: string;
+  position: number;
+}
+
+export interface MaterialRouteSnapshot {
+  sourceSlotId: string;
+  toolheadIds: string[];
+  kind: MaterialRouteKind;
+}
+
+export interface MaterialTopologySnapshot {
+  printerId: string;
+  toolheads: MaterialToolheadSnapshot[];
+  routes: MaterialRouteSnapshot[];
+  observedAt: string;
+  stale: boolean;
+}
+
 export interface PrinterViewModel {
   identity: PrinterIdentity;
   snapshot: PrinterSnapshot;
   capabilities: CapabilityDescriptor[];
   materialSystem?: MaterialSystemSnapshot;
+  materialTopology?: MaterialTopologySnapshot;
 }
 
 export interface QueueViewModel {
