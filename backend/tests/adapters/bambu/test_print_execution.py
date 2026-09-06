@@ -14,12 +14,13 @@ from foxforge.domain.printers import PrinterAdapterError, PrinterErrorCode
 from foxforge.domain.printers.capabilities import (
     MaterialBinding,
     PrintArtifactSelection,
+    PrintAssessmentBlockerCode,
     PrintExecutionCapability,
     PrintExecutionRequest,
 )
 
 
-def test_bambu_dispatch_translates_plate_and_material_routes(
+def test_bambu_dispatch_translates_compiled_plate_material_and_nozzle_routes(
     bambu_identity,
     fake_bambu_transport,
     bambu_3mf,
@@ -34,8 +35,16 @@ def test_bambu_dispatch_translates_plate_and_material_routes(
             artifact=bambu_3mf,
             selection=PrintArtifactSelection(plate_index=0),
             material_bindings=(
-                MaterialBinding(material_index=0, slot_id="bambu:unit:0:tray:0"),
-                MaterialBinding(material_index=1, slot_id="bambu:unit:0:tray:1"),
+                MaterialBinding(
+                    material_index=0,
+                    slot_id="bambu:unit:0:tray:0",
+                    toolhead_id="bambu:toolhead:0",
+                ),
+                MaterialBinding(
+                    material_index=1,
+                    slot_id="bambu:unit:0:tray:1",
+                    toolhead_id="bambu:toolhead:0",
+                ),
             ),
             requested_name="PETG with support",
         )
@@ -48,10 +57,77 @@ def test_bambu_dispatch_translates_plate_and_material_routes(
         assert fake_bambu_transport.submit_count == 1
         native = fake_bambu_transport.submitted[0]
         assert native.plate_number == 1
-        assert [(route.material_index, route.ams_id, route.tray_id) for route in native.material_routes] == [
-            (0, 0, 0),
-            (1, 0, 1),
+        assert [
+            (route.material_index, route.ams_id, route.tray_id, route.nozzle_index)
+            for route in native.material_routes
+        ] == [
+            (0, 0, 0, 0),
+            (1, 0, 1, 0),
         ]
+        await adapter.disconnect()
+
+    asyncio.run(scenario())
+
+
+def test_bambu_material_binding_requires_compiler_owned_toolhead(
+    bambu_identity,
+    fake_bambu_transport,
+    bambu_3mf,
+) -> None:
+    async def scenario() -> None:
+        adapter = BambuAdapter(bambu_identity, fake_bambu_transport)
+        await adapter.connect()
+        printing = adapter.capability(PrintExecutionCapability)
+        assert printing is not None
+        request = PrintExecutionRequest(
+            uuid4(),
+            bambu_3mf,
+            material_bindings=(MaterialBinding(0, "bambu:unit:0:tray:0"),),
+        )
+
+        assessment = await printing.assess(request)
+
+        assert not assessment.eligible
+        assert assessment.blockers[0].code == PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID
+        with pytest.raises(PrinterAdapterError) as caught:
+            await printing.submit(request)
+        assert caught.value.code == PrinterErrorCode.INVALID_REQUEST
+        assert fake_bambu_transport.submit_count == 0
+        await adapter.disconnect()
+
+    asyncio.run(scenario())
+
+
+def test_bambu_revalidates_compiled_toolhead_against_current_native_topology(
+    bambu_identity,
+    fake_bambu_transport,
+    bambu_3mf,
+) -> None:
+    async def scenario() -> None:
+        adapter = BambuAdapter(bambu_identity, fake_bambu_transport)
+        await adapter.connect()
+        printing = adapter.capability(PrintExecutionCapability)
+        assert printing is not None
+        request = PrintExecutionRequest(
+            uuid4(),
+            bambu_3mf,
+            material_bindings=(
+                MaterialBinding(
+                    0,
+                    "bambu:unit:0:tray:0",
+                    "bambu:toolhead:1",
+                ),
+            ),
+        )
+
+        assessment = await printing.assess(request)
+
+        assert not assessment.eligible
+        assert assessment.blockers[0].code == PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID
+        with pytest.raises(PrinterAdapterError) as caught:
+            await printing.submit(request)
+        assert caught.value.code == PrinterErrorCode.INVALID_REQUEST
+        assert fake_bambu_transport.submit_count == 0
         await adapter.disconnect()
 
     asyncio.run(scenario())
