@@ -9,10 +9,13 @@ The latest semantic release is `v0.1.0-alpha.4.3`.
 The current Umbrel package is a **Pre-Alpha 5 validation candidate**, not final Alpha 5:
 
 ```text
-package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
-source: 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image: ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.3
+source: 37d1cbed8f73d62acdc1994545bc2f5ee57e816a
+image: ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
+Store commit: cc6010fdff4823b671a92be3b307155f26db85bc
 ```
+
+Candidate 3 replaces candidate 2 as the current physical-test target because the material-routing, queue and Bambu native print-command behavior changed after candidate 2.
 
 ## Runtime model
 
