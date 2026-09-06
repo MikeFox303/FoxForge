@@ -72,12 +72,18 @@ class PrintArtifactSelection:
 class MaterialBinding:
     material_index: int
     slot_id: MaterialSlotId
+    toolhead_id: str | None = None
 
     def __post_init__(self) -> None:
         if self.material_index < 0:
             raise ValueError("material_index must be zero-based and non-negative")
         if not self.slot_id:
             raise ValueError("slot_id must not be empty")
+        if self.toolhead_id is not None:
+            normalized_toolhead = self.toolhead_id.strip()
+            if not normalized_toolhead:
+                raise ValueError("toolhead_id must be a non-empty string when present")
+            object.__setattr__(self, "toolhead_id", normalized_toolhead)
 
 
 @dataclass(frozen=True, slots=True)
