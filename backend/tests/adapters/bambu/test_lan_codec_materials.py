@@ -137,7 +137,13 @@ def test_incremental_ams_and_external_updates_do_not_erase_each_other() -> None:
                 "command": "push_status",
                 "vt_tray": [
                     {"id": 254, "state": 9},
-                    {"id": 255, "state": 0, "tray_type": "PLA", "tray_color": "FFFFFFFF", "remain": 41},
+                    {
+                        "id": 255,
+                        "state": 0,
+                        "tray_type": "PLA",
+                        "tray_color": "FFFFFFFF",
+                        "remain": 41,
+                    },
                 ],
             }
         }
