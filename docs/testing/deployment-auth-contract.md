@@ -31,12 +31,13 @@ The browser acceptance layer separately checks that operator credentials remain 
 
 ## Umbrel contract
 
-The current Store package is Pre-Alpha 5 validation candidate 2:
+The current Store package is Pre-Alpha 5 validation candidate 3:
 
 ```text
-my3d-foxforge 0.1.0-alpha.4.3-umbrel.2
-source 37b253f385c19451c7ea075a4a4d12378cf17cf2
-image ghcr.io/mikefox303/foxforge:sha-37b253f@sha256:e550c8026ed6ec80e973d91fe6d96cc1474d537ca87de7875ec54f4a03aaaa4f
+my3d-foxforge 0.1.0-alpha.4.3-umbrel.3
+source 37d1cbed8f73d62acdc1994545bc2f5ee57e816a
+image ghcr.io/mikefox303/foxforge:sha-37d1cbe@sha256:4e652006212db2527804abbd478b7b64fde127414b1dbe22703854280ccfce82
+Store cc6010fdff4823b671a92be3b307155f26db85bc
 ```
 
 The package:
@@ -45,7 +46,8 @@ The package:
 - exposes the app credential through the Umbrel UI for GUI-only operator unlock;
 - keeps App Proxy enabled as a separate boundary;
 - does not require host networking, privileged mode or Docker socket access;
-- pins an immutable candidate image digest.
+- pins an immutable candidate image digest;
+- passed its package contract and anonymous `linux/amd64` + `linux/arm64` runtime smoke checks for the exact Candidate 3 digest.
 
 This proves package/bootstrap intent and reproducibility. It does not prove real Raspberry Pi/network/printer behavior.
 
@@ -64,7 +66,7 @@ AUD-003 remains `VALIDATION REQUIRED` until the exact current candidate demonstr
 - upgrade behavior where applicable;
 - representative SSE reconnect/resync.
 
-Use the current milestone runbook rather than a historical Alpha 4.2 package identity.
+Use the current milestone runbook rather than a historical Alpha 4.2, Candidate 1 or Candidate 2 package identity.
 
 ## Package/release requirements
 
