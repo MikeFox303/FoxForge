@@ -48,8 +48,7 @@ def test_slice_group_assignment_overrides_project_nozzle_preference(tmp_path) ->
             ),
             (
                 "Metadata/slice_info.config",
-                '<config><plate><metadata key="index" value="1"/>'
-                '<filament id="1" group_id="1"/></plate></config>',
+                '<config><plate><metadata key="index" value="1"/><filament id="1" group_id="1"/></plate></config>',
             ),
             ("Metadata/plate_1.gcode", "M620 S0A\n"),
         ],
@@ -73,10 +72,10 @@ def test_toolhead_expectations_are_plate_scoped(tmp_path) -> None:
             ),
             (
                 "Metadata/slice_info.config",
-                '<config>'
+                "<config>"
                 '<plate><metadata key="index" value="1"/><filament id="1" group_id="0"/></plate>'
                 '<plate><metadata key="index" value="2"/><filament id="1" group_id="1"/></plate>'
-                '</config>',
+                "</config>",
             ),
             ("Metadata/plate_1.gcode", "M620 S0A\n"),
             ("Metadata/plate_2.gcode", "M620 S0A\n"),
@@ -172,7 +171,7 @@ def test_forbidden_xml_declarations_fail_closed_without_using_fallback(tmp_path)
                 "Metadata/slice_info.config",
                 '<!DOCTYPE config [<!ENTITY x "boom">]><config><plate>'
                 '<metadata key="index" value="1"/><filament id="1" group_id="0"/>'
-                '</plate></config>',
+                "</plate></config>",
             ),
             ("Metadata/plate_1.gcode", "M620 S0A\n"),
         ],
