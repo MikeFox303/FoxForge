@@ -1,0 +1,33 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.printer-card-sources {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.printer-card-sources .count-pill {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.printer-card.density-compact {
+  min-height: 0;
+}
+
+.printer-card.density-compact .job-block,
+.printer-card.density-compact .idle-surface {
+  margin-top: 2px;
+}
+
+@media (max-width: 640px) {
+  .printer-card-sources {
+    gap: 7px;
+  }
+
+  .printer-card-sources .count-pill {
+    font-size: 9px;
+  }
+}

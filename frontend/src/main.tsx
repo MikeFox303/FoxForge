@@ -14,6 +14,7 @@ import './styles.css';
 import './refinements.css';
 import './inventory.css';
 import './printer-detail.css';
+import './printer-card.css';
 import './job-control.css';
 import './printer-setup.css';
 import './operator-access.css';
