@@ -49,8 +49,15 @@ def parse_bambu_toolhead_expectations(
     if settings is None:
         return {}, ()
 
+    slice_root, slice_error = _slice_info_root(archive, infos)
+
     if "physical_extruder_map" not in settings:
-        return {}, ()
+        if slice_error is not None:
+            return {}, _warnings_for_plates(plate_indices, slice_error)
+        if slice_root is None:
+            return {}, ()
+        return {}, _warnings_for_missing_physical_map(slice_root, plate_indices)
+
     physical_map = _physical_extruder_map(settings.get("physical_extruder_map"))
     if physical_map is None:
         return {}, _warnings_for_plates(
@@ -58,14 +65,17 @@ def parse_bambu_toolhead_expectations(
             "project_settings.config contains an invalid physical_extruder_map",
         )
     if len(physical_map) <= 1:
-        return {}, ()
+        if slice_error is not None:
+            return {}, _warnings_for_plates(plate_indices, slice_error)
+        if slice_root is None:
+            return {}, ()
+        return {}, _single_toolhead_warnings(slice_root, plate_indices, physical_map)
 
     fallback, fallback_error = _fallback_expectations(
         settings.get("filament_nozzle_map"),
         physical_map,
         present="filament_nozzle_map" in settings,
     )
-    slice_root, slice_error = _slice_info_root(archive, infos)
     if slice_root is None:
         if slice_error is not None:
             return {}, _warnings_for_plates(plate_indices, slice_error)
@@ -78,18 +88,15 @@ def parse_bambu_toolhead_expectations(
     plates = slice_root.findall(".//plate")
 
     for plate_index in plate_indices:
-        if plates:
-            target = _plate_for_index(plates, plate_index + 1)
-            if target is None:
-                warnings.append(
-                    ToolheadMetadataWarning(
-                        plate_index,
-                        "slice_info.config does not contain an unambiguous entry for this plate",
-                    )
+        target = _target_plate(slice_root, plates, plate_index)
+        if target is None:
+            warnings.append(
+                ToolheadMetadataWarning(
+                    plate_index,
+                    "slice_info.config does not contain an unambiguous entry for this plate",
                 )
-                continue
-        else:
-            target = slice_root
+            )
+            continue
 
         actual, state = _actual_plate_expectations(target, physical_map)
         if state == "actual":
@@ -115,6 +122,74 @@ def _warnings_for_plates(
     message: str,
 ) -> tuple[ToolheadMetadataWarning, ...]:
     return tuple(ToolheadMetadataWarning(plate_index, message) for plate_index in plate_indices)
+
+
+def _warnings_for_missing_physical_map(
+    slice_root: ET.Element,
+    plate_indices: tuple[int, ...],
+) -> tuple[ToolheadMetadataWarning, ...]:
+    warnings: list[ToolheadMetadataWarning] = []
+    plates = slice_root.findall(".//plate")
+    for plate_index in plate_indices:
+        target = _target_plate(slice_root, plates, plate_index)
+        if target is None:
+            warnings.append(
+                ToolheadMetadataWarning(
+                    plate_index,
+                    "slice_info.config does not contain an unambiguous entry for this plate",
+                )
+            )
+        elif _has_explicit_toolhead_metadata(target):
+            warnings.append(
+                ToolheadMetadataWarning(
+                    plate_index,
+                    "slice_info.config contains toolhead assignments but project_settings.config "
+                    "does not provide physical_extruder_map",
+                )
+            )
+    return tuple(warnings)
+
+
+def _single_toolhead_warnings(
+    slice_root: ET.Element,
+    plate_indices: tuple[int, ...],
+    physical_map: tuple[int, ...],
+) -> tuple[ToolheadMetadataWarning, ...]:
+    warnings: list[ToolheadMetadataWarning] = []
+    plates = slice_root.findall(".//plate")
+    for plate_index in plate_indices:
+        target = _target_plate(slice_root, plates, plate_index)
+        if target is None:
+            warnings.append(
+                ToolheadMetadataWarning(
+                    plate_index,
+                    "slice_info.config does not contain an unambiguous entry for this plate",
+                )
+            )
+            continue
+        _actual, state = _actual_plate_expectations(target, physical_map)
+        if state == "ambiguous":
+            warnings.append(
+                ToolheadMetadataWarning(
+                    plate_index,
+                    "slice_info.config contains assignments inconsistent with the single-toolhead project map",
+                )
+            )
+    return tuple(warnings)
+
+
+def _target_plate(
+    slice_root: ET.Element,
+    plates: list[ET.Element],
+    plate_index: int,
+) -> ET.Element | None:
+    return _plate_for_index(plates, plate_index + 1) if plates else slice_root
+
+
+def _has_explicit_toolhead_metadata(plate: ET.Element) -> bool:
+    return any(filament.get("group_id") is not None for filament in plate.findall(".//filament")) or bool(
+        plate.findall(".//nozzle")
+    )
 
 
 def _project_settings(
