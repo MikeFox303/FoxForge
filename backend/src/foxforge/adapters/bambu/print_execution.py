@@ -28,7 +28,7 @@ from foxforge.domain.printers.capabilities import (
     PrintExecutionRequest,
 )
 
-from .mapping import bambu_slot_routes
+from .mapping import bambu_slot_id, bambu_slot_routes
 from .material_topology import map_bambu_material_topology
 from .native import BambuNativeMaterialRoute, BambuNativePrintRequest, BambuNativeState
 from .transport import BambuTransport, BambuTransportError, BambuTransportErrorKind
@@ -181,7 +181,17 @@ def _resolve_bambu_material_routes(
         return (), ()
 
     native_slots = bambu_slot_routes(native)
+    native_trays = {
+        bambu_slot_id(tray.ams_id, tray.tray_id): tray for unit in native.material_units for tray in unit.trays
+    }
     topology = map_bambu_material_topology(printer_id, native)
+    if topology.stale:
+        return (), (
+            PrintAssessmentBlocker(
+                PrintAssessmentBlockerCode.MATERIAL_SOURCE_UNAVAILABLE,
+                "current Bambu material topology is stale",
+            ),
+        )
     topology_routes = {route.source_slot_id: route for route in topology.routes}
     toolheads = {toolhead.toolhead_id: toolhead for toolhead in topology.toolheads}
     blockers: list[PrintAssessmentBlocker] = []
@@ -189,11 +199,20 @@ def _resolve_bambu_material_routes(
 
     for binding in sorted(request.material_bindings, key=lambda item: item.material_index):
         native_slot = native_slots.get(binding.slot_id)
-        if native_slot is None:
+        tray = native_trays.get(binding.slot_id)
+        if native_slot is None or tray is None:
             blockers.append(
                 PrintAssessmentBlocker(
                     PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID,
                     f"unknown material slot: {binding.slot_id}",
+                )
+            )
+            continue
+        if tray.exists is not True:
+            blockers.append(
+                PrintAssessmentBlocker(
+                    PrintAssessmentBlockerCode.MATERIAL_SOURCE_UNAVAILABLE,
+                    f"material slot {binding.slot_id!r} is not confirmed loaded in current Bambu state",
                 )
             )
             continue
