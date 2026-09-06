@@ -11,6 +11,7 @@ export interface PrinterMaterialSummary {
 }
 
 export type PrinterTelemetryPhase = 'live' | 'stale' | 'connecting' | 'degraded' | 'unavailable';
+export type PrinterDetailTab = 'overview' | 'control' | 'materials' | 'queue' | 'diagnostics';
 
 export function printerTelemetryPhase(printer: PrinterViewModel): PrinterTelemetryPhase {
   if (printer.snapshot.stale) return 'stale';
@@ -42,6 +43,22 @@ export function summarizePrinterMaterials(printer: PrinterViewModel): PrinterMat
     lowSlots: slots.filter((slot) => slot.presence === 'loaded' && (slot.detectedMaterial?.remainingFraction ?? 1) <= 0.2).length,
     totalSlots: slots.length,
   };
+}
+
+export function hasJobControlCapability(printer: PrinterViewModel): boolean {
+  return printer.capabilities.some((capability) => (
+    capability.capabilityId === 'foxforge.job_control'
+    && capability.majorVersion === 1
+    && (capability.supportedActions?.length ?? 0) > 0
+  ));
+}
+
+export function printerDetailTabs(printer: PrinterViewModel): PrinterDetailTab[] {
+  const tabs: PrinterDetailTab[] = ['overview'];
+  if (hasJobControlCapability(printer)) tabs.push('control');
+  if (printer.materialSystem || printer.materialTopology) tabs.push('materials');
+  tabs.push('queue', 'diagnostics');
+  return tabs;
 }
 
 export function printerRoute(printerId: string): string {
