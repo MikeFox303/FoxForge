@@ -29,6 +29,7 @@ from foxforge.domain.printers.capabilities import (
 )
 
 from .mapping import bambu_slot_routes
+from .material_topology import map_bambu_material_topology
 from .native import BambuNativeMaterialRoute, BambuNativePrintRequest, BambuNativeState
 from .transport import BambuTransport, BambuTransportError, BambuTransportErrorKind
 
@@ -59,44 +60,12 @@ class BambuPrintExecutionCapability:
         return self._descriptor
 
     async def assess(self, request: PrintExecutionRequest) -> PrintExecutionAssessment:
-        blockers: list[PrintAssessmentBlocker] = []
-        snapshot = self._printer_snapshot()
-
-        if snapshot.connection not in {ConnectionState.CONNECTED, ConnectionState.DEGRADED}:
-            blockers.append(PrintAssessmentBlocker(PrintAssessmentBlockerCode.OFFLINE, "printer is offline"))
-        elif snapshot.operational_state in {
-            OperationalState.PREPARING,
-            OperationalState.PRINTING,
-            OperationalState.PAUSED,
-            OperationalState.CANCELLING,
-        }:
-            blockers.append(PrintAssessmentBlocker(PrintAssessmentBlockerCode.BUSY, "printer is busy"))
-        elif snapshot.operational_state not in {
-            OperationalState.IDLE,
-            OperationalState.COMPLETED,
-            OperationalState.FAILED,
-        }:
-            blockers.append(PrintAssessmentBlocker(PrintAssessmentBlockerCode.NOT_READY, "printer is not ready"))
-
-        if request.artifact.format not in self._descriptor.accepted_formats or not _artifact_matches(request):
-            blockers.append(
-                PrintAssessmentBlocker(
-                    PrintAssessmentBlockerCode.UNSUPPORTED_ARTIFACT,
-                    "Bambu print execution requires a readable, unchanged 3MF artifact",
-                )
-            )
-
-        routes = bambu_slot_routes(self._native_snapshot())
-        for binding in request.material_bindings:
-            if binding.slot_id not in routes:
-                blockers.append(
-                    PrintAssessmentBlocker(
-                        PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID,
-                        f"unknown material slot: {binding.slot_id}",
-                    )
-                )
-
-        return PrintExecutionAssessment(eligible=not blockers, blockers=tuple(blockers), observed_at=utc_now())
+        assessment, _routes = _assess_bambu_request(
+            request,
+            printer=self._printer_snapshot(),
+            native=self._native_snapshot(),
+        )
+        return assessment
 
     async def submit(self, request: PrintExecutionRequest) -> PrintDispatchReceipt:
         fingerprint = _request_fingerprint(request)
@@ -111,12 +80,15 @@ class BambuPrintExecutionCapability:
                 )
             return receipt
 
-        assessment = await self.assess(request)
+        # Resolve eligibility and native material routes from one immutable pair
+        # of common/native snapshots. This prevents a topology change between
+        # adapter assessment and construction of the MQTT project_file request.
+        printer = self._printer_snapshot()
+        native = self._native_snapshot()
+        assessment, material_routes = _assess_bambu_request(request, printer=printer, native=native)
         if not assessment.eligible:
             raise _error_for_blocker(assessment.blockers[0])
 
-        native = self._native_snapshot()
-        routes = bambu_slot_routes(native)
         plate_number = None
         if request.selection is not None and request.selection.plate_index is not None:
             plate_number = request.selection.plate_index + 1
@@ -124,14 +96,7 @@ class BambuPrintExecutionCapability:
             local_path=request.artifact.path,
             filename=request.artifact.filename,
             plate_number=plate_number,
-            material_routes=tuple(
-                BambuNativeMaterialRoute(
-                    material_index=binding.material_index,
-                    ams_id=routes[binding.slot_id][0],
-                    tray_id=routes[binding.slot_id][1],
-                )
-                for binding in sorted(request.material_bindings, key=lambda item: item.material_index)
-            ),
+            material_routes=material_routes,
             requested_name=request.requested_name,
         )
 
@@ -162,6 +127,119 @@ def normalize_bambu_transport_error(error: BambuTransportError) -> PrinterAdapte
     }
     code, retryable = mapping[error.kind]
     return PrinterAdapterError(code, error.message, retryable=retryable, vendor_code=error.vendor_code)
+
+
+def _assess_bambu_request(
+    request: PrintExecutionRequest,
+    *,
+    printer: PrinterSnapshot,
+    native: BambuNativeState,
+) -> tuple[PrintExecutionAssessment, tuple[BambuNativeMaterialRoute, ...]]:
+    blockers: list[PrintAssessmentBlocker] = []
+
+    if printer.connection not in {ConnectionState.CONNECTED, ConnectionState.DEGRADED}:
+        blockers.append(PrintAssessmentBlocker(PrintAssessmentBlockerCode.OFFLINE, "printer is offline"))
+    elif printer.operational_state in {
+        OperationalState.PREPARING,
+        OperationalState.PRINTING,
+        OperationalState.PAUSED,
+        OperationalState.CANCELLING,
+    }:
+        blockers.append(PrintAssessmentBlocker(PrintAssessmentBlockerCode.BUSY, "printer is busy"))
+    elif printer.operational_state not in {
+        OperationalState.IDLE,
+        OperationalState.COMPLETED,
+        OperationalState.FAILED,
+    }:
+        blockers.append(PrintAssessmentBlocker(PrintAssessmentBlockerCode.NOT_READY, "printer is not ready"))
+
+    if request.artifact.format != PrintArtifactFormat.THREE_MF or not _artifact_matches(request):
+        blockers.append(
+            PrintAssessmentBlocker(
+                PrintAssessmentBlockerCode.UNSUPPORTED_ARTIFACT,
+                "Bambu print execution requires a readable, unchanged 3MF artifact",
+            )
+        )
+
+    material_routes, routing_blockers = _resolve_bambu_material_routes(
+        request,
+        printer_id=printer.printer_id,
+        native=native,
+    )
+    blockers.extend(routing_blockers)
+    assessment = PrintExecutionAssessment(eligible=not blockers, blockers=tuple(blockers), observed_at=utc_now())
+    return assessment, material_routes if assessment.eligible else ()
+
+
+def _resolve_bambu_material_routes(
+    request: PrintExecutionRequest,
+    *,
+    printer_id: str,
+    native: BambuNativeState,
+) -> tuple[tuple[BambuNativeMaterialRoute, ...], tuple[PrintAssessmentBlocker, ...]]:
+    if not request.material_bindings:
+        return (), ()
+
+    native_slots = bambu_slot_routes(native)
+    topology = map_bambu_material_topology(printer_id, native)
+    topology_routes = {route.source_slot_id: route for route in topology.routes}
+    toolheads = {toolhead.toolhead_id: toolhead for toolhead in topology.toolheads}
+    blockers: list[PrintAssessmentBlocker] = []
+    resolved: list[BambuNativeMaterialRoute] = []
+
+    for binding in sorted(request.material_bindings, key=lambda item: item.material_index):
+        native_slot = native_slots.get(binding.slot_id)
+        if native_slot is None:
+            blockers.append(
+                PrintAssessmentBlocker(
+                    PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID,
+                    f"unknown material slot: {binding.slot_id}",
+                )
+            )
+            continue
+        if binding.toolhead_id is None:
+            blockers.append(
+                PrintAssessmentBlocker(
+                    PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID,
+                    f"material {binding.material_index} has no compiler-owned Bambu toolhead route",
+                )
+            )
+            continue
+
+        route = topology_routes.get(binding.slot_id)
+        toolhead = toolheads.get(binding.toolhead_id)
+        if route is None or binding.toolhead_id not in route.toolhead_ids:
+            blockers.append(
+                PrintAssessmentBlocker(
+                    PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID,
+                    (
+                        f"current Bambu topology no longer routes {binding.slot_id!r} "
+                        f"to compiled toolhead {binding.toolhead_id!r}"
+                    ),
+                )
+            )
+            continue
+        if toolhead is None or toolhead.position not in {0, 1}:
+            blockers.append(
+                PrintAssessmentBlocker(
+                    PrintAssessmentBlockerCode.MATERIAL_BINDING_INVALID,
+                    f"compiled Bambu toolhead {binding.toolhead_id!r} has no valid native nozzle index",
+                )
+            )
+            continue
+
+        resolved.append(
+            BambuNativeMaterialRoute(
+                material_index=binding.material_index,
+                ams_id=native_slot[0],
+                tray_id=native_slot[1],
+                nozzle_index=toolhead.position,
+            )
+        )
+
+    if blockers:
+        return (), tuple(blockers)
+    return tuple(resolved), ()
 
 
 def _artifact_matches(request: PrintExecutionRequest) -> bool:
