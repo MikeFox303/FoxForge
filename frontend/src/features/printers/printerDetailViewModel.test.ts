@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from 'vitest';
 
+import type { PrinterViewModel } from '../../domain';
 import { fleetData } from '../../mockData';
 import {
   hasJobControlCapability,
@@ -54,7 +55,7 @@ describe('printer detail presentation model', () => {
     expect(hasJobControlCapability(printer)).toBe(false);
     expect(printerDetailTabs(printer)).toEqual(['overview', 'materials', 'queue', 'diagnostics']);
 
-    const controllable = {
+    const controllable: PrinterViewModel = {
       ...printer,
       capabilities: [
         ...printer.capabilities,
@@ -62,7 +63,7 @@ describe('printer detail presentation model', () => {
           capabilityId: 'foxforge.job_control',
           majorVersion: 1,
           label: 'Job control',
-          supportedActions: ['pause', 'cancel'] as const,
+          supportedActions: ['pause', 'cancel'],
         },
       ],
     };
@@ -72,7 +73,7 @@ describe('printer detail presentation model', () => {
 
   it('does not expose a Materials tab without a material capability snapshot', () => {
     const printer = fleetData.printers[1];
-    const withoutMaterials = { ...printer, materialSystem: undefined, materialTopology: undefined };
+    const withoutMaterials: PrinterViewModel = { ...printer, materialSystem: undefined, materialTopology: undefined };
     expect(printerDetailTabs(withoutMaterials)).toEqual(['overview', 'queue', 'diagnostics']);
   });
 });
