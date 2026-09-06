@@ -14,15 +14,19 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from enum import StrEnum
 
-from foxforge.application.artifacts import ArtifactPrintPlan, PrintPlanMaterialRequirement, PrintPlanPlate
+from foxforge.application.artifacts import (
+    ArtifactPrintPlan,
+    PrintPlanMaterialRequirement,
+    PrintPlanPlate,
+)
 from foxforge.domain.printers.capabilities import (
     MaterialBinding,
     MaterialPresence,
     MaterialRouteKind,
     MaterialSlotSnapshot,
     MaterialSystemSnapshot,
-    MaterialTopologySnapshot,
     MaterialToolheadSnapshot,
+    MaterialTopologySnapshot,
     PrintArtifactSelection,
 )
 
