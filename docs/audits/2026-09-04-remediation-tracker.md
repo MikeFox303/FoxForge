@@ -20,9 +20,9 @@ This file tracks current remediation/evidence state. It does not rewrite the ori
 | --- | --- | --- | --- |
 | AUD-001 | P0 | RESOLVED | Guarded release identity preflight prevents conflicting tags/releases/semantic images. |
 | AUD-002 | P0 | RESOLVED | Development container workflow no longer publishes semantic release tags. |
-| AUD-003 | P0 | **VALIDATION REQUIRED** | Explicit FoxForge token model and Umbrel bootstrap are implemented/tested; real Raspberry Pi/Umbrel install, proxy-write, persistence, network/realtime evidence remains. |
+| AUD-003 | P0 | **VALIDATION REQUIRED** | Explicit FoxForge token model and Candidate 5 Umbrel bootstrap are implemented/tested; real Raspberry Pi/Umbrel install, proxy-write, persistence, network/realtime evidence remains. |
 | AUD-004 | P0 | RESOLVED | ADR 0005 explicit-token model; proxy headers are not application principals; unsafe trusted-browser mode rejected. |
-| AUD-005 | P1 | RESOLVED | One canonical responsive Add Printer entry point with production-browser regression coverage. |
+| AUD-005 | P1 | RESOLVED | One canonical responsive Add Printer entry point with production-browser regression coverage; Candidate 5 additionally uses the staged exact-payload Verify flow. |
 | AUD-006 | P1 | RESOLVED | Frozen frontend/backend dependency inputs and reproducible install/audit gates. |
 | AUD-007 | P1 | RESOLVED | Browser/deployment trust deferral superseded by ADR 0005. |
 | AUD-008 | P1 | RESOLVED | Versioned config/SQLite migrations, backups, schema validation and recovery coverage. |
@@ -40,30 +40,29 @@ This file tracks current remediation/evidence state. It does not rewrite the ori
 
 ## Current physical-validation target
 
-**Physical validation is paused pending a replacement immutable Pre-Alpha 5 candidate.**
-
-Candidate 4 was the canonical target before the 2026-09-06 release-readiness routing audit:
+**Candidate 5 is published and is the current immutable Pre-Alpha 5 validation target. The no-print physical gate is pending.**
 
 ```text
-package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.4
-application source: c11f7145b4354aa79c8f0fad223648240e652bac
-Store: 07b8e8087ac9897d4c2f5dc45944b48dfb0938e1
-image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
+package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.5
+application source: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
+Store: 16d57c486ce8e2b26abd5c7e9480188d95f080cb
+image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
 ```
 
-Candidate 4 is now **retired for first-print acceptance** because the audit found that some present-but-invalid 3MF toolhead metadata could be treated like absent metadata before the routing compiler saw it. PR #145 closes that fail-closed gap and aligns browser review with selected-plate routing semantics.
+Candidate 4 remains **retired for first-print acceptance** because the release-readiness audit found that some present-but-invalid 3MF toolhead metadata could be treated like absent metadata before the routing compiler saw it. PR #145 closed that fail-closed gap and aligned browser review with selected-plate routing semantics. Candidate 5 contains that fix plus the later capability-driven interface work and staged Add Printer workflow through PR #150.
 
-Do not start or continue the physical print gate on Candidate 4. After #145 passes exact-head software gates and merges, publish a new immutable source/image/Umbrel candidate and update [`../testing/pre-alpha-5-bambu-physical-validation.md`](../testing/pre-alpha-5-bambu-physical-validation.md) to that exact identity before collecting new evidence.
+Store Candidate 5 passed its exact-head package contract/public runtime checks for `linux/amd64` and `linux/arm64`, the Store Release Gate and upstream-version audit before merge. Those checks prove packaging/reproducibility only; they do not substitute for Raspberry Pi 5/Umbrel/X2D evidence.
 
-Candidate 1/2/3/4 evidence remains historical and must not be relabeled or silently carried to a new digest.
+New physical evidence must use [`../testing/pre-alpha-5-bambu-physical-validation.md`](../testing/pre-alpha-5-bambu-physical-validation.md) and the Candidate 5 identity above. Candidate 1/2/3/4 evidence remains historical and must not be relabeled or silently carried to Candidate 5.
 
 ## Post-audit hardening relevant to the current gate
 
-Current source provides:
+Candidate 5 source provides:
 
 - GUI-visible Umbrel operator credential path;
 - bounded Bambu LAN discovery with server-visible private subnet suggestions plus manual fallback;
-- Add Printer test-before-save;
+- staged Add Printer **Provider → Connection → Identity → Verify** with exact-current-payload verification invalidation;
+- Add Printer backend test-before-save;
 - Update Printer preflight and rollback to the prior working configuration;
 - deterministic durable replay of terminal sanitized Add/Update setup failures;
 - per-printer reconnect supervision and secret-safe diagnostics API/UI;
@@ -74,7 +73,9 @@ Current source provides:
 - fail-closed compiler-owned toolhead routing;
 - Bambu adapter-side source/topology revalidation;
 - `ams_mapping`, `ams_mapping2` and compiler-derived `nozzle_mapping` encoding;
-- selected-plate browser/server routing semantics and present-vs-invalid toolhead metadata distinction after PR #145.
+- selected-plate browser/server routing semantics;
+- explicit present-vs-invalid toolhead metadata distinction with `TOOLHEAD_METADATA_INVALID` remaining blocking even against a fixed physical route;
+- capability-driven AppShell, printer cards and Printer Detail Control/Materials presentation.
 
 These changes reduce software-side risk but do not close AUD-003/AUD-013 without physical evidence.
 
@@ -82,18 +83,16 @@ These changes reduce software-side risk but do not close AUD-003/AUD-013 without
 
 P3 is preserved, not discarded. It remains intentionally unmerged while the Bambu Alpha 5 milestone is validated.
 
-The normal inventory prerequisite is complete. Resume still requires reviewing then-current physical/deployment evidence, synchronizing the P3 branch with `main`, rerunning exact-head backend/frontend/container/security/browser gates and preserving all stabilization changes.
+The normal inventory prerequisite is complete. Resume still requires reviewing then-current physical/deployment evidence, synchronizing/reimplementing the preserved P3 plan against then-current `main`, rerunning exact-head backend/frontend/container/security/browser gates and preserving all stabilization changes.
 
 ## Current execution order
 
-1. Complete PR #145 and exact-head software gates.
-2. Publish a new immutable Raspberry Pi 5/Umbrel validation candidate; do not reuse Candidate 4 identity/evidence.
-3. Run the no-print X2D + AMS 2 Pro gate on the exact new candidate.
-4. Only after that gate passes, run the first real print and guarded job-control acceptance.
-5. If a physical defect changes code, publish another immutable candidate and repeat affected evidence.
-6. Review AUD-003/AUD-013 evidence; update statuses only when requirements actually pass.
-7. Publish final Alpha 5 only after the exact candidate gate passes.
-8. Reassess/synchronize P3 after Alpha 5 stabilization.
+1. Run the complete no-print X2D + AMS 2 Pro gate on exact Candidate 5.
+2. Only after sections 1–6 pass, run the first real print and guarded job-control acceptance on that same digest.
+3. If a physical defect changes application code, publish another immutable candidate and repeat affected evidence.
+4. Review AUD-003/AUD-013 evidence; update statuses only when requirements actually pass.
+5. Publish final Alpha 5 only after the exact candidate gate passes.
+6. Reassess/synchronize P3 after Alpha 5 stabilization.
 
 ## Resolution rule
 
