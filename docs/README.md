@@ -73,8 +73,8 @@ Queue:
 - [Queue command UI](design/queue-command-ui.md)
 - [Artifact lifecycle](design/artifact-lifecycle.md)
 - [Immutable 3MF print-plan inspection](design/immutable-3mf-print-plan.md)
-- [Print material routing](design/print-material-routing.md)
-- [Queue material routing integration](design/queue-material-routing.md)
+- [Material routing compiler](design/material-routing-compiler.md)
+- [Queue routing integration](design/queue-routing-integration.md)
 
 Inventory:
 
