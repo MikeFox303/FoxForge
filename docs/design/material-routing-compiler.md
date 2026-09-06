@@ -1,6 +1,6 @@
 # Material routing compiler
 
-Status: implemented for the Pre-Alpha 5 routing path; physical X2D validation pending a replacement immutable candidate.
+Status: implemented for the Pre-Alpha 5 routing path; Candidate 5 published and physical X2D validation pending.
 
 ## Decision
 
@@ -124,9 +124,13 @@ Representative blockers include:
 
 ## Candidate boundary
 
-Candidate 4 exposed the complete routing stack but a later release-readiness audit found that some present-but-invalid `project_settings.config` / toolhead mapping states could be converted into apparent metadata absence before the compiler saw them. PR #145 closes that gap and also aligns browser review with selected-plate semantics.
+Candidate 4 exposed the complete routing stack but a later release-readiness audit found that some present-but-invalid `project_settings.config` / toolhead mapping states could be converted into apparent metadata absence before the compiler saw them. PR #145 closed that gap and also aligned browser review with selected-plate semantics.
 
-Candidate 4 must not be used for the first real print after this finding. A new immutable application/image/Umbrel candidate is required after the fix passes exact-head gates.
+Candidate 5 is the replacement immutable application/image/Umbrel target and contains that fix. Candidate 4 remains retired for first-print acceptance, and Candidate 1/2/3/4 evidence cannot satisfy Candidate 5.
+
+Candidate 5 physical acceptance must prove that invalid selected-plate toolhead metadata remains blocked even when a chosen source has a fixed route, while an unrelated blocked unselected plate does not poison a safe selected plate. Sections 1–6 of the milestone runbook must pass before any physical Start.
+
+Any application-code change after Candidate 5 requires a new immutable candidate for affected physical evidence.
 
 ## Acceptance criteria
 
@@ -145,5 +149,6 @@ Candidate 4 must not be used for the first real print after this finding. A new 
 - [x] blocked compilations never expose partial compiled bindings;
 - [x] queue assessment persists compiled bindings before submit;
 - [x] Bambu submit revalidates and encodes compiled toolhead mapping;
-- [ ] replacement immutable candidate passes Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print gate;
+- [x] Candidate 5 immutable source/image/Umbrel identity published;
+- [ ] Candidate 5 passes Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print gate;
 - [ ] first real print and guarded job-control evidence pass before final Alpha 5.

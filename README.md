@@ -1,7 +1,7 @@
 # FoxForge
 
 [![Release](https://img.shields.io/badge/pre--release-v0.1.0--alpha.4.3-orange)](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)
-[![Alpha 5](https://img.shields.io/badge/Alpha%205-replacement%20candidate%20pending-yellow)](docs/testing/pre-alpha-5-bambu-physical-validation.md)
+[![Alpha 5](https://img.shields.io/badge/Alpha%205-Candidate%205%20no--print%20gate-yellow)](docs/testing/pre-alpha-5-bambu-physical-validation.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-lightgrey)](deployment/README.md)
 
@@ -16,15 +16,18 @@ Bambu Lab is the current primary integration target. Moonraker/Klipper support r
 
 The latest published semantic pre-release is **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**.
 
-Development toward **`v0.1.0-alpha.5`** is tracked by [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). Candidate 4 (`0.1.0-alpha.4.3-umbrel.4`, application source `c11f7145b4354aa79c8f0fad223648240e652bac`) was the previous physical-validation target, pinned to:
+Development toward **`v0.1.0-alpha.5`** is tracked by [issue #115](https://github.com/MikeFox303/FoxForge/issues/115). The current immutable physical-validation target is **Candidate 5**:
 
 ```text
-ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
+FoxForge application source: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
+Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.5
+Umbrel Store commit: 16d57c486ce8e2b26abd5c7e9480188d95f080cb
+exact image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
 ```
 
-Candidate 4 is now **retired for first-print acceptance** after a release-readiness audit found that some present-but-invalid 3MF toolhead metadata could be treated like absent metadata before routing compilation. PR #145 closes that fail-closed gap and aligns browser review with selected-plate routing semantics.
+Candidate 5 replaces retired Candidate 4 and contains the routing-audit fix from PR #145: present-but-invalid 3MF toolhead metadata remains fail-closed, a fixed physical source route cannot mask corrupt slicer intent, and selected-plate readiness no longer lets an unrelated blocked plate poison a safe selected plate while global/selected blockers remain authoritative. It also includes the subsequent capability-driven UI refactor and staged Add Printer **Provider → Connection → Identity → Verify** flow merged through PR #150.
 
-Physical validation is paused until a new immutable FoxForge image and matching Umbrel package are published. Candidate 1/2/3/4 evidence must not be relabeled or silently carried to the replacement digest.
+Candidate 5 has passed software/package gates and is now ready for the **no-print physical gate only**. Sections 1–6 of the physical-validation runbook must pass on the real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro deployment before the first physical Start. Candidate 1/2/3/4 evidence must not be relabeled or silently carried to Candidate 5.
 
 See the [Pre-Alpha 5 Bambu physical-validation runbook](docs/testing/pre-alpha-5-bambu-physical-validation.md).
 
@@ -35,6 +38,7 @@ See the [Pre-Alpha 5 Bambu physical-validation runbook](docs/testing/pre-alpha-5
 - FoxForge-owned `PrinterAdapter` contracts with typed capability discovery;
 - Bambu Lab LAN and Moonraker/Klipper adapters behind a vendor-neutral application boundary;
 - application-managed Add / Update / Remove / Reconnect workflows;
+- staged Add Printer **Provider → Connection → Identity → Verify** workflow with exact-payload verification invalidation before Save;
 - test-before-save for Add and Update, so invalid reachability or credentials do not replace durable working configuration;
 - rollback to the previous working adapter/configuration when a replacement connection fails;
 - deterministic idempotent replay of terminal sanitized setup failures;
@@ -77,8 +81,9 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 - SSE application-event invalidation with canonical HTTP snapshots;
 - responsive phone, tablet, desktop and ultra-wide layouts;
 - Operator Access with a memory-only command credential;
-- Add Printer discovery/manual flow with safe subnet suggestions, structured setup errors and reconnect diagnostics;
+- staged Add Printer workflow with discovery/manual fallback, safe subnet suggestions, structured setup errors and reconnect diagnostics;
 - Printer Detail Material Topology UI with fixed/dynamic/unknown/stale presentation;
+- capability-driven Printer Detail Control/Materials tabs instead of vendor/model feature inference;
 - explicit selected-plate 3MF material-binding review plus queue, inventory and common job-control workflows.
 
 ## Current support status
@@ -86,7 +91,7 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 | Area | Status |
 | --- | --- |
 | Common printer architecture | Implemented |
-| Bambu Lab adapter | Functional alpha; replacement physical candidate pending |
+| Bambu Lab adapter | Functional alpha; Candidate 5 no-print physical validation pending |
 | Bambu LAN discovery | Implemented foundation; real deployment-network validation pending |
 | Moonraker/Klipper adapter | Functional alpha; physical OpenKE validation pending |
 | Fleet/reconnect supervision | Implemented foundation |
@@ -98,8 +103,8 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 | Deep AMS/CFS operations | Planned as typed vendor capabilities |
 | Automatic filament accounting | Frozen / not released |
 | Persistent farm scheduler | Not implemented |
-| Docker `amd64` / `arm64` | Published alpha foundation |
-| Umbrel | Candidate 4 historical; replacement validation candidate pending |
+| Docker `amd64` / `arm64` | Candidate 5 immutable image published and package-smoke-tested |
+| Umbrel | Candidate 5 (`0.1.0-alpha.4.3-umbrel.5`) published; no-print physical gate pending |
 
 ## Installation
 
@@ -107,7 +112,7 @@ Physical X2D/AMS 2 Pro validation is still required for the complete connection,
 
 FoxForge is available from the [MikeFox303 3D Printing Community App Store](https://github.com/MikeFox303/umbrel-3d-printing-store) as `my3d-foxforge`.
 
-The Store may still expose historical Candidate 4 until its replacement is published. Candidate 4 can be used for controlled non-print development checks, but it is **not** the accepted target for the first physical Alpha 5 print after the routing audit.
+The current Pre-Alpha 5 validation package is **Candidate 5 (`0.1.0-alpha.4.3-umbrel.5`)**, pinned to the exact immutable image recorded above. It is the accepted target for new no-print Alpha 5 physical evidence. Candidate 4 is historical and must not be used for first-print acceptance.
 
 Umbrel exposes the FoxForge app password in its UI and maps the same per-app password to `FOXFORGE_COMMAND_TOKEN`. Enter it in **Operator Access / Unlock writes** when protected actions are required. The browser keeps that credential only in memory for the current tab.
 

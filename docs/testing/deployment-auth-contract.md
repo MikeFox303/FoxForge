@@ -31,12 +31,13 @@ The browser acceptance layer separately checks that operator credentials remain 
 
 ## Umbrel contract
 
-The current Store package is Pre-Alpha 5 validation candidate 4:
+The current Store package is Pre-Alpha 5 validation Candidate 5:
 
 ```text
-my3d-foxforge 0.1.0-alpha.4.3-umbrel.4
-source c11f7145b4354aa79c8f0fad223648240e652bac
-image ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
+my3d-foxforge 0.1.0-alpha.4.3-umbrel.5
+source 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
+image ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
+Store commit 16d57c486ce8e2b26abd5c7e9480188d95f080cb
 ```
 
 The package:
@@ -45,9 +46,10 @@ The package:
 - exposes the app credential through the Umbrel UI for GUI-only operator unlock;
 - keeps App Proxy enabled as a separate boundary;
 - does not require host networking, privileged mode or Docker socket access;
-- pins an immutable candidate image digest.
+- pins the immutable Candidate 5 image digest;
+- passed package-contract and public-runtime smoke checks on both `linux/amd64` and `linux/arm64` before Store merge.
 
-This proves package/bootstrap intent and reproducibility. It does not prove real Raspberry Pi/network/printer behavior.
+This proves package/bootstrap intent and reproducibility. It does not prove real Raspberry Pi/network/printer behavior, and therefore does not by itself close AUD-003 or authorize a physical print.
 
 ## AUD-004 conclusion
 
@@ -55,7 +57,7 @@ AUD-004 remains resolved for the explicit-token model: forwarding/proxy identity
 
 ## AUD-003 boundary
 
-AUD-003 remains `VALIDATION REQUIRED` until the exact current candidate demonstrates on representative Raspberry Pi/Umbrel:
+AUD-003 remains `VALIDATION REQUIRED` until exact Candidate 5 demonstrates on representative Raspberry Pi/Umbrel:
 
 - install/restart/persistence;
 - protected browser writes through the actual App Proxy path;
@@ -64,7 +66,7 @@ AUD-003 remains `VALIDATION REQUIRED` until the exact current candidate demonstr
 - upgrade behavior where applicable;
 - representative SSE reconnect/resync.
 
-Use the current milestone runbook rather than a historical Alpha 4.2 package identity.
+The Pre-Alpha 5 runbook requires this deployment/auth evidence inside the no-print gate before the first physical Start.
 
 ## Package/release requirements
 

@@ -64,17 +64,17 @@ A direct merge or large conflict-resolution rebase would make it too easy to pre
 
 P3 remains frozen throughout the Bambu Alpha 5 milestone.
 
-Before P3 implementation resumes, FoxForge must complete the exact immutable replacement-candidate gate:
+Candidate 5 is now the exact immutable physical-validation target. Before P3 implementation resumes, FoxForge must complete the Candidate 5 Alpha 5 gate:
 
 1. Raspberry Pi 5 + Umbrel install/update and GUI-only Operator Access;
-2. real X2D Add/Update/discovery/reconnect/diagnostics validation;
+2. real X2D staged Add/Update/discovery/reconnect/diagnostics validation;
 3. real AMS 2 Pro + external-source material-system/topology validation;
 4. one explicitly reviewed immutable 3MF with explicit source/toolhead routing;
-5. exactly one physical Bambu print start from that reviewed intent;
+5. exactly one physical Bambu print start from that reviewed intent, only after the no-print gate passes;
 6. guarded Pause/Resume/Cancel or completion against the exact observed job;
 7. exact-head release gates and final `v0.1.0-alpha.5` publication.
 
-Candidate 4 is historical and retired for first-print acceptance; its evidence is not a substitute for the replacement candidate.
+Candidate 5 identity is recorded in `docs/testing/pre-alpha-5-bambu-physical-validation.md`. Candidate 1/2/3/4 evidence is historical and is not a substitute for Candidate 5 evidence.
 
 ## P3 Reactivation Audit
 
