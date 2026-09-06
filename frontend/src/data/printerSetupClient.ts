@@ -68,6 +68,14 @@ export async function loadPrinterConfigurations(): Promise<PrinterConfigurationV
   return payload.printers as PrinterConfigurationView[];
 }
 
+export async function loadBambuDiscoverySubnets(): Promise<string[]> {
+  const payload = await authenticatedCommandJson<unknown>('/api/v1/printers/discovery/bambu/subnets');
+  if (!isRecord(payload) || !Array.isArray(payload.subnets) || !payload.subnets.every((item) => typeof item === 'string')) {
+    throw new Error('Invalid Bambu subnet suggestion response.');
+  }
+  return payload.subnets;
+}
+
 export async function discoverBambuPrinters(subnet: string): Promise<BambuDiscoveryCandidate[]> {
   const payload = await authenticatedCommandJson<unknown>('/api/v1/printers/discovery/bambu', {
     method: 'POST',
