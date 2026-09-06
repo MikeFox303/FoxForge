@@ -29,7 +29,7 @@ class BambuMaterialTopologyCapability:
         self._descriptor = MaterialTopologyDescriptor(
             capability_id=MATERIAL_TOPOLOGY_CAPABILITY_ID,
             major_version=MATERIAL_TOPOLOGY_MAJOR_VERSION,
-            reports_dynamic_routes=True,
+            reports_dynamic_routes=False,
         )
 
     @property
