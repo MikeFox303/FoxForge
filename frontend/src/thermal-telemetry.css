@@ -1,0 +1,143 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.thermal-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  min-width: 0;
+}
+
+.thermal-strip.stale,
+.thermal-panel.stale {
+  opacity: .82;
+}
+
+.thermal-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--border-soft);
+  border-radius: 9px;
+  background: rgba(8, 12, 18, .26);
+}
+
+.thermal-chip span {
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.thermal-chip strong {
+  white-space: nowrap;
+  font-size: 10px;
+}
+
+.thermal-chip small {
+  white-space: nowrap;
+  color: var(--muted-2);
+  font-size: 8px;
+}
+
+.thermal-stale-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  white-space: nowrap;
+  padding: 5px 7px;
+  border: 1px solid rgba(245, 158, 11, .24);
+  border-radius: 999px;
+  background: rgba(120, 53, 15, .12);
+  color: #fcd34d;
+  font-size: 8px;
+  font-weight: 750;
+}
+
+.thermal-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.thermal-zone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 9px;
+}
+
+.thermal-zone-card {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 11px;
+  background: rgba(8, 12, 18, .25);
+}
+
+.thermal-zone-card > div:first-child {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 9px;
+  min-width: 0;
+}
+
+.thermal-zone-card > div:first-child span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.thermal-zone-card > div:first-child small {
+  color: var(--muted-2);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+
+.thermal-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.thermal-values > div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.thermal-values span {
+  color: var(--muted-2);
+  font-size: 8px;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+}
+
+.thermal-values strong {
+  font-size: 14px;
+}
+
+@media (max-width: 640px) {
+  .thermal-zone-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .thermal-chip {
+    flex: 1 1 135px;
+  }
+}
+
+@media (max-width: 420px) {
+  .thermal-zone-grid {
+    grid-template-columns: 1fr;
+  }
+}

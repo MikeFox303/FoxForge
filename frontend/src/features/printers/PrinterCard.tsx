@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 
 import type { MaterialSlotSnapshot, PrinterViewModel } from '../../domain';
 import { formatDuration, formatPercent, printerTone } from '../../viewModel';
+import { ThermalTelemetryStrip } from './ThermalTelemetry';
 
 export type PrinterCardDensity = 'compact' | 'standard' | 'detailed';
 
@@ -51,11 +52,14 @@ export function PrinterCard({ printer, queueCount, onOpen, density = 'standard' 
       ) : <div className="idle-surface">{t('alpha.printer.idle')}</div>}
 
       {!compact && (
-        <div className="printer-info-strip">
-          <div><span>{t('alpha.printer.connection')}</span><strong>{t(`alpha.status.${printer.snapshot.connection}`)}</strong></div>
-          <div><span>{t('alpha.printer.material')}</span><strong>{materialSourceLabel(printer, t)}</strong></div>
-          <div><span>{t('alpha.printer.updated')}</span><strong>{relativeTimeLabel(printer.snapshot.observedAt, t)}</strong></div>
-        </div>
+        <>
+          <div className="printer-info-strip">
+            <div><span>{t('alpha.printer.connection')}</span><strong>{t(`alpha.status.${printer.snapshot.connection}`)}</strong></div>
+            <div><span>{t('alpha.printer.material')}</span><strong>{materialSourceLabel(printer, t)}</strong></div>
+            <div><span>{t('alpha.printer.updated')}</span><strong>{relativeTimeLabel(printer.snapshot.observedAt, t)}</strong></div>
+          </div>
+          <ThermalTelemetryStrip printer={printer} limit={detailed ? 4 : 3} />
+        </>
       )}
 
       <div className="printer-card-footer">
