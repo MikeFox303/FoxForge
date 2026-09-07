@@ -12,6 +12,7 @@ from foxforge.domain.printers.capabilities import (
     MaterialSystemCapability,
     MaterialTopologyCapability,
     PrintExecutionCapability,
+    ThermalTelemetryCapability,
 )
 
 
@@ -40,6 +41,7 @@ def test_bambu_adapter_resolves_common_capabilities(bambu_identity, fake_bambu_t
     assert adapter.capability(PrintExecutionCapability) is not None
     assert adapter.capability(MaterialSystemCapability) is not None
     assert adapter.capability(MaterialTopologyCapability) is not None
+    assert adapter.capability(ThermalTelemetryCapability) is not None
     assert adapter.capability(dict) is None
 
 
@@ -88,27 +90,29 @@ def test_transport_reconnect_starts_new_event_epoch(bambu_identity, fake_bambu_t
             online = replace(bambu_idle_state, connected=True, observed_at=utc_now())
 
             await fake_bambu_transport.push(offline)
-            offline_events = [await asyncio.wait_for(anext(events), timeout=0.2) for _ in range(4)]
+            offline_events = [await asyncio.wait_for(anext(events), timeout=0.2) for _ in range(5)]
             assert [event.kind for event in offline_events] == [
                 PrinterEventKind.CONNECTION_CHANGED,
                 PrinterEventKind.PRINTER_STATE_CHANGED,
                 PrinterEventKind.MATERIAL_SYSTEM_CHANGED,
                 PrinterEventKind.MATERIAL_TOPOLOGY_CHANGED,
+                PrinterEventKind.THERMAL_TELEMETRY_CHANGED,
             ]
             offline_epoch = offline_events[0].connection_epoch
             assert all(event.connection_epoch == offline_epoch for event in offline_events)
 
             await fake_bambu_transport.push(online)
-            online_events = [await asyncio.wait_for(anext(events), timeout=0.2) for _ in range(4)]
+            online_events = [await asyncio.wait_for(anext(events), timeout=0.2) for _ in range(5)]
             assert [event.kind for event in online_events] == [
                 PrinterEventKind.CONNECTION_CHANGED,
                 PrinterEventKind.PRINTER_STATE_CHANGED,
                 PrinterEventKind.MATERIAL_SYSTEM_CHANGED,
                 PrinterEventKind.MATERIAL_TOPOLOGY_CHANGED,
+                PrinterEventKind.THERMAL_TELEMETRY_CHANGED,
             ]
             online_epoch = online_events[0].connection_epoch
             assert online_epoch != offline_epoch
-            assert [event.sequence for event in online_events] == [1, 2, 3, 4]
+            assert [event.sequence for event in online_events] == [1, 2, 3, 4, 5]
         finally:
             await events.aclose()  # type: ignore[attr-defined]
             await adapter.disconnect()

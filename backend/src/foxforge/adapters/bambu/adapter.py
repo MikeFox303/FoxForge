@@ -23,6 +23,7 @@ from foxforge.domain.printers.capabilities import (
     MaterialSystemCapability,
     MaterialTopologyCapability,
     PrintExecutionCapability,
+    ThermalTelemetryCapability,
 )
 
 from .job_control import BambuJobControlCapability
@@ -31,6 +32,7 @@ from .material_system import BambuMaterialSystemCapability
 from .material_topology import BambuMaterialTopologyCapability, map_bambu_material_topology
 from .native import BambuNativeState
 from .print_execution import BambuPrintExecutionCapability, normalize_bambu_transport_error
+from .thermal_telemetry import BambuThermalTelemetryCapability
 from .transport import BambuTransport, BambuTransportError
 
 C = TypeVar("C")
@@ -74,6 +76,7 @@ class BambuAdapter:
         self._pump_task: asyncio.Task[None] | None = None
         self._material = BambuMaterialSystemCapability(identity.printer_id, self.native_snapshot)
         self._material_topology = BambuMaterialTopologyCapability(identity.printer_id, self.native_snapshot)
+        self._thermal = BambuThermalTelemetryCapability(identity.printer_id, self.native_snapshot)
         self._printing = BambuPrintExecutionCapability(
             transport,
             self.snapshot,
@@ -83,6 +86,7 @@ class BambuAdapter:
         self._capabilities: dict[type[object], object] = {
             cast(type[object], MaterialSystemCapability): self._material,
             cast(type[object], MaterialTopologyCapability): self._material_topology,
+            cast(type[object], ThermalTelemetryCapability): self._thermal,
             cast(type[object], PrintExecutionCapability): self._printing,
             cast(type[object], JobControlCapability): self._job_control,
         }
@@ -189,6 +193,9 @@ class BambuAdapter:
         current_topology = map_bambu_material_topology(self._identity.printer_id, native)
         if previous_topology.routes != current_topology.routes or previous_topology.stale != current_topology.stale:
             self._emit(PrinterEventKind.MATERIAL_TOPOLOGY_CHANGED, current_topology)
+
+        if previous_native.thermal_zones != native.thermal_zones or previous_native.connected != native.connected:
+            self._emit(PrinterEventKind.THERMAL_TELEMETRY_CHANGED, self._thermal.snapshot())
 
         if reconcile:
             self._emit(PrinterEventKind.SNAPSHOT_RECONCILED, current)

@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import StrEnum
+from math import isfinite
 from pathlib import Path
 
 from foxforge.domain.printers.models import normalize_utc
@@ -69,6 +70,26 @@ class BambuNativeMaterialUnit:
 
 
 @dataclass(frozen=True, slots=True)
+class BambuNativeThermalZone:
+    zone_id: str
+    position: int
+    current_celsius: float | None
+    target_celsius: float | None
+
+    def __post_init__(self) -> None:
+        if not self.zone_id:
+            raise ValueError("zone_id must not be empty")
+        if self.position < 0:
+            raise ValueError("thermal zone position must be non-negative")
+        if self.current_celsius is None and self.target_celsius is None:
+            raise ValueError("thermal zone must report current or target temperature")
+        for field_name in ("current_celsius", "target_celsius"):
+            value = getattr(self, field_name)
+            if value is not None and not isfinite(value):
+                raise ValueError(f"{field_name} must be finite when present")
+
+
+@dataclass(frozen=True, slots=True)
 class BambuNativeState:
     connected: bool
     gcode_state: str | None
@@ -81,9 +102,13 @@ class BambuNativeState:
     faults: tuple[BambuNativeFault, ...]
     material_units: tuple[BambuNativeMaterialUnit, ...]
     observed_at: datetime
+    thermal_zones: tuple[BambuNativeThermalZone, ...] = ()
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "observed_at", normalize_utc(self.observed_at, field_name="observed_at"))
+        zone_ids = [zone.zone_id for zone in self.thermal_zones]
+        if len(zone_ids) != len(set(zone_ids)):
+            raise ValueError("Bambu thermal zone ids must be unique")
 
 
 @dataclass(frozen=True, slots=True)
