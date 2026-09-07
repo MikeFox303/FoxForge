@@ -168,8 +168,13 @@ class BambuLanCodec:
                         unit = replace(unit, routed_extruder_id=previous_unit.routed_extruder_id)
                     units_by_id[unit.ams_id] = unit
 
-        if "vt_tray" in print_data:
-            raw_external = _external_tray_entries(print_data.get("vt_tray"))
+        # H2/X2-family firmware reports the full external-source inventory in
+        # ``vir_slot``. Older/single-nozzle firmware commonly uses ``vt_tray``.
+        # When both are present, prefer vir_slot: vt_tray may describe only one
+        # active external source and must not erase the complete dual-source list.
+        external_key = "vir_slot" if "vir_slot" in print_data else "vt_tray" if "vt_tray" in print_data else None
+        if external_key is not None:
+            raw_external = _external_tray_entries(print_data.get(external_key))
             if raw_external is not None:
                 touched = True
                 dual_external = _has_dual_external_sources(raw_external)
@@ -410,6 +415,9 @@ def _contains_status_fields(print_data: dict[str, object]) -> bool:
         "total_layer_num",
         "ams",
         "vt_tray",
+        "vir_slot",
+        "device",
+        "wifi_signal",
         "print_error",
         "hms",
     }
