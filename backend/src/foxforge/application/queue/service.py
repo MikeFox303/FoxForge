@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import suppress
 from dataclasses import replace
 from datetime import datetime
@@ -32,8 +33,11 @@ from foxforge.domain.printers.capabilities import (
 )
 
 from .models import QueueDispatchError, QueueEntry, QueueEntryState
+from .policy import QueueLifecycleObserver, QueuePreDispatchGate
 from .routing import prepare_queue_routing
 from .store import QueueStore
+
+_LOG = logging.getLogger(__name__)
 
 
 class QueueEntryNotFoundError(KeyError):
@@ -112,11 +116,24 @@ class QueueService:
     PrintExecutionCapability through FleetService, persists dispatch state
     before any submit side effect can occur, and tracks confirmed remote jobs
     only through normalized fleet events.
+
+    Optional common policies may add a fail-closed pre-dispatch gate after the
+    fresh routing/assessment pass and observe durable lifecycle state changes.
+    Provider-specific enablement remains a composition-root decision.
     """
 
-    def __init__(self, fleet: FleetService, store: QueueStore) -> None:
+    def __init__(
+        self,
+        fleet: FleetService,
+        store: QueueStore,
+        *,
+        pre_dispatch_gate: QueuePreDispatchGate | None = None,
+        lifecycle_observer: QueueLifecycleObserver | None = None,
+    ) -> None:
         self._fleet = fleet
         self._store = store
+        self._pre_dispatch_gate = pre_dispatch_gate
+        self._lifecycle_observer = lifecycle_observer
         self._event_task: asyncio.Task[None] | None = None
         self._event_ready: asyncio.Event | None = None
 
@@ -135,6 +152,7 @@ class QueueService:
         assert self._event_ready is not None
         await self._event_ready.wait()
         self._reconcile_current_snapshots()
+        self._reconcile_lifecycle_observer()
 
     async def aclose(self) -> None:
         task = self._event_task
@@ -226,7 +244,7 @@ class QueueService:
                     )
                     # The compiler-owned route becomes durable before adapter
                     # assessment and therefore before any later submit side effect.
-                    self._store.save(entry)
+                    self._save(entry)
                 assessment = await capability.assess(entry.request)
 
         next_state = QueueEntryState.PENDING if assessment.eligible else QueueEntryState.BLOCKED
@@ -237,7 +255,7 @@ class QueueService:
             error=None,
             updated_at=utc_now(),
         )
-        self._store.save(updated)
+        self._save(updated)
         return updated
 
     async def dispatch(self, queue_id: UUID) -> QueueEntry:
@@ -261,6 +279,26 @@ class QueueService:
             # capability disappearing between assessment and submission.
             return await self.assess(queue_id)
 
+        # Optional common policy runs only after the fresh routing compiler and
+        # printer assessment have succeeded, and before DISPATCHING is durable.
+        # There is no await between the gate and the durable start boundary.
+        if self._pre_dispatch_gate is not None:
+            gate_result = self._pre_dispatch_gate.assess_dispatch(assessed)
+            if not gate_result.allowed:
+                blocked = replace(
+                    assessed,
+                    state=QueueEntryState.BLOCKED,
+                    assessment=PrintExecutionAssessment(
+                        eligible=False,
+                        blockers=gate_result.blockers,
+                        observed_at=utc_now(),
+                    ),
+                    error=None,
+                    updated_at=utc_now(),
+                )
+                self._save(blocked)
+                return blocked
+
         attempt_time = utc_now()
         dispatching = replace(
             assessed,
@@ -271,7 +309,7 @@ class QueueService:
             last_attempt_at=attempt_time,
             updated_at=attempt_time,
         )
-        self._store.save(dispatching)
+        self._save(dispatching)
 
         try:
             receipt = await capability.submit(dispatching.request)
@@ -293,7 +331,7 @@ class QueueService:
                 error=queue_error,
                 updated_at=utc_now(),
             )
-            self._store.save(failed)
+            self._save(failed)
             return failed
 
         if receipt.dispatch_id != dispatching.request.dispatch_id:
@@ -308,7 +346,7 @@ class QueueService:
             error=None,
             updated_at=utc_now(),
         )
-        self._store.save(accepted)
+        self._save(accepted)
         # submit() may have emitted ACCEPTED before the durable receipt was
         # stored. Reconcile the current common snapshot now so later tracking
         # starts from a known job identity without relying on event timing.
@@ -359,7 +397,7 @@ class QueueService:
                 updated_at=now,
             )
 
-        self._store.save(resolved)
+        self._save(resolved)
         if resolved.receipt is not None:
             self._reconcile_printer_snapshot(resolved.printer_id)
             return self._require_entry(queue_id)
@@ -439,7 +477,7 @@ class QueueService:
             )
             if updated == entry:
                 continue
-            self._store.save(updated)
+            self._save(updated)
             changed.append(updated)
 
         return tuple(changed)
@@ -461,5 +499,28 @@ class QueueService:
             ),
             updated_at=utc_now(),
         )
-        self._store.save(failed)
+        self._save(failed)
         return failed
+
+    def _save(self, entry: QueueEntry) -> None:
+        self._store.save(entry)
+        self._notify_lifecycle(entry)
+
+    def _reconcile_lifecycle_observer(self) -> None:
+        if self._lifecycle_observer is None:
+            return
+        for entry in self._store.list():
+            self._notify_lifecycle(entry)
+
+    def _notify_lifecycle(self, entry: QueueEntry) -> None:
+        observer = self._lifecycle_observer
+        if observer is None:
+            return
+        try:
+            observer.sync_queue_entry(entry)
+        except Exception:  # noqa: BLE001 - observer failures must not stop queue event tracking
+            _LOG.exception(
+                "queue lifecycle observer failed for queue_id=%s state=%s",
+                entry.queue_id,
+                entry.state.value,
+            )
