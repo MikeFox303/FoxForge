@@ -26,6 +26,53 @@ def _forbidden_imports(root: Path, forbidden: tuple[str, ...]) -> list[str]:
     return violations
 
 
+def test_domain_layer_does_not_depend_on_outer_layers() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/domain"),
+        (
+            "foxforge.application",
+            "foxforge.api",
+            "foxforge.infrastructure",
+            "foxforge.runtime",
+            "foxforge.adapters",
+        ),
+    )
+    assert violations == []
+
+
+def test_application_layer_does_not_depend_on_delivery_or_infrastructure() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/application"),
+        (
+            "foxforge.api",
+            "foxforge.infrastructure",
+            "foxforge.runtime",
+            "foxforge.adapters",
+        ),
+    )
+    assert violations == []
+
+
+def test_api_layer_does_not_depend_on_runtime_infrastructure_or_adapters() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/api"),
+        (
+            "foxforge.runtime",
+            "foxforge.infrastructure",
+            "foxforge.adapters",
+        ),
+    )
+    assert violations == []
+
+
+def test_infrastructure_layer_does_not_import_concrete_vendor_adapters() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/infrastructure"),
+        ("foxforge.adapters", "bambu", "moonraker"),
+    )
+    assert violations == []
+
+
 def test_printer_domain_has_no_vendor_adapter_imports() -> None:
     violations = _forbidden_imports(
         Path("src/foxforge/domain/printers"),
