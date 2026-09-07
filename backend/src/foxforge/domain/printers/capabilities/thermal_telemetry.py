@@ -28,7 +28,10 @@ class ThermalTelemetryDescriptor(CapabilityDescriptor):
 
     def __post_init__(self) -> None:
         CapabilityDescriptor.__post_init__(self)
-        if self.capability_id != THERMAL_TELEMETRY_CAPABILITY_ID or self.major_version != THERMAL_TELEMETRY_MAJOR_VERSION:
+        if (
+            self.capability_id != THERMAL_TELEMETRY_CAPABILITY_ID
+            or self.major_version != THERMAL_TELEMETRY_MAJOR_VERSION
+        ):
             raise ValueError("ThermalTelemetryDescriptor must describe foxforge.thermal_telemetry v1")
 
 
