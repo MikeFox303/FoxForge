@@ -16,6 +16,7 @@ from pathlib import Path
 
 from foxforge.domain.printers import utc_now
 
+from .lan_reports import contains_status_fields
 from .native import (
     BambuMaterialUnitKind,
     BambuNativeFault,
@@ -74,7 +75,7 @@ class BambuLanCodec:
         if not isinstance(print_data, dict):
             return self._state if version_changed else None
         command = print_data.get("command")
-        if command not in {None, "push_status"} and not _contains_status_fields(print_data):
+        if command not in {None, "push_status"} and not contains_status_fields(print_data):
             return self._state if version_changed else None
 
         previous = self._state
@@ -402,26 +403,6 @@ def _parse_faults(print_data: dict[str, object]) -> tuple[BambuNativeFault, ...]
                 )
             )
     return tuple(faults)
-
-
-def _contains_status_fields(print_data: dict[str, object]) -> bool:
-    fields = {
-        "gcode_state",
-        "subtask_name",
-        "gcode_file",
-        "mc_percent",
-        "mc_remaining_time",
-        "layer_num",
-        "total_layer_num",
-        "ams",
-        "vt_tray",
-        "vir_slot",
-        "device",
-        "wifi_signal",
-        "print_error",
-        "hms",
-    }
-    return any(field in print_data for field in fields)
 
 
 def _copy_if_present(
