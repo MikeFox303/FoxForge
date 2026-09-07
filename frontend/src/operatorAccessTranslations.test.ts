@@ -23,4 +23,15 @@ describe('operator access translations', () => {
       expect(help).not.toMatch(/[A-Fa-f0-9]{32,}/);
     }
   });
+
+  it('states that the credential is transient rather than browser-persistent', () => {
+    for (const language of ['en', 'ru', 'uk'] as const) {
+      const help = operatorAccessTranslations[language].memoryHelp;
+      expect(help.length).toBeGreaterThan(35);
+      expect(help.toLowerCase()).not.toContain('localstorage');
+      expect(help.toLowerCase()).not.toContain('sessionstorage');
+    }
+    expect(operatorAccessTranslations.en.memoryHelp).toContain('memory');
+    expect(operatorAccessTranslations.en.memoryHelp).toContain('reload');
+  });
 });
