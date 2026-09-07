@@ -2,10 +2,12 @@
 // Copyright (C) 2026 MikeFox303
 
 import { useQuery } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { demoModeEnabled } from '../../data/apiClient';
 import {
+  formatReconnectDiagnosticReport,
   loadReconnectDiagnostics,
   reconnectDiagnosticForPrinter,
   type ReconnectDiagnostic,
@@ -30,6 +32,9 @@ type Copy = {
   lastAttempt: string;
   nextRetry: string;
   recoveredAt: string;
+  copyReport: string;
+  copied: string;
+  copyFailed: string;
   yes: string;
   no: string;
   never: string;
@@ -56,6 +61,9 @@ const copy: Record<'en' | 'ru' | 'uk', Copy> = {
     lastAttempt: 'Last reconnect attempt',
     nextRetry: 'Next retry',
     recoveredAt: 'Recovered at',
+    copyReport: 'Copy diagnostic report',
+    copied: 'Diagnostic report copied.',
+    copyFailed: 'Could not copy the diagnostic report.',
     yes: 'Yes',
     no: 'No',
     never: '—',
@@ -92,6 +100,9 @@ const copy: Record<'en' | 'ru' | 'uk', Copy> = {
     lastAttempt: 'Последняя попытка подключения',
     nextRetry: 'Следующая попытка',
     recoveredAt: 'Связь восстановлена',
+    copyReport: 'Скопировать отчёт диагностики',
+    copied: 'Отчёт диагностики скопирован.',
+    copyFailed: 'Не удалось скопировать отчёт диагностики.',
     yes: 'Да',
     no: 'Нет',
     never: '—',
@@ -128,6 +139,9 @@ const copy: Record<'en' | 'ru' | 'uk', Copy> = {
     lastAttempt: 'Остання спроба підключення',
     nextRetry: 'Наступна спроба',
     recoveredAt: 'Зв’язок відновлено',
+    copyReport: 'Скопіювати звіт діагностики',
+    copied: 'Звіт діагностики скопійовано.',
+    copyFailed: 'Не вдалося скопіювати звіт діагностики.',
     yes: 'Так',
     no: 'Ні',
     never: '—',
@@ -147,12 +161,15 @@ const copy: Record<'en' | 'ru' | 'uk', Copy> = {
   },
 };
 
+type CopyState = 'idle' | 'copied' | 'failed';
+
 export function ReconnectDiagnosticsPanel({ printerId }: { printerId: string }) {
   const { i18n } = useTranslation();
   const language = (i18n.resolvedLanguage ?? i18n.language).slice(0, 2) as keyof typeof copy;
   const c = copy[language] ?? copy.en;
   const locale = i18n.resolvedLanguage ?? i18n.language;
   const demo = demoModeEnabled();
+  const [copyState, setCopyState] = useState<CopyState>('idle');
   const query = useQuery({
     queryKey: ['diagnostics', 'reconnect'],
     queryFn: loadReconnectDiagnostics,
@@ -161,6 +178,19 @@ export function ReconnectDiagnosticsPanel({ printerId }: { printerId: string }) 
   });
 
   const diagnostic = reconnectDiagnosticForPrinter(query.data ?? [], printerId);
+
+  const copyDiagnosticReport = async () => {
+    if (!diagnostic || !navigator.clipboard?.writeText) {
+      setCopyState('failed');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(formatReconnectDiagnosticReport(diagnostic));
+      setCopyState('copied');
+    } catch {
+      setCopyState('failed');
+    }
+  };
 
   return (
     <section className="panel reconnect-diagnostics-panel">
@@ -175,7 +205,15 @@ export function ReconnectDiagnosticsPanel({ printerId }: { printerId: string }) 
       ) : query.isError ? (
         <div className="runtime-notice error" role="alert"><div><strong>{c.unavailable}</strong></div></div>
       ) : diagnostic ? (
-        <ReconnectDefinitionList diagnostic={diagnostic} copy={c} locale={locale} />
+        <>
+          <ReconnectDefinitionList diagnostic={diagnostic} copy={c} locale={locale} />
+          <div className="reconnect-diagnostics-actions">
+            <button className="secondary-button" type="button" onClick={copyDiagnosticReport}>{c.copyReport}</button>
+            <span className={`reconnect-copy-status state-${copyState}`} role="status" aria-live="polite">
+              {copyState === 'copied' ? c.copied : copyState === 'failed' ? c.copyFailed : ''}
+            </span>
+          </div>
+        </>
       ) : (
         <div className="empty-state">{c.noHistory}</div>
       )}

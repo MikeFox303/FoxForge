@@ -3,7 +3,11 @@
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { loadReconnectDiagnostics, reconnectDiagnosticForPrinter } from './reconnectDiagnosticsClient';
+import {
+  formatReconnectDiagnosticReport,
+  loadReconnectDiagnostics,
+  reconnectDiagnosticForPrinter,
+} from './reconnectDiagnosticsClient';
 
 const fetchMock = vi.fn<typeof fetch>();
 vi.stubGlobal('fetch', fetchMock);
@@ -78,6 +82,46 @@ describe('reconnect diagnostics client', () => {
       consecutiveFailures: 0,
     });
     expect(reconnectDiagnosticForPrinter(diagnostics, 'missing')).toBeUndefined();
+  });
+
+  it('formats a report only from the normalized reconnect DTO', () => {
+    const report = formatReconnectDiagnosticReport({
+      printerId: 'x2d-main',
+      consecutiveFailures: 3,
+      lastErrorCode: 'connection_unavailable',
+      lastErrorRetryable: true,
+      lastFailureAt: '2026-09-07T16:30:00Z',
+      lastAttemptAt: '2026-09-07T16:30:08Z',
+      nextRetryAt: '2026-09-07T16:30:16Z',
+      recoveredAt: undefined,
+    });
+
+    expect(report).toBe([
+      'FoxForge reconnect diagnostic v1',
+      'printerId=x2d-main',
+      'consecutiveFailures=3',
+      'lastErrorCode=connection_unavailable',
+      'lastErrorRetryable=true',
+      'lastFailureAt=2026-09-07T16:30:00Z',
+      'lastAttemptAt=2026-09-07T16:30:08Z',
+      'nextRetryAt=2026-09-07T16:30:16Z',
+      'recoveredAt=-',
+    ].join('\n'));
+    expect(report).not.toMatch(/access[_-]?code|password|command[_-]?token|mqtt|host=|serial/i);
+  });
+
+  it('uses explicit placeholders rather than inventing missing diagnostic values', () => {
+    expect(formatReconnectDiagnosticReport({ printerId: 'printer-1', consecutiveFailures: 0 })).toBe([
+      'FoxForge reconnect diagnostic v1',
+      'printerId=printer-1',
+      'consecutiveFailures=0',
+      'lastErrorCode=-',
+      'lastErrorRetryable=-',
+      'lastFailureAt=-',
+      'lastAttemptAt=-',
+      'nextRetryAt=-',
+      'recoveredAt=-',
+    ].join('\n'));
   });
 
   it('surfaces HTTP failures instead of inventing reconnect state', async () => {

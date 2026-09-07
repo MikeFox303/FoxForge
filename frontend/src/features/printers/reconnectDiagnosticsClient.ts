@@ -42,6 +42,20 @@ export function reconnectDiagnosticForPrinter(
   return diagnostics.find((item) => item.printerId === printerId);
 }
 
+export function formatReconnectDiagnosticReport(diagnostic: ReconnectDiagnostic): string {
+  return [
+    'FoxForge reconnect diagnostic v1',
+    `printerId=${diagnostic.printerId}`,
+    `consecutiveFailures=${diagnostic.consecutiveFailures}`,
+    `lastErrorCode=${diagnostic.lastErrorCode ?? '-'}`,
+    `lastErrorRetryable=${formatOptionalBoolean(diagnostic.lastErrorRetryable)}`,
+    `lastFailureAt=${diagnostic.lastFailureAt ?? '-'}`,
+    `lastAttemptAt=${diagnostic.lastAttemptAt ?? '-'}`,
+    `nextRetryAt=${diagnostic.nextRetryAt ?? '-'}`,
+    `recoveredAt=${diagnostic.recoveredAt ?? '-'}`,
+  ].join('\n');
+}
+
 function mapReconnectDiagnostic(item: ApiReconnectDiagnostic): ReconnectDiagnostic {
   return {
     printerId: item.printerId,
@@ -53,4 +67,9 @@ function mapReconnectDiagnostic(item: ApiReconnectDiagnostic): ReconnectDiagnost
     nextRetryAt: item.nextRetryAt ?? undefined,
     recoveredAt: item.recoveredAt ?? undefined,
   };
+}
+
+function formatOptionalBoolean(value: boolean | undefined): string {
+  if (value === undefined) return '-';
+  return value ? 'true' : 'false';
 }
