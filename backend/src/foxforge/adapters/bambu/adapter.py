@@ -194,10 +194,7 @@ class BambuAdapter:
         if previous_topology.routes != current_topology.routes or previous_topology.stale != current_topology.stale:
             self._emit(PrinterEventKind.MATERIAL_TOPOLOGY_CHANGED, current_topology)
 
-        if (
-            previous_native.thermal_zones != native.thermal_zones
-            or previous_native.connected != native.connected
-        ):
+        if previous_native.thermal_zones != native.thermal_zones or previous_native.connected != native.connected:
             self._emit(PrinterEventKind.THERMAL_TELEMETRY_CHANGED, self._thermal.snapshot())
 
         if reconcile:
