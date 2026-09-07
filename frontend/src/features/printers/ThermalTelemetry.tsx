@@ -4,6 +4,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { PrinterViewModel, ThermalZoneSnapshot } from '../../domain';
+import { SectionHeading } from '../../ui/SectionHeading';
 import { temperatureLabel, thermalPresentation } from './thermalPresentation';
 
 export function ThermalTelemetryStrip({
@@ -34,13 +35,12 @@ export function ThermalTelemetryPanel({ printer }: { printer: Pick<PrinterViewMo
 
   return (
     <section className={`panel thermal-panel ${presentation.stale ? 'stale' : ''}`}>
-      <div className="printer-section-heading compact-heading">
-        <div>
-          <div className="eyebrow">{t('thermalTelemetry.eyebrow')}</div>
-          <h3>{t('thermalTelemetry.title')}</h3>
-        </div>
-        {presentation.stale && <span className="thermal-stale-badge">{t('thermalTelemetry.stale')}</span>}
-      </div>
+      <SectionHeading
+        eyebrow={t('thermalTelemetry.eyebrow')}
+        title={t('thermalTelemetry.title')}
+        trailing={presentation.stale ? <span className="thermal-stale-badge">{t('thermalTelemetry.stale')}</span> : undefined}
+        compact
+      />
       {presentation.zones.length > 0 ? (
         <div className="thermal-zone-grid">
           {presentation.zones.map((zone) => <ThermalZoneCard zone={zone} key={zone.zoneId} />)}

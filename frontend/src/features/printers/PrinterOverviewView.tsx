@@ -4,6 +4,7 @@
 import { useTranslation } from 'react-i18next';
 
 import type { MaterialSlotSnapshot, PrinterViewModel, QueueViewModel } from '../../domain';
+import { SectionHeading } from '../../ui/SectionHeading';
 import { describeMaterialSource, printerStatusLabel } from '../../viewModel';
 import { PrinterActiveJobPanel } from './PrinterActiveJobPanel';
 import { summarizePrinterMaterials, type PrinterTelemetryPhase } from './printerDetailViewModel';
@@ -56,10 +57,12 @@ export function PrinterOverviewView({
 
       <div className="two-column printer-detail-columns">
         <section className="panel">
-          <div className="printer-section-heading compact-heading">
-            <div><div className="eyebrow">{t('printerDetail.materialSystem')}</div><h3>{t('printerDetail.loadedMaterials')}</h3></div>
-            <span>{materialSummary.loadedSlots}/{materialSummary.totalSlots}</span>
-          </div>
+          <SectionHeading
+            eyebrow={t('printerDetail.materialSystem')}
+            title={t('printerDetail.loadedMaterials')}
+            trailing={<span>{materialSummary.loadedSlots}/{materialSummary.totalSlots}</span>}
+            compact
+          />
           {printer.materialSystem ? (
             <div className="printer-material-summary-list">
               {printer.materialSystem.units.map((unit) => (
@@ -77,10 +80,12 @@ export function PrinterOverviewView({
         </section>
 
         <section className="panel">
-          <div className="printer-section-heading compact-heading">
-            <div><div className="eyebrow">{t('printerDetail.nextWork')}</div><h3>{t('printerDetail.printerQueue')}</h3></div>
-            <span>{queue.length}</span>
-          </div>
+          <SectionHeading
+            eyebrow={t('printerDetail.nextWork')}
+            title={t('printerDetail.printerQueue')}
+            trailing={<span>{queue.length}</span>}
+            compact
+          />
           {queue.length ? (
             <div className="printer-queue-compact">
               {queue.slice(0, 4).map((entry) => (
