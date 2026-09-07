@@ -85,6 +85,17 @@
   flex-wrap: wrap;
 }
 
+.operator-access-help {
+  display: grid;
+  gap: 0.2rem;
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+.operator-access-help small:last-child {
+  color: var(--muted-2, var(--muted));
+}
+
 .operator-access label {
   min-width: 0;
 }
@@ -95,7 +106,7 @@
 }
 
 .operator-access small {
-  max-width: 18rem;
+  max-width: 24rem;
 }
 
 .operator-access-unlocked {
