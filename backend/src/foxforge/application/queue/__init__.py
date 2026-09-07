@@ -2,6 +2,7 @@
 # Copyright (C) 2026 MikeFox303
 
 from .models import QueueDispatchError, QueueEntry, QueueEntryState
+from .policy import QueueDispatchGateResult, QueueLifecycleObserver, QueuePreDispatchGate
 from .runner import QueueRetryPolicy, QueueRunner
 from .service import (
     QueueEntryNotFoundError,
@@ -13,9 +14,12 @@ from .store import InMemoryQueueStore, QueueStore, QueueStoreConflictError, Queu
 __all__ = [
     "InMemoryQueueStore",
     "QueueDispatchError",
+    "QueueDispatchGateResult",
     "QueueEntry",
     "QueueEntryNotFoundError",
     "QueueEntryState",
+    "QueueLifecycleObserver",
+    "QueuePreDispatchGate",
     "QueueReconciliationRequiredError",
     "QueueRetryPolicy",
     "QueueRunner",

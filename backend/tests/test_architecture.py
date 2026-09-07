@@ -97,6 +97,14 @@ def test_application_layer_has_no_vendor_adapter_imports() -> None:
     assert violations == []
 
 
+def test_queue_application_does_not_import_concrete_accounting() -> None:
+    violations = _forbidden_imports(
+        Path("src/foxforge/application/queue"),
+        ("foxforge.application.accounting",),
+    )
+    assert violations == []
+
+
 def test_public_api_has_no_vendor_adapter_imports() -> None:
     violations = _forbidden_imports(
         Path("src/foxforge/api"),
