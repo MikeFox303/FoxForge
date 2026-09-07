@@ -1,0 +1,29 @@
+{
+  "print": {
+    "command": "push_status",
+    "sequence_id": "candidate6-regression-001",
+    "device": {
+      "extruder": {
+        "info": [
+          {},
+          {}
+        ]
+      }
+    },
+    "wifi_signal": "-63dBm",
+    "vir_slot": [
+      {
+        "id": 254,
+        "state": 9
+      },
+      {
+        "id": 255,
+        "state": 0,
+        "tray_type": "PLA",
+        "tray_color": "FFFFFFFF",
+        "tray_sub_brands": "PLA Basic",
+        "remain": 48
+      }
+    ]
+  }
+}

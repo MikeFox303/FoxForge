@@ -1,0 +1,87 @@
+[
+  {
+    "info": {
+      "command": "get_version",
+      "sequence_id": "candidate6-regression-version",
+      "module": [
+        {
+          "name": "n3f/0"
+        }
+      ]
+    }
+  },
+  {
+    "print": {
+      "command": "push_status",
+      "sequence_id": "candidate6-regression-status",
+      "device": {
+        "extruder": {
+          "info": [
+            {},
+            {}
+          ]
+        }
+      },
+      "wifi_signal": "-63dBm",
+      "vir_slot": [
+        {
+          "id": 254,
+          "state": 9,
+          "tray_type": "",
+          "tray_color": "",
+          "tray_sub_brands": "",
+          "remain": 0
+        },
+        {
+          "id": 255,
+          "state": 0,
+          "tray_type": "PLA",
+          "tray_color": "FFFFFFFF",
+          "tray_sub_brands": "PLA Basic",
+          "remain": 48
+        }
+      ]
+    }
+  },
+  {
+    "print": {
+      "command": "push_status",
+      "sequence_id": "candidate6-regression-ams",
+      "ams": {
+        "tray_now": "255",
+        "tray_exist_bits": "F",
+        "ams": [
+          {
+            "id": "0",
+            "tray": [
+              {
+                "id": "0",
+                "tray_type": "PETG",
+                "tray_color": "FF6600FF",
+                "remain": 91
+              },
+              {
+                "id": "1",
+                "tray_type": "PETG",
+                "tray_color": "FFFFFFFF",
+                "remain": 83
+              },
+              {
+                "id": "2",
+                "tray_type": "PETG",
+                "tray_color": "00FF00FF",
+                "remain": 72
+              },
+              {
+                "id": "3",
+                "tray_type": "PETG",
+                "tray_color": "0000FFFF",
+                "remain": 64
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+]
