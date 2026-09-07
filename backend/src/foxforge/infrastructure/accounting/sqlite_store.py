@@ -30,28 +30,36 @@ class SQLiteFilamentAccountingStore:
         self._initialize()
 
     def create(self, reservation: FilamentReservation) -> None:
-        try:
-            with closing(self._connect()) as connection, connection:
-                connection.execute(
-                    """
-                    INSERT INTO filament_reservations(
-                        queue_id, material_index, spool_id, state, payload, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        str(reservation.queue_id),
-                        reservation.material_index,
-                        str(reservation.spool_id),
-                        reservation.state.value,
-                        _encode(reservation),
-                        reservation.created_at.isoformat(),
-                        reservation.updated_at.isoformat(),
-                    ),
-                )
-        except sqlite3.IntegrityError as error:
-            raise FilamentAccountingStoreConflictError(
-                f"reservation already exists: {reservation.queue_id}/{reservation.material_index}"
-            ) from error
+        self.create_many((reservation,))
+
+    def create_many(self, reservations: tuple[FilamentReservation, ...]) -> None:
+        if not reservations:
+            return
+        keys = [(item.queue_id, item.material_index) for item in reservations]
+        if len(keys) != len(set(keys)):
+            raise FilamentAccountingStoreConflictError("reservation batch contains duplicate queue/material keys")
+
+        with closing(self._connect()) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                for reservation in reservations:
+                    connection.execute(
+                        """
+                        INSERT INTO filament_reservations(
+                            queue_id, material_index, spool_id, state, payload, created_at, updated_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        _insert_params(reservation),
+                    )
+                connection.commit()
+            except sqlite3.IntegrityError as error:
+                connection.rollback()
+                raise FilamentAccountingStoreConflictError(
+                    "reservation batch conflicts with durable accounting state"
+                ) from error
+            except Exception:
+                connection.rollback()
+                raise
 
     def save(self, reservation: FilamentReservation) -> None:
         with closing(self._connect()) as connection, connection:
@@ -143,6 +151,18 @@ class SQLiteFilamentAccountingStore:
         connection = sqlite3.connect(self._path, timeout=5.0)
         connection.execute("PRAGMA busy_timeout=5000")
         return connection
+
+
+def _insert_params(reservation: FilamentReservation) -> tuple[str, int, str, str, str, str, str]:
+    return (
+        str(reservation.queue_id),
+        reservation.material_index,
+        str(reservation.spool_id),
+        reservation.state.value,
+        _encode(reservation),
+        reservation.created_at.isoformat(),
+        reservation.updated_at.isoformat(),
+    )
 
 
 def _encode(reservation: FilamentReservation) -> str:
