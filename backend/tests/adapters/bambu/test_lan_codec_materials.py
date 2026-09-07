@@ -29,7 +29,8 @@ def _x2d_status() -> dict[str, object]:
                     }
                 ],
             },
-            "vt_tray": [
+            # X2D/H2-family full external-source inventory is reported here.
+            "vir_slot": [
                 {
                     "id": 254,
                     "state": 9,
@@ -155,7 +156,7 @@ def test_incremental_ams_and_external_updates_do_not_erase_each_other() -> None:
         {
             "print": {
                 "command": "push_status",
-                "vt_tray": [
+                "vir_slot": [
                     {"id": 254, "state": 9},
                     {
                         "id": 255,
@@ -200,17 +201,61 @@ def test_incremental_ams_and_external_updates_do_not_erase_each_other() -> None:
     assert ams_update.material_units[2].trays[0].material_type == "PLA"
 
 
-def test_empty_vt_tray_list_clears_only_external_sources() -> None:
+def test_empty_vir_slot_list_clears_only_external_sources() -> None:
     codec = BambuLanCodec()
     _mark_ams_2_pro(codec)
     initial = codec.apply(_x2d_status())
     assert initial is not None
 
-    updated = codec.apply({"print": {"command": "push_status", "vt_tray": []}})
+    updated = codec.apply({"print": {"command": "push_status", "vir_slot": []}})
 
     assert updated is not None
     assert [unit.ams_id for unit in updated.material_units] == [0]
     assert updated.material_units[0].kind == BambuMaterialUnitKind.AMS_2_PRO
+
+
+def test_vir_slot_takes_precedence_over_vt_tray_when_both_are_reported() -> None:
+    codec = BambuLanCodec()
+
+    state = codec.apply(
+        {
+            "print": {
+                "command": "push_status",
+                "vir_slot": [
+                    {"id": 254, "state": 9},
+                    {"id": 255, "state": 0, "tray_type": "PLA", "remain": 48},
+                ],
+                # H2-family vt_tray may describe one active/legacy view. It
+                # must not overwrite the authoritative full vir_slot list.
+                "vt_tray": {"id": 254, "state": 0, "tray_type": "ABS", "remain": 12},
+            }
+        }
+    )
+
+    assert state is not None
+    assert [unit.ams_id for unit in state.material_units] == [254, 255]
+    assert state.material_units[0].label == "External Left"
+    assert state.material_units[0].trays[0].exists is False
+    assert state.material_units[1].label == "External Right"
+    assert state.material_units[1].trays[0].material_type == "PLA"
+
+
+def test_empty_vt_tray_list_clears_only_external_sources_for_legacy_firmware() -> None:
+    codec = BambuLanCodec()
+    codec.apply(
+        {
+            "print": {
+                "command": "push_status",
+                "ams": {"ams": [{"id": 0, "tray": []}]},
+                "vt_tray": {"tray_type": "TPU", "remain": 36},
+            }
+        }
+    )
+
+    updated = codec.apply({"print": {"command": "push_status", "vt_tray": []}})
+
+    assert updated is not None
+    assert [unit.ams_id for unit in updated.material_units] == [0]
 
 
 def test_list_entry_without_physical_id_is_not_guessed() -> None:
@@ -220,7 +265,7 @@ def test_list_entry_without_physical_id_is_not_guessed() -> None:
         {
             "print": {
                 "command": "push_status",
-                "vt_tray": [{"tray_type": "PLA", "tray_color": "FFFFFFFF"}],
+                "vir_slot": [{"tray_type": "PLA", "tray_color": "FFFFFFFF"}],
             }
         }
     )
