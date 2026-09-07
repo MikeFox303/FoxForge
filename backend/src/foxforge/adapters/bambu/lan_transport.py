@@ -35,6 +35,26 @@ from .native import (
 from .storage import BambuProjectStorage, FtpsBambuProjectStorage
 from .transport import BambuTransportError, BambuTransportErrorKind
 
+_INITIAL_STATUS_META_FIELDS = frozenset({"command", "sequence_id"})
+_INITIAL_STATUS_FIELDS = frozenset(
+    {
+        "gcode_state",
+        "subtask_name",
+        "gcode_file",
+        "mc_percent",
+        "mc_remaining_time",
+        "layer_num",
+        "total_layer_num",
+        "ams",
+        "vt_tray",
+        "vir_slot",
+        "device",
+        "wifi_signal",
+        "print_error",
+        "hms",
+    }
+)
+
 
 class BambuLanTransport:
     """Bambu local-LAN control with conservative print-start/control semantics."""
@@ -232,10 +252,11 @@ class BambuLanTransport:
         try:
             async for payload in self._mqtt.messages():
                 self._resolve_response(payload)
+                initial_status_report = _is_initial_status_report(payload)
                 state = self._codec.apply(payload)
                 if state is None:
                     continue
-                if state.gcode_state is not None:
+                if initial_status_report:
                     self._initial_state.set()
                 self._events.put_nowait(state)
         except asyncio.CancelledError:
@@ -263,6 +284,20 @@ class BambuLanTransport:
     def _next_sequence(self) -> str:
         self._sequence += 1
         return str(self._sequence)
+
+
+def _is_initial_status_report(payload: Mapping[str, object]) -> bool:
+    print_data = payload.get("print")
+    if not isinstance(print_data, Mapping):
+        return False
+
+    command = print_data.get("command")
+    if command == "push_status":
+        return any(key not in _INITIAL_STATUS_META_FIELDS for key in print_data)
+
+    if command is not None:
+        return False
+    return any(field in print_data for field in _INITIAL_STATUS_FIELDS)
 
 
 def _response_job_id(response: Mapping[str, object]) -> str | None:

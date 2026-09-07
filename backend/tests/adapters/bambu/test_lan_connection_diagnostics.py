@@ -56,6 +56,26 @@ class _NoInitialStateMqttWire:
             yield item
 
 
+class _PartialInitialStateMqttWire(_NoInitialStateMqttWire):
+    async def publish(self, payload: dict[str, object]) -> None:
+        await super().publish(payload)
+        pushing = payload.get("pushing")
+        if isinstance(pushing, dict) and pushing.get("command") == "pushall":
+            await self._messages.put(
+                {
+                    "print": {
+                        "command": "push_status",
+                        "sequence_id": pushing.get("sequence_id"),
+                        # Real Bambu push_status frames are incremental. In
+                        # particular, an otherwise valid initial X2D report can
+                        # omit gcode_state while still carrying device state.
+                        "device": {"extruder": {"info": [{}, {}]}},
+                        "wifi_signal": "-63dBm",
+                    }
+                }
+            )
+
+
 class _UnusedFtpsWire:
     async def upload(self, local_path: Path, remote_filename: str) -> None:
         raise AssertionError("FTPS must not run during connection preflight")
@@ -80,5 +100,28 @@ def test_initial_state_timeout_has_stable_diagnostic_stage_code() -> None:
             assert mqtt.connected is False
         else:
             raise AssertionError("connection should fail without initial push_status")
+
+    asyncio.run(scenario())
+
+
+def test_partial_initial_push_status_without_gcode_state_satisfies_preflight() -> None:
+    async def scenario() -> None:
+        settings = BambuLanSettings(
+            host="192.0.2.11",
+            serial_number="20P8BJ5A1000216",
+            access_code="12345678",
+            connect_timeout_seconds=0.1,
+        )
+        mqtt = _PartialInitialStateMqttWire()
+        transport = BambuLanTransport(settings, mqtt_wire=mqtt, ftps_wire=_UnusedFtpsWire())
+
+        await transport.connect()
+
+        assert mqtt.connected is True
+        assert transport.snapshot().connected is True
+        assert transport.snapshot().gcode_state is None
+
+        await transport.disconnect()
+        assert mqtt.connected is False
 
     asyncio.run(scenario())
