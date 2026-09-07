@@ -1,0 +1,62 @@
+/* SPDX-License-Identifier: AGPL-3.0-only */
+/* Copyright (C) 2026 MikeFox303 */
+
+.material-slot-route {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 8px;
+  border: 1px solid rgba(74, 222, 128, .16);
+  border-radius: 9px;
+  background: rgba(20, 83, 45, .09);
+}
+
+.material-slot-route.warning {
+  border-color: rgba(245, 158, 11, .2);
+  background: rgba(120, 53, 15, .09);
+}
+
+.material-slot-route .material-route-kind {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  font-size: 8px;
+}
+
+.material-slot-route-target {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.material-slot-route-target > span {
+  color: var(--muted-2);
+}
+
+.material-slot-route-target strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-size: 9px;
+}
+
+.material-slot-route > small {
+  flex: 1 1 100%;
+  color: #fcd34d;
+  font-size: 8px;
+  line-height: 1.35;
+}
+
+@media (max-width: 720px) {
+  .material-slot-route {
+    flex-wrap: wrap;
+  }
+
+  .material-slot-route-target {
+    flex: 1 1 auto;
+  }
+}

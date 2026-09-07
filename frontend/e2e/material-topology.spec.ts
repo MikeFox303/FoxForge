@@ -121,6 +121,19 @@ test('printer Materials renders typed material topology routes and unresolved st
   await page.goto('/printers/topology-printer');
   await page.getByRole('button', { name: /^materials$/i }).click();
 
+  const externalFeeds = page.locator('.material-external-section');
+  const leftFeed = externalFeeds.locator('.external-feed-panel').filter({ hasText: 'External Left' });
+  const rightFeed = externalFeeds.locator('.external-feed-panel').filter({ hasText: 'External Right' });
+  await expect(leftFeed.locator('.material-slot-route')).toContainText('Fixed route');
+  await expect(leftFeed.locator('.material-slot-route')).toContainText('Left toolhead');
+  await expect(rightFeed.locator('.material-slot-route')).toContainText('Fixed route');
+  await expect(rightFeed.locator('.material-slot-route')).toContainText('Right toolhead');
+
+  const amsRoute = page.locator('.material-unit-panel').filter({ hasText: 'Material Unit' }).locator('.material-slot-route');
+  await expect(amsRoute).toContainText('Unknown route');
+  await expect(amsRoute).toContainText('No confirmed toolhead');
+  await expect(amsRoute).toHaveClass(/warning/);
+
   const panel = page.locator('.material-topology-panel');
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Source routing');
@@ -135,10 +148,10 @@ test('printer Materials renders typed material topology routes and unresolved st
   await expect(panel).toContainText('No confirmed toolhead');
   await expect(panel.locator('.material-topology-route')).toHaveCount(3);
 
-  const genericCopy = await panel.textContent();
-  expect(genericCopy).not.toContain('ams_mapping');
-  expect(genericCopy).not.toContain('254');
-  expect(genericCopy).not.toContain('255');
+  const genericCopy = await page.locator('.material-external-section, .material-topology-panel').allTextContents();
+  expect(genericCopy.join(' ')).not.toContain('ams_mapping');
+  expect(genericCopy.join(' ')).not.toContain('254');
+  expect(genericCopy.join(' ')).not.toContain('255');
 });
 
 test('stale topology is visibly fail-closed as last-reported routing', async ({ page }) => {
@@ -150,6 +163,7 @@ test('stale topology is visibly fail-closed as last-reported routing', async ({ 
   await expect(panel).toHaveClass(/stale/);
   await expect(panel).toContainText('Routing data stale');
   await expect(panel).toContainText('These routes are the last report');
+  await expect(page.locator('.material-slot-route.warning')).toHaveCount(3);
 });
 
 test('material topology remains contained on the phone viewport', async ({ page }, testInfo) => {
@@ -168,6 +182,12 @@ test('material topology remains contained on the phone viewport', async ({ page 
   expect(panelBox!.x).toBeGreaterThanOrEqual(-1);
   expect(panelBox!.x + panelBox!.width).toBeLessThanOrEqual(viewport.width + 1);
   for (const route of await panel.locator('.material-topology-route').all()) {
+    const box = await route.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.x).toBeGreaterThanOrEqual(-1);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport.width + 1);
+  }
+  for (const route of await page.locator('.material-slot-route').all()) {
     const box = await route.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.x).toBeGreaterThanOrEqual(-1);

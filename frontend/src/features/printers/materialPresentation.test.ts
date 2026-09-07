@@ -3,8 +3,8 @@
 
 import { describe, expect, it } from 'vitest';
 
-import type { MaterialUnitSnapshot } from '../../domain';
-import { groupMaterialUnits } from './materialPresentation';
+import type { MaterialTopologySnapshot, MaterialUnitSnapshot } from '../../domain';
+import { groupMaterialUnits, materialRouteForSlot, resolveMaterialRoute } from './materialPresentation';
 
 const unit = (unitId: string, kind: MaterialUnitSnapshot['kind'], position: number): MaterialUnitSnapshot => ({
   unitId,
@@ -12,6 +12,21 @@ const unit = (unitId: string, kind: MaterialUnitSnapshot['kind'], position: numb
   position,
   slots: [],
 });
+
+const topology: MaterialTopologySnapshot = {
+  printerId: 'printer-1',
+  observedAt: '2026-09-07T18:00:00Z',
+  stale: false,
+  toolheads: [
+    { toolheadId: 'toolhead-right', label: 'Right toolhead', position: 0 },
+    { toolheadId: 'toolhead-left', label: 'Left toolhead', position: 1 },
+  ],
+  routes: [
+    { sourceSlotId: 'external-left-slot', toolheadIds: ['toolhead-left'], kind: 'fixed' },
+    { sourceSlotId: 'external-right-slot', toolheadIds: ['toolhead-right'], kind: 'fixed' },
+    { sourceSlotId: 'ams-slot', toolheadIds: [], kind: 'unknown' },
+  ],
+};
 
 describe('groupMaterialUnits', () => {
   it('separates multi-slot hardware from external feeds without vendor or model inference', () => {
@@ -37,5 +52,38 @@ describe('groupMaterialUnits', () => {
 
     expect(groups.external.map((item) => item.unitId)).toEqual(['external-b', 'external-a']);
     expect(groups.multiSlot.map((item) => item.unitId)).toEqual(['ams-b', 'ams-a']);
+  });
+});
+
+describe('material route presentation', () => {
+  it('resolves dual external feeds from typed topology only', () => {
+    const left = materialRouteForSlot({ materialTopology: topology }, 'external-left-slot');
+    const right = materialRouteForSlot({ materialTopology: topology }, 'external-right-slot');
+
+    expect(left?.toolheads.map((toolhead) => toolhead.label)).toEqual(['Left toolhead']);
+    expect(right?.toolheads.map((toolhead) => toolhead.label)).toEqual(['Right toolhead']);
+    expect(left?.warning).toBe(false);
+    expect(right?.warning).toBe(false);
+  });
+
+  it('keeps unknown and incomplete routes visibly non-authoritative', () => {
+    const unknown = materialRouteForSlot({ materialTopology: topology }, 'ams-slot');
+    const incomplete = resolveMaterialRoute(topology, {
+      sourceSlotId: 'other-slot',
+      toolheadIds: ['missing-toolhead'],
+      kind: 'fixed',
+    });
+
+    expect(unknown).toMatchObject({ unresolved: true, warning: true });
+    expect(incomplete).toMatchObject({ unresolved: true, warning: true, toolheads: [] });
+  });
+
+  it('marks otherwise resolved routes warning when topology is stale', () => {
+    const stale = resolveMaterialRoute(
+      { ...topology, stale: true },
+      topology.routes[0],
+    );
+    expect(stale.unresolved).toBe(false);
+    expect(stale.warning).toBe(true);
   });
 });
