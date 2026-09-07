@@ -10,6 +10,12 @@ The earlier freeze policy in this document is superseded by Candidate 6 issue #1
 
 PR #58 remains an implementation archive and must **not** be merged or mechanically rebased as one large change. Its useful vendor-independent accounting ideas are being reviewed and transplanted/reimplemented in small PRs against the current QueueService, material topology, immutable print-plan and exactly-once dispatch contracts.
 
+## Reactivation progress
+
+- **P3-R1 COMPLETE** — PR #165 merged into `main` as `38531028f4882797db32544d30162a9ad179d2f8`; reservation value objects, exact `Decimal`, in-memory/SQLite persistence and restart/conflict coverage are canonical.
+- **P3-R2 ACTIVE** — settlement/planning rebuild is being developed on `pre-alpha-5/p3-accounting-settlement`; it is not runtime-enabled and does not modify `QueueService.dispatch()`.
+- **P3-R3..R5 PENDING** — dispatch integration, operator/API workflow and provider evidence remain blocked on the preceding slices.
+
 ## Safety invariants that remain mandatory
 
 1. FoxForge never derives consumed grams from print progress or opaque vendor telemetry.
@@ -25,6 +31,8 @@ PR #58 remains an implementation archive and must **not** be merged or mechanica
 11. Restart/replay cannot duplicate an inventory debit.
 12. Accounting application/domain code cannot depend on Bambu or Moonraker transport/protocol types.
 13. Routing evidence and accounting evidence are separate: a valid source/toolhead route does not by itself authorize a filament debit.
+14. A multi-material reservation plan is durable all-or-nothing; a conflict cannot leave a partial plan behind.
+15. Missing receipt is not proof that a print never started once a dispatch attempt crossed the durable start boundary; any receipt-free terminal failure with `attempt_count > 0` remains reconciliation-required unless future common evidence explicitly proves no side effect occurred.
 
 ## Why the historical QueueService wrapper is not restored
 
@@ -46,9 +54,9 @@ Accounting must not change the existing `DISPATCHING` durability ordering, hidde
 
 ## Reactivation sequence
 
-### P3-R1 — reservation model and persistence
+### P3-R1 — reservation model and persistence — COMPLETE (#165)
 
-Reintroduce only the vendor-independent core:
+Canonical `main` now contains:
 
 - reservation/value models;
 - exact `Decimal` validation;
@@ -57,19 +65,24 @@ Reintroduce only the vendor-independent core:
 - restart/conflict/missing-write coverage;
 - `reconciliation_required` remains a capacity-holding state.
 
-No runtime enablement, queue guard or inventory debit occurs in this slice.
+No runtime enablement, queue guard or inventory debit was introduced by R1.
 
-### P3-R2 — settlement and inventory idempotency
+### P3-R2 — settlement and inventory idempotency — ACTIVE
 
 Rebuild the service layer around the current Inventory API:
 
+- atomic all-or-nothing multi-material reservation creation;
 - reservation capacity calculation and overcommit prevention;
+- immutable/idempotent plan replay;
 - deterministic completion/reconciliation idempotency keys;
 - completed estimate settlement exactly once;
-- receipt-free pre-start release only;
-- started failed/cancelled -> explicit reconciliation;
+- receipt-free release only when no dispatch attempt crossed the durable start boundary;
+- attempted or confirmed-start failed/cancelled outcomes -> explicit reconciliation;
 - `INDETERMINATE` retains reservations;
-- restart/replay settlement tests.
+- explicit reconciliation is service-level idempotent and conflicting mass replays fail closed;
+- restart/replay tests cover the crash window between inventory ledger commit and reservation-state save.
+
+R2 remains deliberately disconnected from printer dispatch. Passing R2 tests does **not** authorize automatic accounting in a release.
 
 ### P3-R3 — current QueueService integration
 
@@ -77,7 +90,7 @@ Integrate after fresh routing compilation/assessment and before `DISPATCHING`:
 
 - complete plan required for all material bindings;
 - reserved `spool_id` must still match the selected physical `slot_id`;
-- current remaining mass must still cover the reservation;
+- current remaining mass must still cover the full active hold for that spool;
 - route/toolhead safety remains owned by the routing compiler/adapter;
 - accounting failure blocks dispatch before any external side effect.
 

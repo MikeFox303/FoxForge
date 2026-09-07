@@ -1,15 +1,26 @@
 # SPDX-License-Identifier: AGPL-3.0-only
 # Copyright (C) 2026 MikeFox303
 
-"""Vendor-independent filament accounting core.
+"""Vendor-independent filament reservation and settlement application core.
 
-This Candidate 6 reactivation intentionally exposes reservation value objects
-and persistence contracts only. Queue/dispatch integration is rebuilt in a
-later slice against the current routing pipeline rather than restored from the
-historical P3 wrapper.
+Candidate 6 R2 adds durable planning/settlement semantics while printer dispatch
+integration remains a later R3 slice against the current QueueService routing
+pipeline.
 """
 
 from .models import FilamentReservation, FilamentReservationState, MaterialEstimate
+from .service import (
+    FilamentAccountingError,
+    FilamentAccountingService,
+    FilamentAssignmentRequiredError,
+    FilamentCapacityError,
+    FilamentPlanConflictError,
+    FilamentReconciliationConflictError,
+    FilamentReconciliationRequiredError,
+    FilamentReservationNotFoundError,
+    FilamentSettlementConflictError,
+    FilamentSettlementError,
+)
 from .store import (
     FilamentAccountingStore,
     FilamentAccountingStoreConflictError,
@@ -18,11 +29,21 @@ from .store import (
 )
 
 __all__ = [
+    "FilamentAccountingError",
+    "FilamentAccountingService",
     "FilamentAccountingStore",
     "FilamentAccountingStoreConflictError",
     "FilamentAccountingStoreMissingError",
+    "FilamentAssignmentRequiredError",
+    "FilamentCapacityError",
+    "FilamentPlanConflictError",
+    "FilamentReconciliationConflictError",
+    "FilamentReconciliationRequiredError",
     "FilamentReservation",
+    "FilamentReservationNotFoundError",
     "FilamentReservationState",
+    "FilamentSettlementConflictError",
+    "FilamentSettlementError",
     "InMemoryFilamentAccountingStore",
     "MaterialEstimate",
 ]
