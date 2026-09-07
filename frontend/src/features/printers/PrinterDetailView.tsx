@@ -9,13 +9,12 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { FleetData, MaterialSlotSnapshot, PrinterViewModel } from '../../domain';
 import {
   describeMaterialSource,
-  formatDuration,
   formatPercent,
   printerStatusLabel,
   printerTone,
 } from '../../viewModel';
-import { JobControlActions } from './JobControlActions';
 import { MaterialSystemView } from './MaterialSystemView';
+import { PrinterActiveJobPanel } from './PrinterActiveJobPanel';
 import { ReconnectDiagnosticsPanel } from './ReconnectDiagnosticsPanel';
 import {
   printerByRouteId,
@@ -111,22 +110,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
           </section>
 
           {job ? (
-            <section className="panel printer-active-job">
-              <div className="printer-section-heading">
-                <div>
-                  <div className="eyebrow">{t('printerDetail.activeJob')}</div>
-                  <h3>{job.name ?? t('printerDetail.unnamedJob')}</h3>
-                </div>
-                <strong className="printer-job-percent">{formatPercent(job.progress)}</strong>
-              </div>
-              <Progress value={job.progress} />
-              <div className="printer-job-facts">
-                <Fact label={t('printerDetail.elapsed')} value={formatDuration(job.elapsedSeconds)} />
-                <Fact label={t('printerDetail.remainingTime')} value={formatDuration(job.remainingSeconds)} />
-                <Fact label={t('printerDetail.layer')} value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} />
-                <Fact label={t('printerDetail.jobState')} value={t(`alpha.status.${job.state}`)} />
-              </div>
-            </section>
+            <PrinterActiveJobPanel printer={printer} />
           ) : (
             <section className="panel printer-ready-panel">
               <div className="ready-indicator"><span className={`status-dot ${telemetryPhase === 'live' ? 'good' : telemetryPhase === 'unavailable' ? 'danger' : 'warning'}`} /></div>
@@ -203,23 +187,7 @@ export function PrinterDetailView({ fleet }: { fleet: FleetData }) {
           </div>
 
           {job ? (
-            <section className="panel printer-active-job printer-control-panel">
-              <div className="printer-section-heading">
-                <div>
-                  <div className="eyebrow">{t('printerDetail.activeJob')}</div>
-                  <h3>{job.name ?? t('printerDetail.unnamedJob')}</h3>
-                </div>
-                <strong className="printer-job-percent">{formatPercent(job.progress)}</strong>
-              </div>
-              <Progress value={job.progress} />
-              <div className="printer-job-facts">
-                <Fact label={t('printerDetail.elapsed')} value={formatDuration(job.elapsedSeconds)} />
-                <Fact label={t('printerDetail.remainingTime')} value={formatDuration(job.remainingSeconds)} />
-                <Fact label={t('printerDetail.layer')} value={`${job.currentLayer ?? '—'} / ${job.totalLayers ?? '—'}`} />
-                <Fact label={t('printerDetail.jobState')} value={t(`alpha.status.${job.state}`)} />
-              </div>
-              <JobControlActions printer={printer} />
-            </section>
+            <PrinterActiveJobPanel printer={printer} controls />
           ) : (
             <section className="panel printer-ready-panel">
               <div className="ready-indicator"><span className={`status-dot ${telemetryPhase === 'live' ? 'good' : telemetryPhase === 'unavailable' ? 'danger' : 'warning'}`} /></div>
@@ -288,18 +256,10 @@ function DetailKpi({ label, value }: { label: string; value: string }) {
   return <article className="printer-detail-kpi"><span>{label}</span><strong>{value}</strong></article>;
 }
 
-function Fact({ label, value }: { label: string; value: string }) {
-  return <div><span>{label}</span><strong>{value}</strong></div>;
-}
-
 function StatusBadge({ printer }: { printer: PrinterViewModel }) {
   const tone = printerTone(printer);
   const { t } = useTranslation();
   return <span className={`status-badge tone-${tone}`}><span className={`status-dot ${tone}`} />{t(`alpha.status.${printerStatusLabel(printer)}`)}</span>;
-}
-
-function Progress({ value = 0 }: { value?: number }) {
-  return <div className="progress-track"><div className="progress-value" style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }} /></div>;
 }
 
 function MaterialDot({ slot }: { slot: MaterialSlotSnapshot }) {
