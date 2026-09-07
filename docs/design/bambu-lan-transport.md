@@ -1,7 +1,7 @@
 # Bambu LAN transport
 
 - **Status:** implemented alpha transport; physical X2D acceptance in progress
-- **Updated:** 2026-09-06
+- **Updated:** 2026-09-07
 - **Related:** [Bambu adapter foundation](bambu-adapter-foundation.md), [project storage](bambu-project-storage.md), [certificate trust](bambu-certificate-trust.md)
 
 ## Purpose
@@ -37,6 +37,10 @@ The transport:
 7. maps connect/auth/timeout/remote failures to FoxForge error categories.
 
 A successful socket/MQTT handshake alone is not enough to claim a usable connected printer; initial state must be obtained.
+
+Real X2D/H2-family reports are incremental. Candidate 5 physical validation proved that a valid initial `push_status` may omit `gcode_state` while carrying other current state such as `device`, `wifi_signal` or `vir_slot`. The transport therefore distinguishes a real state-bearing report from a metadata-only frame rather than requiring one specific status field.
+
+The private `lan_reports` classifier owns the recognized Bambu LAN status-field vocabulary shared by transport preflight and codec filtering. This is intentionally an adapter-private implementation detail, not a public FoxForge contract. Keeping one vocabulary prevents firmware compatibility fields from being added to the connection gate while being forgotten by the incremental codec, or vice versa.
 
 ## Setup/discovery interaction
 
