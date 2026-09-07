@@ -60,11 +60,13 @@ test('printer card and detail render common thermal telemetry without model infe
 
   const card = page.locator('.printer-card').filter({ hasText: 'Generic Thermal Printer' });
   await expect(card).toBeVisible();
+  await expect(card.locator('.status-badge')).toHaveAttribute('aria-label', 'Idle');
   await expect(card.locator('.thermal-strip')).toContainText('Primary hotend');
   await expect(card.locator('.thermal-strip')).toContainText('41°C');
   await expect(card.locator('.thermal-strip')).toContainText('59.5°C');
 
   await page.goto('/printers/thermal-printer');
+  await expect(page.locator('.printer-detail-hero .status-badge')).toHaveAttribute('aria-label', 'Idle');
   const panel = page.locator('.thermal-panel');
   await expect(panel).toBeVisible();
   await expect(panel).toContainText('Temperatures');

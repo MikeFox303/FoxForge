@@ -5,7 +5,9 @@ import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 
 import type { MaterialSlotSnapshot, PrinterViewModel } from '../../domain';
-import { formatDuration, formatPercent, printerTone } from '../../viewModel';
+import { formatDuration, formatPercent } from '../../viewModel';
+import { relativeTimeLabel } from './printerPresentation';
+import { PrinterStatusBadge } from './PrinterStatusBadge';
 import { ThermalTelemetryStrip } from './ThermalTelemetry';
 
 export type PrinterCardDensity = 'compact' | 'standard' | 'detailed';
@@ -73,17 +75,6 @@ export function PrinterCard({ printer, queueCount, onOpen, density = 'standard' 
   );
 }
 
-function PrinterStatusBadge({ printer }: { printer: PrinterViewModel }) {
-  const tone = printerTone(printer);
-  const { t } = useTranslation();
-  const key = printer.snapshot.stale
-    ? 'stale'
-    : printer.snapshot.connection !== 'connected'
-      ? printer.snapshot.connection
-      : printer.snapshot.operationalState;
-  return <span className={`status-badge tone-${tone}`}><span className={`status-dot ${tone}`} />{t(`alpha.status.${key}`)}</span>;
-}
-
 function Progress({ value = 0 }: { value?: number }) {
   return <div className="progress-track"><div className="progress-value" style={{ width: `${Math.max(0, Math.min(100, value * 100))}%` }} /></div>;
 }
@@ -106,14 +97,4 @@ function materialSourceLabel(printer: PrinterViewModel, t: TFunction): string {
   const material = (active ?? loaded)?.detectedMaterial;
   if (!material) return t('alpha.materialSource.none');
   return [material.materialFamily, material.vendorName].filter(Boolean).join(' · ') || t('alpha.materialSource.loaded');
-}
-
-function relativeTimeLabel(observedAt: string, t: TFunction, nowMs: number = Date.now()): string {
-  const observedMs = Date.parse(observedAt);
-  if (Number.isNaN(observedMs)) return t('alpha.relative.recently');
-  const deltaMs = Math.max(0, nowMs - observedMs);
-  if (deltaMs < 60_000) return t('alpha.relative.justNow');
-  if (deltaMs < 3_600_000) return t('alpha.relative.minutes', { count: Math.floor(deltaMs / 60_000) });
-  if (deltaMs < 86_400_000) return t('alpha.relative.hours', { count: Math.floor(deltaMs / 3_600_000) });
-  return t('alpha.relative.days', { count: Math.floor(deltaMs / 86_400_000) });
 }
