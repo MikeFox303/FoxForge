@@ -42,6 +42,7 @@ export type MaterialUnitKind = 'multi_slot' | 'external' | 'toolhead' | 'other';
 export type MaterialPresence = 'empty' | 'loaded' | 'unknown';
 export type MaterialActivity = 'inactive' | 'active' | 'unknown';
 export type MaterialRouteKind = 'fixed' | 'dynamic' | 'unknown';
+export type ThermalZoneKind = 'hotend' | 'bed' | 'chamber' | 'other';
 
 export interface PrinterIdentity {
   printerId: string;
@@ -89,6 +90,7 @@ export interface CapabilityDescriptor {
   supportedActions?: JobControlAction[];
   requiresVendorJobIdentity?: boolean;
   reportsDynamicRoutes?: boolean;
+  reportsTargets?: boolean;
 }
 
 export interface DetectedMaterial {
@@ -145,12 +147,29 @@ export interface MaterialTopologySnapshot {
   stale: boolean;
 }
 
+export interface ThermalZoneSnapshot {
+  zoneId: string;
+  kind: ThermalZoneKind;
+  position: number;
+  label?: string;
+  currentCelsius?: number;
+  targetCelsius?: number;
+}
+
+export interface ThermalTelemetrySnapshot {
+  printerId: string;
+  zones: ThermalZoneSnapshot[];
+  observedAt: string;
+  stale: boolean;
+}
+
 export interface PrinterViewModel {
   identity: PrinterIdentity;
   snapshot: PrinterSnapshot;
   capabilities: CapabilityDescriptor[];
   materialSystem?: MaterialSystemSnapshot;
   materialTopology?: MaterialTopologySnapshot;
+  thermalTelemetry?: ThermalTelemetrySnapshot;
 }
 
 export interface QueueViewModel {

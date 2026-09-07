@@ -54,6 +54,15 @@ from .print_execution import (
     PrintExecutionDescriptor,
     PrintExecutionRequest,
 )
+from .thermal_telemetry import (
+    THERMAL_TELEMETRY_CAPABILITY_ID,
+    THERMAL_TELEMETRY_MAJOR_VERSION,
+    ThermalTelemetryCapability,
+    ThermalTelemetryDescriptor,
+    ThermalTelemetrySnapshot,
+    ThermalZoneKind,
+    ThermalZoneSnapshot,
+)
 
 __all__ = [
     "JOB_CONTROL_CAPABILITY_ID",
@@ -64,6 +73,8 @@ __all__ = [
     "MATERIAL_TOPOLOGY_MAJOR_VERSION",
     "PRINT_EXECUTION_CAPABILITY_ID",
     "PRINT_EXECUTION_MAJOR_VERSION",
+    "THERMAL_TELEMETRY_CAPABILITY_ID",
+    "THERMAL_TELEMETRY_MAJOR_VERSION",
     "DetectedMaterial",
     "JobControlAction",
     "JobControlAssessment",
@@ -100,5 +111,10 @@ __all__ = [
     "PrintExecutionCapability",
     "PrintExecutionDescriptor",
     "PrintExecutionRequest",
+    "ThermalTelemetryCapability",
+    "ThermalTelemetryDescriptor",
+    "ThermalTelemetrySnapshot",
+    "ThermalZoneKind",
+    "ThermalZoneSnapshot",
     "assess_job_control",
 ]

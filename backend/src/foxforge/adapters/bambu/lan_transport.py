@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator, Mapping
 from contextlib import suppress
+from dataclasses import replace
 
 from foxforge.domain.printers import utc_now
 
@@ -34,6 +35,7 @@ from .native import (
     BambuNativeState,
 )
 from .storage import BambuProjectStorage, FtpsBambuProjectStorage
+from .thermal_codec import BambuThermalCodec
 from .transport import BambuTransportError, BambuTransportErrorKind
 
 
@@ -56,6 +58,7 @@ class BambuLanTransport:
             project_storage = FtpsBambuProjectStorage(ftps_wire or ImplicitFtpsBambuWire(settings))
         self._project_storage = project_storage
         self._codec = BambuLanCodec()
+        self._thermal = BambuThermalCodec()
         self._events: asyncio.Queue[BambuNativeState | BambuTransportError | None] = asyncio.Queue()
         self._pump_task: asyncio.Task[None] | None = None
         self._initial_state = asyncio.Event()
@@ -67,6 +70,7 @@ class BambuLanTransport:
             return
         self._events = asyncio.Queue()
         self._initial_state = asyncio.Event()
+        self._thermal = BambuThermalCodec()
         try:
             await self._mqtt.connect()
         except BambuTransportError:
@@ -99,7 +103,7 @@ class BambuLanTransport:
             with suppress(asyncio.CancelledError):
                 await task
         await self._mqtt.disconnect()
-        state = self._codec.mark_connected(False)
+        state = replace(self._codec.mark_connected(False), thermal_zones=self._thermal.zones)
         self._events.put_nowait(state)
         self._events.put_nowait(None)
         for future in self._responses.values():
@@ -110,7 +114,7 @@ class BambuLanTransport:
         self._responses.clear()
 
     def snapshot(self) -> BambuNativeState:
-        return self._codec.state
+        return replace(self._codec.state, thermal_zones=self._thermal.zones)
 
     async def events(self) -> AsyncIterator[BambuNativeState]:
         queue = self._events
@@ -234,9 +238,11 @@ class BambuLanTransport:
             async for payload in self._mqtt.messages():
                 self._resolve_response(payload)
                 initial_status_report = is_initial_status_report(payload)
+                thermal_zones = self._thermal.apply(payload)
                 state = self._codec.apply(payload)
                 if state is None:
                     continue
+                state = replace(state, thermal_zones=thermal_zones)
                 if initial_status_report:
                     self._initial_state.set()
                 self._events.put_nowait(state)

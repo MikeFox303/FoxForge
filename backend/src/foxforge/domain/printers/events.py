@@ -19,6 +19,7 @@ class PrinterEventKind(StrEnum):
     CAPABILITY_CHANGED = "capability_changed"
     MATERIAL_SYSTEM_CHANGED = "material_system_changed"
     MATERIAL_TOPOLOGY_CHANGED = "material_topology_changed"
+    THERMAL_TELEMETRY_CHANGED = "thermal_telemetry_changed"
     SNAPSHOT_RECONCILED = "snapshot_reconciled"
 
 

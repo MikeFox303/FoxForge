@@ -12,6 +12,7 @@ import type {
   PrinterViewModel,
   QueueEntryState,
   QueueViewModel,
+  ThermalZoneKind,
 } from '../domain';
 
 interface ApiCapability {
@@ -23,6 +24,7 @@ interface ApiCapability {
   supportedActions?: JobControlAction[];
   requiresVendorJobIdentity?: boolean;
   reportsDynamicRoutes?: boolean;
+  reportsTargets?: boolean;
 }
 
 interface ApiActiveJob {
@@ -84,6 +86,20 @@ interface ApiMaterialTopology {
   stale: boolean;
 }
 
+interface ApiThermalTelemetry {
+  printerId: string;
+  zones: Array<{
+    zoneId: string;
+    kind: ThermalZoneKind;
+    position: number;
+    label: string | null;
+    currentCelsius: number | null;
+    targetCelsius: number | null;
+  }>;
+  observedAt: string;
+  stale: boolean;
+}
+
 interface ApiPrinter {
   identity: {
     printerId: string;
@@ -109,6 +125,7 @@ interface ApiPrinter {
   capabilities: ApiCapability[];
   materialSystem?: ApiMaterialSystem;
   materialTopology?: ApiMaterialTopology;
+  thermalTelemetry?: ApiThermalTelemetry;
 }
 
 interface ApiFleetResponse {
@@ -214,9 +231,11 @@ function mapPrinter(printer: ApiPrinter): PrinterViewModel {
       supportedActions: capability.supportedActions,
       requiresVendorJobIdentity: capability.requiresVendorJobIdentity,
       reportsDynamicRoutes: capability.reportsDynamicRoutes,
+      reportsTargets: capability.reportsTargets,
     })),
     materialSystem: printer.materialSystem ? mapMaterialSystem(printer.materialSystem) : undefined,
     materialTopology: printer.materialTopology ? mapMaterialTopology(printer.materialTopology) : undefined,
+    thermalTelemetry: printer.thermalTelemetry ? mapThermalTelemetry(printer.thermalTelemetry) : undefined,
   };
 }
 
@@ -266,6 +285,22 @@ function mapMaterialTopology(topology: ApiMaterialTopology): NonNullable<Printer
       sourceSlotId: route.sourceSlotId,
       toolheadIds: route.toolheadIds,
       kind: route.kind,
+    })),
+  };
+}
+
+function mapThermalTelemetry(thermal: ApiThermalTelemetry): NonNullable<PrinterViewModel['thermalTelemetry']> {
+  return {
+    printerId: thermal.printerId,
+    observedAt: thermal.observedAt,
+    stale: thermal.stale,
+    zones: thermal.zones.map((zone) => ({
+      zoneId: zone.zoneId,
+      kind: zone.kind,
+      position: zone.position,
+      label: zone.label ?? undefined,
+      currentCelsius: zone.currentCelsius ?? undefined,
+      targetCelsius: zone.targetCelsius ?? undefined,
     })),
   };
 }

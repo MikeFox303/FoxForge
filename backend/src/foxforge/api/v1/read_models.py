@@ -18,6 +18,8 @@ from foxforge.domain.printers.capabilities import (
     MaterialTopologyCapability,
     MaterialTopologySnapshot,
     PrintExecutionCapability,
+    ThermalTelemetryCapability,
+    ThermalTelemetrySnapshot,
 )
 
 API_VERSION = "1"
@@ -33,10 +35,11 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
         print_execution = fleet.capability(printer_id, PrintExecutionCapability)
         material_system = fleet.capability(printer_id, MaterialSystemCapability)
         material_topology = fleet.capability(printer_id, MaterialTopologyCapability)
+        thermal_telemetry = fleet.capability(printer_id, ThermalTelemetryCapability)
         job_control = fleet.capability(printer_id, JobControlCapability)
 
         capabilities: list[dict[str, Any]] = []
-        for capability in (print_execution, material_system, material_topology):
+        for capability in (print_execution, material_system, material_topology, thermal_telemetry):
             if capability is None:
                 continue
             descriptor = capability.descriptor
@@ -52,6 +55,8 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
                 item["supportsMaterialBindings"] = print_execution.descriptor.supports_material_bindings
             if material_topology is not None and capability is material_topology:
                 item["reportsDynamicRoutes"] = material_topology.descriptor.reports_dynamic_routes
+            if thermal_telemetry is not None and capability is thermal_telemetry:
+                item["reportsTargets"] = thermal_telemetry.descriptor.reports_targets
             capabilities.append(item)
         if job_control is not None:
             descriptor = job_control.descriptor
@@ -80,6 +85,8 @@ def fleet_read_model(fleet: FleetService) -> dict[str, Any]:
             printer["materialSystem"] = _material_system_snapshot(material_system.snapshot())
         if material_topology is not None:
             printer["materialTopology"] = _material_topology_snapshot(material_topology.snapshot())
+        if thermal_telemetry is not None:
+            printer["thermalTelemetry"] = _thermal_telemetry_snapshot(thermal_telemetry.snapshot())
         printers.append(printer)
 
     return {"apiVersion": API_VERSION, "printers": printers}
@@ -200,6 +207,25 @@ def _material_topology_snapshot(snapshot: MaterialTopologySnapshot) -> dict[str,
                 "kind": route.kind.value,
             }
             for route in snapshot.routes
+        ],
+        "observedAt": _datetime(snapshot.observed_at),
+        "stale": snapshot.stale,
+    }
+
+
+def _thermal_telemetry_snapshot(snapshot: ThermalTelemetrySnapshot) -> dict[str, Any]:
+    return {
+        "printerId": snapshot.printer_id,
+        "zones": [
+            {
+                "zoneId": zone.zone_id,
+                "kind": zone.kind.value,
+                "position": zone.position,
+                "label": zone.label,
+                "currentCelsius": zone.current_celsius,
+                "targetCelsius": zone.target_celsius,
+            }
+            for zone in snapshot.zones
         ],
         "observedAt": _datetime(snapshot.observed_at),
         "stale": snapshot.stale,
