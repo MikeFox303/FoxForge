@@ -1,164 +1,118 @@
-# P3 automatic filament accounting — frozen implementation and reactivation plan
+# P3 automatic filament accounting — Candidate 6 reactivation
 
 **Originally recorded:** 2026-09-04  
-**Updated:** 2026-09-06  
-**Status:** FROZEN / DRAFT — do not merge into Pre-Alpha 5  
-**Historical working PR:** #58 (`feature/p3-filament-accounting`)  
+**Reactivated:** 2026-09-08  
+**Status:** ACTIVE REBUILD — required before Candidate 6 publication  
+**Historical implementation archive:** PR #58 (`feature/p3-filament-accounting`)  
 **Canonical production branch:** `main`
 
-P3 automatic filament accounting remains intentionally frozen while FoxForge completes the Bambu-first `v0.1.0-alpha.5` printer/deployment gate. The historical PR is retained so validated accounting ideas and tests are not lost, but it is no longer treated as a branch that will be merged wholesale after the freeze.
+The earlier freeze policy in this document is superseded by Candidate 6 issue #154. P3 automatic filament accounting must now be rebuilt, validated and resolved before C6-11 publishes an immutable Candidate 6 image/package.
 
-Since P3 was frozen, `main` has gained immutable 3MF print-plan inspection, typed material topology, explicit source bindings, compiler-owned `toolhead_id`, queue-time routing compilation/recompilation and Bambu adapter-side route revalidation. P3 must therefore be reactivated against those current contracts instead of rebasing old integration code mechanically.
+PR #58 remains an implementation archive and must **not** be merged or mechanically rebased as one large change. Its useful vendor-independent accounting ideas are being reviewed and transplanted/reimplemented in small PRs against the current QueueService, material topology, immutable print-plan and exactly-once dispatch contracts.
 
-## What is already implemented in the historical P3 draft
+## Safety invariants that remain mandatory
 
-The draft contains useful implementation work that should be reviewed and selectively transplanted:
-
-- durable filament reservations keyed by `queueId + materialIndex`;
-- exact `Decimal` material estimates instead of binary floating-point accounting;
-- resolution of a reservation through `printerId + slotId -> FoxForge spool_id`;
-- overcommit checks against remaining mass and already-held reservations;
-- full-plan requirement for every queue material binding before dispatch;
-- pre-dispatch revalidation that the reserved spool is still assigned to the same physical slot;
-- automatic estimated consumption only after a confirmed queue `COMPLETED` state;
-- safe release for receipt-free pre-start failures;
-- `FAILED` / `CANCELLED` after confirmed start -> `reconciliation_required`;
-- `INDETERMINATE` retains reservations and does not infer zero or full consumption;
-- explicit actual-mass reconciliation;
-- deterministic inventory idempotency keys for completion/reconciliation;
-- SQLite persistence for reservations and restart settlement;
-- accounting API/read models/realtime invalidation;
-- frontend planning and reconciliation UI;
-- EN/RU/UK strings and backend/frontend tests.
-
-## Safety invariants that remain valid
-
-These rules survive the reactivation unchanged unless a later ADR explicitly supersedes them:
-
-1. FoxForge does not derive consumed grams from print progress or opaque vendor telemetry.
-2. A queue entry cannot dispatch with a partial accounting plan when automatic accounting is enabled for that job.
+1. FoxForge never derives consumed grams from print progress or opaque vendor telemetry.
+2. Estimates and actual masses use exact `Decimal` arithmetic end to end.
 3. Printer slot IDs remain opaque physical identifiers; `spool_id` remains inventory-owned.
-4. A reservation must still resolve to the same `spool_id` at the same physical source immediately before dispatch.
-5. `INDETERMINATE` never causes automatic retry, automatic release or automatic consumption.
-6. Confirmed completion may settle an estimate exactly once through deterministic inventory idempotency.
-7. A started failed/cancelled job requires explicit reconciliation rather than guessed consumption.
-8. Restart/replay cannot duplicate a consumption ledger adjustment.
-9. Accounting application/domain code cannot depend on Bambu or Moonraker transport/protocol types.
-10. Routing evidence and accounting evidence are separate concerns: successful material routing does not by itself authorize a filament debit.
+4. A reservation is keyed by durable `queue_id + material_index` and binds one inventory spool to one physical source.
+5. A complete automatic-accounting plan must cover every material binding before dispatch can cross the accounting gate.
+6. The reserved spool must still be assigned to the same physical source immediately before dispatch.
+7. `INDETERMINATE` never releases reservations, consumes an estimate or authorizes an automatic retry.
+8. A started failed/cancelled print with unknown actual usage enters `reconciliation_required`; FoxForge does not guess zero or full consumption.
+9. Confirmed completion may settle an estimate exactly once through deterministic inventory idempotency.
+10. Explicit actual-mass reconciliation is auditable and idempotent.
+11. Restart/replay cannot duplicate an inventory debit.
+12. Accounting application/domain code cannot depend on Bambu or Moonraker transport/protocol types.
+13. Routing evidence and accounting evidence are separate: a valid source/toolhead route does not by itself authorize a filament debit.
 
-## Why PR #58 will not be merged directly
+## Why the historical QueueService wrapper is not restored
 
-PR #58 remains an implementation archive. Its base predates the current QueueService/material-routing contracts, and its integration points were written before FoxForge added:
+Current `QueueService.assess()` recompiles and revalidates material routing immediately before dispatch. The historical P3 `AccountingQueueService` checked accounting before that modern routing compilation and therefore has the wrong integration point.
 
-- immutable staged-artifact inspection;
-- plate-scoped 3MF requirements;
-- `foxforge.material_topology`;
-- compiler-owned `MaterialBinding.toolhead_id`;
-- queue recompilation before dispatch;
-- adapter-side Bambu source/toolhead revalidation;
-- the current `INDETERMINATE` and exactly-once dispatch protections.
+The rebuilt pre-dispatch sequence must be:
 
-A direct merge or large conflict-resolution rebase would make it too easy to preserve stale assumptions. Reactivation must start from then-current `main` and transplant/reimplement reviewed pieces in small PRs.
+```text
+immutable artifact / plate intent
+        -> fresh routing compilation + printer assessment
+        -> accounting plan completeness
+        -> physical slot -> reserved spool revalidation
+        -> capacity revalidation
+        -> durable DISPATCHING write
+        -> adapter side effect
+```
 
-## Current prerequisite: complete Alpha 5 first
+Accounting must not change the existing `DISPATCHING` durability ordering, hidden-retry prohibition, adapter idempotency or `INDETERMINATE` behavior.
 
-P3 remains frozen throughout the Bambu Alpha 5 milestone.
+## Reactivation sequence
 
-Candidate 5 is now the exact immutable physical-validation target. Before P3 implementation resumes, FoxForge must complete the Candidate 5 Alpha 5 gate:
+### P3-R1 — reservation model and persistence
 
-1. Raspberry Pi 5 + Umbrel install/update and GUI-only Operator Access;
-2. real X2D staged Add/Update/discovery/reconnect/diagnostics validation;
-3. real AMS 2 Pro + external-source material-system/topology validation;
-4. one explicitly reviewed immutable 3MF with explicit source/toolhead routing;
-5. exactly one physical Bambu print start from that reviewed intent, only after the no-print gate passes;
-6. guarded Pause/Resume/Cancel or completion against the exact observed job;
-7. exact-head release gates and final `v0.1.0-alpha.5` publication.
+Reintroduce only the vendor-independent core:
 
-Candidate 5 identity is recorded in `docs/testing/pre-alpha-5-bambu-physical-validation.md`. Candidate 1/2/3/4 evidence is historical and is not a substitute for Candidate 5 evidence.
+- reservation/value models;
+- exact `Decimal` validation;
+- in-memory store contract;
+- SQLite reservation persistence;
+- restart/conflict/missing-write coverage;
+- `reconciliation_required` remains a capacity-holding state.
 
-## P3 Reactivation Audit
+No runtime enablement, queue guard or inventory debit occurs in this slice.
 
-After Alpha 5 is physically accepted, create a clean branch from the then-current `main` and review PR #58 by layer.
+### P3-R2 — settlement and inventory idempotency
 
-### Phase 1 — accounting core and persistence
+Rebuild the service layer around the current Inventory API:
 
-Review/transplant only vendor-neutral pieces first:
+- reservation capacity calculation and overcommit prevention;
+- deterministic completion/reconciliation idempotency keys;
+- completed estimate settlement exactly once;
+- receipt-free pre-start release only;
+- started failed/cancelled -> explicit reconciliation;
+- `INDETERMINATE` retains reservations;
+- restart/replay settlement tests.
 
-- reservation and settlement models;
-- exact `Decimal` calculations;
-- SQLite persistence/migrations;
-- deterministic idempotency;
-- reconciliation state machine;
-- inventory ledger integration.
+### P3-R3 — current QueueService integration
 
-Acceptance criteria:
+Integrate after fresh routing compilation/assessment and before `DISPATCHING`:
 
-- no adapter imports;
-- restart/replay cannot double-debit;
-- old persisted state has an explicit migration path;
-- unit/infrastructure tests cover completion, cancel/fail and `INDETERMINATE`.
+- complete plan required for all material bindings;
+- reserved `spool_id` must still match the selected physical `slot_id`;
+- current remaining mass must still cover the reservation;
+- route/toolhead safety remains owned by the routing compiler/adapter;
+- accounting failure blocks dispatch before any external side effect.
 
-### Phase 2 — current QueueService integration
+### P3-R4 — API, audit, realtime and operator UI
 
-Reimplement the old queue integration around the current routing pipeline rather than restoring the old wrapper unchanged.
+Restore/update the old read/write workflows against current APIs:
 
-The accounting reservation must bind to the operator-selected physical source/spool and coexist with the compiler-owned toolhead decision. Before dispatch FoxForge must independently prove both:
+- accounting read model;
+- guarded plan/release/reconcile commands;
+- command audit;
+- realtime cache invalidation;
+- queue UI showing source, spool, estimated grams, provenance and reservation state;
+- explicit reconciliation UI for uncertain/failed/cancelled started jobs;
+- EN/RU/UK strings and browser coverage.
 
-- routing is still safe for the selected source/toolhead; and
-- the reserved inventory spool is still assigned to that same source.
+### P3-R5 — evidence/provider enablement
 
-Accounting must not change the existing durable dispatch ordering, hidden-retry prohibition or reconciliation-only handling of ambiguous side effects.
+Automatic accounting enablement remains evidence-gated and provider-specific while the accounting core stays common.
 
-### Phase 3 — consumption evidence
+- Bambu may be first after an exact Candidate 6 X2D weighed-spool validation.
+- Moonraker/Klipper remains disabled until its own estimator/evidence and physical validation are proven.
+- Provider enablement must be explicit; generic UI/application code must not infer it from printer model names.
 
-Introduce a vendor-independent estimate/evidence contract with explicit provenance.
+## Candidate 6 closure gate
 
-Examples may include:
+P3 is complete for Candidate 6 publication only when:
 
-- Bambu 3MF estimated/used mass metadata after conservative validation;
-- a future Moonraker/Klipper estimator through a separate provider.
+- R1-R5 applicable software work is integrated on current `main`;
+- Python 3.12/3.13, frontend, browser, security/deployment-auth and container gates are green on the exact integrated heads;
+- no P3 implementation PR remains unresolved;
+- the milestone dependency/toolchain closure is also complete;
+- C6-10 passes once more on clean `main`.
 
-Artifact parsing alone must never mutate inventory. An estimate is evidence used by P3 settlement, not permission to debit a spool.
+C6-11 may then freeze and publish one immutable source/image/Umbrel identity. Real Raspberry Pi 5 + Umbrel + X2D physical validation occurs only against that frozen identity. Weighed-spool accounting evidence is part of provider enablement evidence and cannot be reused across changed application/image digests.
 
-### Phase 4 — provider enablement
+## Provenance
 
-The accounting core remains vendor-independent, but automatic enablement is provider-specific and evidence-gated.
-
-- **Bambu:** may be the first enabled provider after the real X2D Alpha 5 gate and dedicated weighed-spool accounting validation.
-- **Moonraker/Klipper:** can keep automatic accounting disabled until its own OpenKE/Moonraker physical validation is complete, even if the common P3 core has already resumed.
-
-This avoids blocking safe Bambu progress on unrelated provider hardware while preserving one common accounting architecture.
-
-### Phase 5 — operator UI and reconciliation
-
-The UI must show before dispatch:
-
-- selected physical source;
-- inventory spool;
-- estimated grams;
-- estimate provenance;
-- reservation state.
-
-For cancelled, failed or uncertain jobs it must provide explicit reconciliation rather than silently deciding consumed mass.
-
-## Reactivation acceptance gates
-
-P3 cannot be enabled by default until all applicable gates pass:
-
-- exact `Decimal` arithmetic end to end;
-- no double debit after retry, replay or restart;
-- no automatic full debit on failed/cancelled/`INDETERMINATE` jobs;
-- source/spool reassignment before dispatch blocks or requires a new explicit accounting plan;
-- completion settlement is exactly once;
-- reconciliation is explicit, reversible/auditable and idempotent;
-- queue schema/migrations remain backward compatible;
-- Docker `amd64`/`arm64` and Umbrel persistence/migration gates pass;
-- backend/frontend/browser/container/security CI is green on the exact final head;
-- at least one real weighed-spool Bambu validation compares expected and observed consumption;
-- provider enablement state is explicit rather than inferred from printer model names.
-
-## Milestone boundary
-
-Automatic filament accounting is **not part of `v0.1.0-alpha.5`**. The earliest sensible activation milestone is post-Alpha-5 (for example an Alpha 6 workstream), after the Reactivation Audit above.
-
-Until then PR #58 is a reference archive, not a release candidate and not a merge source of record.
+The P3 archive is historical FoxForge code written under AGPL-3.0-only. Reactivation may reuse or rewrite that FoxForge code while preserving its license notices. No Bambuddy/PrintBuddy/PrintOps implementation code is copied by this accounting core.
