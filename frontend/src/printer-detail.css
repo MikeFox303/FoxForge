@@ -149,9 +149,36 @@
 .printer-tab-stat strong { font-size: 28px; color: var(--accent-strong); }
 .printer-tab-stat span { color: var(--muted); font-size: 10px; }
 
+.material-unit-panel { min-width: 0; }
 .printer-detail-slot-grid { margin-top: 15px; }
 .printer-detail-slot { min-height: 150px; }
 .printer-detail-slot .progress-track { margin-top: auto; }
+
+.material-external-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.material-external-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 0 2px;
+}
+.material-external-heading h3 { margin: 4px 0 0; font-size: 18px; letter-spacing: -.02em; }
+.external-feed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+.external-feed-panel {
+  border-color: rgba(96,165,250,.18);
+  background: linear-gradient(180deg, rgba(30,64,175,.055), rgba(17,23,32,.96));
+}
+.external-feed-panel .material-unit-head { align-items: flex-start; }
+.external-feed-panel .external-feed-slots { grid-template-columns: 1fr; }
+.external-feed-panel .printer-detail-slot { min-height: 126px; }
 
 .material-topology-panel {
   display: grid;
@@ -279,6 +306,8 @@
   .printer-detail-kpis { grid-template-columns: 1fr 1fr; }
   .printer-job-facts { grid-template-columns: 1fr 1fr; }
   .printer-tab-intro { align-items: flex-start; }
+  .material-external-heading { align-items: flex-start; }
+  .external-feed-grid { grid-template-columns: 1fr; }
   .material-topology-head { flex-direction: column; }
   .material-topology-route { grid-template-columns: 1fr; }
   .material-topology-arrow { transform: rotate(90deg); justify-self: start; }
