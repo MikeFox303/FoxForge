@@ -18,6 +18,7 @@ class ApplicationEventTopic(StrEnum):
     FLEET = "fleet"
     QUEUE = "queue"
     INVENTORY = "inventory"
+    ACCOUNTING = "accounting"
     PRINTER_CONFIGURATION = "printer_configuration"
 
 

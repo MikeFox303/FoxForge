@@ -46,6 +46,14 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
             assert inventory.status == 200
             assert await inventory.json() == {"apiVersion": "1", "spools": []}
 
+            accounting = await client.get("/api/v1/filament-accounting")
+            assert accounting.status == 200
+            assert await accounting.json() == {
+                "apiVersion": "1",
+                "reservations": [],
+                "spools": [],
+            }
+
             diagnostics = await client.get("/api/v1/diagnostics/persistence")
             assert diagnostics.status == 200
             body = await diagnostics.json()
@@ -81,6 +89,10 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
         assert (data_dir / "foxforge.sqlite3").is_file()
         with sqlite3.connect(data_dir / "foxforge.sqlite3") as connection:
             assert connection.execute("PRAGMA user_version").fetchone() == (1,)
+            accounting_table = connection.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'filament_reservations'"
+            ).fetchone()
+            assert accounting_table == ("filament_reservations",)
 
     asyncio.run(scenario())
 
