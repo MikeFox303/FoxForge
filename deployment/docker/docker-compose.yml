@@ -16,6 +16,9 @@ services:
       FOXFORGE_RECONNECT_SECONDS: "15"
       # Required for browser/API writes. Leave unset for an intentionally read-only runtime.
       FOXFORGE_COMMAND_TOKEN: ${FOXFORGE_COMMAND_TOKEN:-}
+      # Candidate 6 safety default. Use bambu-validation only for the controlled
+      # Bambu accounting validation workflow documented in the physical runbook.
+      FOXFORGE_FILAMENT_ACCOUNTING_MODE: ${FOXFORGE_FILAMENT_ACCOUNTING_MODE:-disabled}
     volumes:
       - foxforge_data:/data
 
