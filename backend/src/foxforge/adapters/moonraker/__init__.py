@@ -14,8 +14,10 @@ from .native import (
     MoonrakerNativeJobControlResult,
     MoonrakerNativePrintRequest,
     MoonrakerNativeState,
+    MoonrakerNativeThermalZone,
 )
 from .print_execution import MoonrakerPrintExecutionCapability
+from .thermal_telemetry import MoonrakerThermalTelemetryCapability
 from .transport import MoonrakerTransport, MoonrakerTransportError, MoonrakerTransportErrorKind
 
 __all__ = [
@@ -32,7 +34,9 @@ __all__ = [
     "MoonrakerNativeJobControlResult",
     "MoonrakerNativePrintRequest",
     "MoonrakerNativeState",
+    "MoonrakerNativeThermalZone",
     "MoonrakerPrintExecutionCapability",
+    "MoonrakerThermalTelemetryCapability",
     "MoonrakerTransport",
     "MoonrakerTransportError",
     "MoonrakerTransportErrorKind",

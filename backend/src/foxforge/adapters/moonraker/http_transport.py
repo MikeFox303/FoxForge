@@ -13,6 +13,7 @@ import asyncio
 from collections.abc import AsyncIterator, Mapping
 from contextlib import suppress
 from dataclasses import dataclass, replace
+from math import isfinite
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
@@ -20,14 +21,20 @@ import aiohttp
 
 from foxforge.domain.printers import utc_now
 
-from .native import MoonrakerNativeDispatchResult, MoonrakerNativePrintRequest, MoonrakerNativeState
+from .native import (
+    MoonrakerNativeDispatchResult,
+    MoonrakerNativePrintRequest,
+    MoonrakerNativeState,
+    MoonrakerNativeThermalZone,
+)
 from .transport import MoonrakerTransportError, MoonrakerTransportErrorKind
 
-_SUBSCRIPTION_OBJECTS: dict[str, list[str]] = {
+_BASE_SUBSCRIPTION_OBJECTS: dict[str, list[str]] = {
     "webhooks": ["state", "state_message"],
     "print_stats": ["filename", "print_duration", "state", "message"],
     "virtual_sdcard": ["progress"],
 }
+_THERMAL_FIELDS = ["temperature", "target"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,7 +93,8 @@ class MoonrakerHttpTransport:
             self._ws = await self._session.ws_connect(self._websocket_url())
             self._status = {}
             if str(info.get("state", "")).lower() == "ready":
-                self._status = await self._subscribe(self._ws)
+                objects = await self._get_printer_objects()
+                self._status = await self._subscribe(self._ws, _subscription_objects(objects))
             self._state = self._compose_state(info=info, status=self._status, connected=True)
             self._listener_task = asyncio.create_task(self._listen())
         except MoonrakerTransportError:
@@ -170,13 +178,44 @@ class MoonrakerHttpTransport:
             raise MoonrakerTransportError(MoonrakerTransportErrorKind.INTERNAL, "invalid /printer/info response")
         return payload
 
-    async def _subscribe(self, ws: aiohttp.ClientWebSocketResponse) -> dict[str, dict[str, object]]:
+    async def _get_printer_objects(self) -> set[str]:
+        session = self._require_session()
+        try:
+            async with session.get(self._url("/printer/objects/list")) as response:
+                payload = await _response_payload(response)
+                if response.status < 200 or response.status >= 300:
+                    raise self._http_error(response.status, payload)
+        except TimeoutError as error:
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.TIMEOUT,
+                "Moonraker printer object discovery timed out",
+            ) from error
+        except aiohttp.ClientError as error:
+            raise MoonrakerTransportError(MoonrakerTransportErrorKind.UNAVAILABLE, str(error)) from error
+        if not isinstance(payload, Mapping):
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.INTERNAL,
+                "invalid /printer/objects/list response",
+            )
+        objects = payload.get("objects")
+        if not isinstance(objects, list):
+            raise MoonrakerTransportError(
+                MoonrakerTransportErrorKind.INTERNAL,
+                "printer object list is missing objects",
+            )
+        return {item for item in objects if isinstance(item, str) and item}
+
+    async def _subscribe(
+        self,
+        ws: aiohttp.ClientWebSocketResponse,
+        objects: Mapping[str, list[str]],
+    ) -> dict[str, dict[str, object]]:
         request_id = self._next_rpc_id()
         await ws.send_json(
             {
                 "jsonrpc": "2.0",
                 "method": "printer.objects.subscribe",
-                "params": {"objects": _SUBSCRIPTION_OBJECTS},
+                "params": {"objects": dict(objects)},
                 "id": request_id,
             }
         )
@@ -241,7 +280,8 @@ class MoonrakerHttpTransport:
 
     async def _refresh_ready_state(self, ws: aiohttp.ClientWebSocketResponse) -> None:
         info = await self._get_printer_info()
-        status = await self._subscribe(ws)
+        objects = await self._get_printer_objects()
+        status = await self._subscribe(ws, _subscription_objects(objects))
         self._status = status
         self._state = self._compose_state(info=info, status=status, connected=True)
         self._events.put_nowait(self._state)
@@ -284,6 +324,7 @@ class MoonrakerHttpTransport:
             print_duration_seconds=_nonnegative_float(print_stats.get("print_duration")),
             print_message=_optional_string(print_stats.get("message")),
             observed_at=utc_now(),
+            thermal_zones=_thermal_zones(status),
         )
 
     async def _upload_gcode(
@@ -391,6 +432,56 @@ class MoonrakerHttpTransport:
             await session.close()
 
 
+def _subscription_objects(available_objects: set[str]) -> dict[str, list[str]]:
+    objects = {name: list(fields) for name, fields in _BASE_SUBSCRIPTION_OBJECTS.items()}
+    for object_name in sorted(available_objects, key=_thermal_object_sort_key):
+        if _extruder_position(object_name) is not None or object_name == "heater_bed":
+            objects[object_name] = list(_THERMAL_FIELDS)
+    return objects
+
+
+def _thermal_zones(status: Mapping[str, Mapping[str, object]]) -> tuple[MoonrakerNativeThermalZone, ...]:
+    zones: list[MoonrakerNativeThermalZone] = []
+    for object_name in sorted(status, key=_thermal_object_sort_key):
+        position = _extruder_position(object_name)
+        if position is None and object_name != "heater_bed":
+            continue
+        values = status[object_name]
+        current = _finite_float(values.get("temperature"))
+        target = _finite_float(values.get("target"))
+        if current is None and target is None:
+            continue
+        zones.append(
+            MoonrakerNativeThermalZone(
+                object_name=object_name,
+                position=0 if object_name == "heater_bed" else position or 0,
+                current_celsius=current,
+                target_celsius=target,
+            )
+        )
+    return tuple(zones)
+
+
+def _thermal_object_sort_key(object_name: str) -> tuple[int, int, str]:
+    position = _extruder_position(object_name)
+    if position is not None:
+        return 0, position, object_name
+    if object_name == "heater_bed":
+        return 1, 0, object_name
+    return 2, 0, object_name
+
+
+def _extruder_position(object_name: str) -> int | None:
+    if object_name == "extruder":
+        return 0
+    if not object_name.startswith("extruder"):
+        return None
+    suffix = object_name[len("extruder") :]
+    if not suffix.isdigit():
+        return None
+    return int(suffix)
+
+
 def _normalize_status(value: object) -> dict[str, dict[str, object]]:
     if not isinstance(value, Mapping):
         return {}
@@ -456,3 +547,10 @@ def _nonnegative_float(value: object) -> float | None:
         return None
     number = float(value)
     return number if number >= 0 else None
+
+
+def _finite_float(value: object) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return None
+    number = float(value)
+    return number if isfinite(number) else None

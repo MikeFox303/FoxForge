@@ -73,6 +73,55 @@ def test_sparse_temperature_update_preserves_unrelated_zones() -> None:
     assert by_id["chamber"].current_celsius == 28.0
 
 
+def test_malformed_sparse_values_preserve_last_valid_thermal_state() -> None:
+    codec = BambuThermalCodec()
+    codec.apply(
+        {
+            "print": {
+                "command": "push_status",
+                "nozzle_temper": 215.0,
+                "nozzle_target_temper": 220.0,
+                "bed_temper": 65.0,
+                "bed_target_temper": 70.0,
+                "chamber_temper": 35.0,
+            }
+        }
+    )
+
+    zones = codec.apply(
+        {
+            "print": {
+                "command": "push_status",
+                "nozzle_temper": "not-a-temperature",
+                "nozzle_target_temper": 9999,
+                "bed_temper": None,
+                "bed_target_temper": -1,
+                "chamber_temper": float("inf"),
+            }
+        }
+    )
+    by_id = {zone.zone_id: zone for zone in zones}
+
+    assert (by_id["hotend:0"].current_celsius, by_id["hotend:0"].target_celsius) == (215.0, 220.0)
+    assert (by_id["bed"].current_celsius, by_id["bed"].target_celsius) == (65.0, 70.0)
+    assert by_id["chamber"].current_celsius == 35.0
+
+
+def test_empty_dual_extruder_info_does_not_fabricate_thermal_zones() -> None:
+    codec = BambuThermalCodec()
+
+    zones = codec.apply(
+        {
+            "print": {
+                "command": "push_status",
+                "device": {"extruder": {"info": [{}, {}]}},
+            }
+        }
+    )
+
+    assert zones == ()
+
+
 def test_temperature_only_native_change_emits_common_thermal_event(
     bambu_identity,
     bambu_idle_state,

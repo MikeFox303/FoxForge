@@ -20,10 +20,18 @@ from foxforge.adapters.moonraker import (
 
 
 class _MoonrakerTestServer:
-    def __init__(self, *, api_key: str | None = None, start_delay: float = 0.0, send_update: bool = False) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        start_delay: float = 0.0,
+        send_update: bool = False,
+        thermal_objects: tuple[str, ...] = ("extruder", "heater_bed"),
+    ) -> None:
         self.api_key = api_key
         self.start_delay = start_delay
         self.send_update = send_update
+        self.thermal_objects = thermal_objects
         self.runner: web.AppRunner | None = None
         self.base_url = ""
         self.subscription: dict[str, object] | None = None
@@ -35,6 +43,7 @@ class _MoonrakerTestServer:
     async def start(self) -> None:
         app = web.Application()
         app.router.add_get("/printer/info", self._printer_info)
+        app.router.add_get("/printer/objects/list", self._printer_objects)
         app.router.add_get("/websocket", self._websocket)
         app.router.add_post("/server/files/upload", self._upload)
         app.router.add_post("/printer/print/start", self._start_print)
@@ -58,6 +67,19 @@ class _MoonrakerTestServer:
         self._check_auth(request)
         return web.json_response({"state": "ready", "state_message": "Printer is ready"})
 
+    async def _printer_objects(self, request: web.Request) -> web.Response:
+        self._check_auth(request)
+        return web.json_response(
+            {
+                "objects": [
+                    "webhooks",
+                    "print_stats",
+                    "virtual_sdcard",
+                    *self.thermal_objects,
+                ]
+            }
+        )
+
     async def _websocket(self, request: web.Request) -> web.WebSocketResponse:
         self._check_auth(request)
         ws = web.WebSocketResponse()
@@ -69,41 +91,46 @@ class _MoonrakerTestServer:
             if payload.get("method") != "printer.objects.subscribe":
                 continue
             self.subscription = payload
+            subscribed = payload.get("params", {}).get("objects", {})
+            status: dict[str, object] = {
+                "webhooks": {"state": "ready", "state_message": "Printer is ready"},
+                "print_stats": {
+                    "state": "standby",
+                    "filename": "",
+                    "print_duration": 0.0,
+                    "message": "",
+                },
+                "virtual_sdcard": {"progress": 0.0},
+            }
+            if isinstance(subscribed, dict) and "extruder" in subscribed:
+                status["extruder"] = {"temperature": 25.0, "target": 205.0}
+            if isinstance(subscribed, dict) and "extruder1" in subscribed:
+                status["extruder1"] = {"temperature": 26.0, "target": 210.0}
+            if isinstance(subscribed, dict) and "heater_bed" in subscribed:
+                status["heater_bed"] = {"temperature": 24.0, "target": 60.0}
             await ws.send_json(
                 {
                     "jsonrpc": "2.0",
                     "id": payload["id"],
-                    "result": {
-                        "eventtime": 1.0,
-                        "status": {
-                            "webhooks": {"state": "ready", "state_message": "Printer is ready"},
-                            "print_stats": {
-                                "state": "standby",
-                                "filename": "",
-                                "print_duration": 0.0,
-                                "message": "",
-                            },
-                            "virtual_sdcard": {"progress": 0.0},
-                        },
-                    },
+                    "result": {"eventtime": 1.0, "status": status},
                 }
             )
             if self.send_update:
+                update: dict[str, object] = {
+                    "print_stats": {
+                        "state": "printing",
+                        "filename": "job.gcode",
+                        "print_duration": 3.5,
+                    },
+                    "virtual_sdcard": {"progress": 0.2},
+                }
+                if isinstance(subscribed, dict) and "extruder" in subscribed:
+                    update["extruder"] = {"temperature": 206.5}
                 await ws.send_json(
                     {
                         "jsonrpc": "2.0",
                         "method": "notify_status_update",
-                        "params": [
-                            {
-                                "print_stats": {
-                                    "state": "printing",
-                                    "filename": "job.gcode",
-                                    "print_duration": 3.5,
-                                },
-                                "virtual_sdcard": {"progress": 0.2},
-                            },
-                            2.0,
-                        ],
+                        "params": [update, 2.0],
                     }
                 )
         return ws
@@ -159,8 +186,18 @@ def test_connect_subscribes_and_streams_status_updates() -> None:
             assert initial.connected is True
             assert initial.klippy_state == "ready"
             assert initial.print_state == "standby"
+            observed_thermal = [
+                (zone.object_name, zone.current_celsius, zone.target_celsius) for zone in initial.thermal_zones
+            ]
+            assert observed_thermal == [
+                ("extruder", 25.0, 205.0),
+                ("heater_bed", 24.0, 60.0),
+            ]
             assert server.subscription is not None
             assert server.subscription["method"] == "printer.objects.subscribe"
+            subscribed = server.subscription["params"]["objects"]
+            assert subscribed["extruder"] == ["temperature", "target"]
+            assert subscribed["heater_bed"] == ["temperature", "target"]
 
             events = transport.events()
             update = await asyncio.wait_for(anext(events), timeout=0.5)
@@ -168,6 +205,33 @@ def test_connect_subscribes_and_streams_status_updates() -> None:
             assert update.filename == "job.gcode"
             assert update.progress == 0.2
             assert update.print_duration_seconds == 3.5
+            assert [(zone.object_name, zone.current_celsius, zone.target_celsius) for zone in update.thermal_zones] == [
+                ("extruder", 206.5, 205.0),
+                ("heater_bed", 24.0, 60.0),
+            ]
+        finally:
+            await transport.disconnect()
+            await server.close()
+
+    asyncio.run(scenario())
+
+
+def test_connect_only_subscribes_discovered_thermal_objects() -> None:
+    async def scenario() -> None:
+        server = _MoonrakerTestServer(thermal_objects=("extruder", "extruder1"))
+        await server.start()
+        transport = MoonrakerHttpTransport(MoonrakerHttpSettings(server.base_url))
+        try:
+            await transport.connect()
+            assert server.subscription is not None
+            subscribed = server.subscription["params"]["objects"]
+            assert subscribed["extruder"] == ["temperature", "target"]
+            assert subscribed["extruder1"] == ["temperature", "target"]
+            assert "heater_bed" not in subscribed
+            assert [(zone.object_name, zone.position) for zone in transport.snapshot().thermal_zones] == [
+                ("extruder", 0),
+                ("extruder1", 1),
+            ]
         finally:
             await transport.disconnect()
             await server.close()
