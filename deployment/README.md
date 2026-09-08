@@ -1,18 +1,12 @@
 # FoxForge deployment
 
-FoxForge ships one application behavior across generic Docker and Umbrel packaging. Deployment code must not become a platform-specific fork of printer, queue or inventory logic.
+FoxForge ships one application behavior across generic Docker and Umbrel packaging. Deployment code must not become a platform-specific fork of printer, queue, inventory or accounting logic.
 
 ## Current deployment identities
 
-The latest semantic release is `v0.1.0-alpha.4.3`.
+The latest semantic release remains `v0.1.0-alpha.4.3`.
 
-The current Umbrel package is a **Pre-Alpha 5 validation candidate**, not final Alpha 5:
-
-```text
-package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.4
-source: c11f7145b4354aa79c8f0fad223648240e652bac
-image: ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a
-```
+Candidate 5 is historical. Candidate 6 is still being stabilized and **has not yet been frozen/published**, so no Candidate 6 source/image/Umbrel identity should be invented here before C6-11.
 
 ## Runtime model
 
@@ -44,6 +38,23 @@ FOXFORGE_COMMAND_TOKEN=${APP_PASSWORD}
 
 Umbrel exposes the app password through its UI, so the operator can unlock FoxForge writes without terminal lookup. App Proxy remains a separate defense-in-depth boundary; it does not become a FoxForge principal.
 
+## Filament-accounting enforcement
+
+The runtime supports a closed Candidate 6 accounting mode contract through:
+
+```text
+FOXFORGE_FILAMENT_ACCOUNTING_MODE=disabled
+```
+
+Supported values:
+
+- `disabled` — default for ordinary deployments;
+- `bambu-validation` — controlled Candidate 6 mode that applies the existing common pre-dispatch reservation/assignment/capacity gate only to printers configured with `adapter_kind == "bambu"`.
+
+Unsupported values fail startup. Moonraker/Klipper is not enabled by the Bambu mode. The active mode is exposed in `/api/v1/diagnostics/persistence` for validation evidence.
+
+Generic Docker remains `disabled` by default. If Candidate 6 accounting acceptance is part of the Umbrel physical gate, C6-11 must publish the immutable Candidate 6 package with `bambu-validation` already present in that package definition. Do not edit the installed package after evidence starts and then reuse the same evidence identity.
+
 ## Printer networking
 
 Current printer transports use deployment-to-printer LAN connectivity:
@@ -58,7 +69,7 @@ No Docker socket, privileged mode or `network_mode: host` is required by the cur
 ## Deployment families
 
 - [`docker/`](docker/) — standalone self-hosted Compose/runtime.
-- [`umbrel/`](umbrel/) — Community App packaging and current Pre-Alpha 5 validation candidate.
+- [`umbrel/`](umbrel/) — Community App packaging contract used by Candidate publication.
 
 ## Upgrade and persistence
 

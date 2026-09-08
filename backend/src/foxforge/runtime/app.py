@@ -23,7 +23,7 @@ from foxforge.api.v1.job_control_commands import register_job_control_command_ro
 from foxforge.api.v1.queue_commands import register_queue_command_routes
 from foxforge.api.v1.queue_guard import install_queue_command_guard
 from foxforge.api.v1.realtime import register_realtime_routes
-from foxforge.application.accounting import FilamentAccountingService
+from foxforge.application.accounting import FilamentAccountingQueuePolicy, FilamentAccountingService
 from foxforge.application.artifacts import ArtifactStore
 from foxforge.application.commands import CommandAuditStore, CommandIdempotencyStore
 from foxforge.application.event_stores import EventingInventoryStore, EventingQueueStore
@@ -41,6 +41,12 @@ from foxforge.infrastructure.printers import AdapterRegistry
 from foxforge.infrastructure.queue import SQLiteQueueStore
 from foxforge.infrastructure.secrets import FileSecretStore
 
+from .accounting_enablement import (
+    FILAMENT_ACCOUNTING_MODE_DISABLED,
+    FILAMENT_ACCOUNTING_MODES,
+    ProviderScopedQueuePreDispatchGate,
+    enabled_accounting_adapter_kinds,
+)
 from .bambu_discovery_routes import register_bambu_discovery_routes
 from .config import CONFIG_SCHEMA_VERSION, load_runtime_config
 from .printer_manager import RuntimePrinterManager
@@ -59,6 +65,7 @@ class RuntimeSettings:
     reconnect_seconds: float = 15.0
     command_token: str | None = None
     trusted_browser_sessions: bool = False
+    filament_accounting_mode: str = FILAMENT_ACCOUNTING_MODE_DISABLED
     artifact_total_quota_bytes: int | None = 20 * 1024 * 1024 * 1024
     artifact_min_free_bytes: int = 1024 * 1024 * 1024
     artifact_orphan_retention_seconds: float = 7 * 24 * 60 * 60
@@ -67,6 +74,9 @@ class RuntimeSettings:
     def __post_init__(self) -> None:
         if self.reconnect_seconds <= 0:
             raise ValueError("reconnect_seconds must be positive")
+        if self.filament_accounting_mode not in FILAMENT_ACCOUNTING_MODES:
+            allowed = ", ".join(sorted(FILAMENT_ACCOUNTING_MODES))
+            raise ValueError(f"filament_accounting_mode must be one of: {allowed}")
         if self.artifact_total_quota_bytes is not None and self.artifact_total_quota_bytes <= 0:
             raise ValueError("artifact_total_quota_bytes must be positive when configured")
         if self.artifact_min_free_bytes < 0:
@@ -92,6 +102,7 @@ class RuntimeComposition:
     printer_manager: RuntimePrinterManager
     events: ApplicationEventJournal
     reconnect_diagnostics: ReconnectDiagnostics
+    filament_accounting_mode: str
 
 
 _RUNTIME_KEY = web.AppKey("foxforge_runtime", RuntimeComposition)
@@ -135,10 +146,20 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         ),
     )
     queue_store = EventingQueueStore(SQLiteQueueStore(database_path), events)
-    # R4a enables lifecycle settlement/restart reconciliation only. The R3
-    # pre-dispatch accounting gate remains deliberately unbound until R5 can
-    # enable it for providers with validated accounting evidence.
-    queue = QueueService(fleet, queue_store, lifecycle_observer=accounting)
+    enabled_accounting_kinds = enabled_accounting_adapter_kinds(settings.filament_accounting_mode)
+    accounting_gate = None
+    if enabled_accounting_kinds:
+        accounting_gate = ProviderScopedQueuePreDispatchGate(
+            fleet,
+            FilamentAccountingQueuePolicy(accounting, inventory),
+            enabled_adapter_kinds=enabled_accounting_kinds,
+        )
+    queue = QueueService(
+        fleet,
+        queue_store,
+        pre_dispatch_gate=accounting_gate,
+        lifecycle_observer=accounting,
+    )
     artifacts = FilesystemArtifactStore(
         settings.data_dir / "artifacts",
         total_quota_bytes=settings.artifact_total_quota_bytes,
@@ -212,6 +233,10 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
                     "freeBytes": storage.free_bytes,
                     "minFreeBytes": storage.min_free_bytes,
                 },
+                "filamentAccounting": {
+                    "mode": settings.filament_accounting_mode,
+                    "enforcedAdapterKinds": sorted(enabled_accounting_kinds),
+                },
             }
         )
 
@@ -227,6 +252,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         printer_manager=printer_manager,
         events=events,
         reconnect_diagnostics=reconnect_diagnostics,
+        filament_accounting_mode=settings.filament_accounting_mode,
     )
     app.on_startup.append(lambda runtime_app: _start_runtime(runtime_app, settings.reconnect_seconds))
     app.on_cleanup.append(_stop_runtime)

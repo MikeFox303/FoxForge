@@ -10,6 +10,7 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from foxforge.runtime import RuntimeSettings, create_runtime_app
+from foxforge.runtime.accounting_enablement import FILAMENT_ACCOUNTING_MODE_BAMBU_VALIDATION
 
 
 def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_path) -> None:
@@ -63,6 +64,10 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
                 "sqliteSchemaVersion": 1,
                 "secretStore": "file",
             }
+            assert body["filamentAccounting"] == {
+                "mode": "disabled",
+                "enforcedAdapterKinds": [],
+            }
             storage = body["artifactStorage"]
             assert storage["artifactCount"] == 0
             assert storage["usedBytes"] == 0
@@ -93,6 +98,33 @@ def test_runtime_starts_empty_serves_api_and_spa_and_creates_durable_state(tmp_p
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'filament_reservations'"
             ).fetchone()
             assert accounting_table == ("filament_reservations",)
+
+    asyncio.run(scenario())
+
+
+def test_runtime_reports_bambu_validation_accounting_mode(tmp_path) -> None:
+    async def scenario() -> None:
+        data_dir = tmp_path / "data"
+        app = create_runtime_app(
+            RuntimeSettings(
+                data_dir=data_dir,
+                config_path=data_dir / "config.json",
+                reconnect_seconds=0.01,
+                filament_accounting_mode=FILAMENT_ACCOUNTING_MODE_BAMBU_VALIDATION,
+            )
+        )
+        client = TestClient(TestServer(app))
+        await client.start_server()
+        try:
+            diagnostics = await client.get("/api/v1/diagnostics/persistence")
+            assert diagnostics.status == 200
+            body = await diagnostics.json()
+            assert body["filamentAccounting"] == {
+                "mode": "bambu-validation",
+                "enforcedAdapterKinds": ["bambu"],
+            }
+        finally:
+            await client.close()
 
     asyncio.run(scenario())
 
@@ -129,4 +161,13 @@ def test_runtime_rejects_tokenless_trusted_browser_session_mode(tmp_path) -> Non
             data_dir=tmp_path / "data",
             config_path=tmp_path / "data" / "config.json",
             trusted_browser_sessions=True,
+        )
+
+
+def test_runtime_rejects_unknown_filament_accounting_mode(tmp_path) -> None:
+    with pytest.raises(ValueError, match="filament_accounting_mode must be one of"):
+        RuntimeSettings(
+            data_dir=tmp_path / "data",
+            config_path=tmp_path / "data" / "config.json",
+            filament_accounting_mode="moonraker-validation",
         )

@@ -9,6 +9,7 @@ from pathlib import Path
 
 from aiohttp import web
 
+from .accounting_enablement import FILAMENT_ACCOUNTING_MODE_DISABLED
 from .app import RuntimeSettings, create_runtime_app
 
 
@@ -32,6 +33,14 @@ def main() -> None:
     trusted_browser_sessions = _boolean_env(
         os.environ.get("FOXFORGE_TRUSTED_BROWSER_SESSIONS", "false"),
         field_name="FOXFORGE_TRUSTED_BROWSER_SESSIONS",
+    )
+    filament_accounting_mode = (
+        os.environ.get(
+            "FOXFORGE_FILAMENT_ACCOUNTING_MODE",
+            FILAMENT_ACCOUNTING_MODE_DISABLED,
+        )
+        .strip()
+        .lower()
     )
     artifact_total_quota_bytes = _positive_int(
         os.environ.get("FOXFORGE_ARTIFACT_QUOTA_BYTES", str(20 * 1024 * 1024 * 1024)),
@@ -58,6 +67,7 @@ def main() -> None:
             reconnect_seconds=reconnect_seconds,
             command_token=command_token,
             trusted_browser_sessions=trusted_browser_sessions,
+            filament_accounting_mode=filament_accounting_mode,
             artifact_total_quota_bytes=artifact_total_quota_bytes,
             artifact_min_free_bytes=artifact_min_free_bytes,
             artifact_orphan_retention_seconds=artifact_orphan_retention_seconds,
