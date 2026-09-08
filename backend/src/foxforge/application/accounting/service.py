@@ -64,9 +64,9 @@ class FilamentAccountingService:
     """Vendor-independent reservation and settlement coordinator.
 
     Material estimates are explicit application input. This service never
-    derives grams from print progress or vendor telemetry. It does not invoke
-    printer adapters or participate in dispatch yet; the Candidate 6 R3 slice
-    installs the pre-dispatch accounting gate in the current QueueService.
+    derives grams from print progress or vendor telemetry. Queue integration is
+    supplied through the R3 policy boundary; provider enablement is a separate
+    composition decision.
     """
 
     def __init__(
@@ -120,6 +120,11 @@ class FilamentAccountingService:
                 }
                 if expected != persisted:
                     raise FilamentPlanConflictError("filament plan is immutable once reservations are created")
+                if any(reservation.state != FilamentReservationState.RESERVED for reservation in existing):
+                    raise FilamentPlanConflictError(
+                        "filament plan has already left the reserved state; "
+                        "enqueue a new queue entry to create another plan"
+                    )
                 return existing
 
             resolved = self._resolve_plan(entry.printer_id, entry.request.material_bindings, estimates)

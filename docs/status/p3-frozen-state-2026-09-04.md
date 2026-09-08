@@ -14,8 +14,10 @@ PR #58 remains an implementation archive and must **not** be merged or mechanica
 
 - **P3-R1 COMPLETE** — PR #165 merged into `main` as `38531028f4882797db32544d30162a9ad179d2f8`; reservation value objects, exact `Decimal`, in-memory/SQLite persistence and restart/conflict coverage are canonical.
 - **P3-R2 COMPLETE** — PR #168 merged into `main` as `9fcdbca512d077858cb98522c5e1dd11380edb92`; atomic planning, capacity holds, exactly-once settlement, reconciliation and crash/restart recovery are canonical.
-- **P3-R3 ACTIVE** — current QueueService integration is being rebuilt on `pre-alpha-5/p3-accounting-dispatch-guard`; no runtime/provider enablement is introduced by this slice.
-- **P3-R4..R5 PENDING** — operator/API workflow and provider evidence remain blocked on R3.
+- **P3-R3 COMPLETE** — PR #169 merged into `main` as `6a96f770c6fb98535a972d2de090b0b9b7a18152`; queue-owned dispatch/lifecycle policy seams and fail-closed accounting guard semantics are canonical.
+- **P3-R4a ACTIVE** — backend accounting read/write API, command audit, realtime invalidation and production runtime lifecycle composition are being rebuilt on `pre-alpha-5/p3-accounting-api`.
+- **P3-R4b PENDING** — queue/operator UI, EN/RU/UK strings and browser coverage follow R4a.
+- **P3-R5 PENDING** — provider-specific automatic enablement/evidence remains blocked on R4 completion and physical validation.
 
 ## Safety invariants that remain mandatory
 
@@ -36,6 +38,8 @@ PR #58 remains an implementation archive and must **not** be merged or mechanica
 15. Missing receipt is not proof that a print never started once a dispatch attempt crossed the durable start boundary; any receipt-free terminal failure with `attempt_count > 0` remains reconciliation-required unless future common evidence explicitly proves no side effect occurred.
 16. Queue remains independent of concrete accounting code; accounting participates only through queue-owned vendor-neutral policy contracts.
 17. Secondary accounting settlement failure cannot roll back an already-durable queue lifecycle transition or terminate queue event tracking.
+18. Once a reservation leaves `reserved`, the same queue entry cannot create a new accounting plan; a new plan requires a new queue entry.
+19. Production runtime may attach accounting as a lifecycle observer for settlement/restart recovery, but the pre-dispatch accounting gate remains unbound until R5 explicitly enables a provider with validated accounting evidence.
 
 ## Why the historical QueueService wrapper is not restored
 
@@ -73,7 +77,7 @@ No runtime enablement, queue guard or inventory debit was introduced by R1.
 
 ### P3-R2 — settlement and inventory idempotency — COMPLETE (#168)
 
-Canonical `main` now contains:
+Canonical `main` contains:
 
 - atomic all-or-nothing multi-material reservation creation;
 - reservation capacity calculation and overcommit prevention;
@@ -88,9 +92,9 @@ Canonical `main` now contains:
 
 R2 remains disconnected from printer dispatch by itself and does not authorize automatic accounting in a release.
 
-### P3-R3 — current QueueService integration — ACTIVE
+### P3-R3 — current QueueService integration — COMPLETE (#169)
 
-The R3 design uses queue-owned vendor-neutral seams instead of a P3 subclass/wrapper:
+Canonical `main` now uses queue-owned vendor-neutral seams instead of a P3 subclass/wrapper:
 
 - `QueuePreDispatchGate` runs only after fresh routing compilation and printer assessment;
 - a blocker is persisted as ordinary `BLOCKED` assessment before `DISPATCHING` and before any adapter submit;
@@ -101,21 +105,40 @@ The R3 design uses queue-owned vendor-neutral seams instead of a P3 subclass/wra
 - `QueueLifecycleObserver` sees only already-durable queue states and replays restored entries on startup;
 - observer failures are isolated per entry so queue event tracking continues and restart can retry settlement;
 - no Bambu/Moonraker transport type or model-name check enters the accounting policy;
-- ordinary QueueService behavior is unchanged when no policy is explicitly supplied.
+- ordinary QueueService behavior is unchanged when no policy is explicitly supplied;
+- architecture coverage prevents `application.queue` from importing concrete accounting code.
 
-R3 tests must cover missing plan, valid dispatch, assignment/capacity drift, fresh compiler ordering, completion exactly-once, failed/indeterminate outcomes and durable restart settlement.
+The exact #169 head passed Python 3.12/3.13 contracts, container, security, deployment-auth and browser acceptance before merge.
 
-### P3-R4 — API, audit, realtime and operator UI
+### P3-R4a — backend API, audit, realtime and runtime lifecycle — ACTIVE
 
-Restore/update the old read/write workflows against current APIs:
+R4a restores only the backend/operator contract against the current command-security architecture:
 
-- accounting read model;
+- read model: reservations plus per-spool reserved/available mass;
 - guarded plan/release/reconcile commands;
-- command audit;
-- realtime cache invalidation;
-- queue UI showing source, spool, estimated grams, provenance and reservation state;
-- explicit reconciliation UI for uncertain/failed/cancelled started jobs;
-- EN/RU/UK strings and browser coverage.
+- exact decimal strings at the HTTP boundary;
+- `attempt_count`/receipt-aware pre-start rules;
+- predictable domain conflicts are checked before command-idempotency reservation where possible;
+- command audit routes for plan/release/reconcile;
+- normalized `accounting` realtime topic with queue ID resource identity;
+- durable SQLite accounting store composed in production runtime;
+- accounting attached as lifecycle observer so terminal settlement and startup replay are active for explicitly created reservations;
+- no global pre-dispatch accounting gate is enabled by R4a;
+- terminal reservation states cannot be silently reused as a fresh plan.
+
+R4a acceptance requires API/auth/audit/idempotency tests, durable runtime composition coverage and all standard Candidate 6 CI gates on the exact PR head.
+
+### P3-R4b — operator UI — PENDING
+
+Build the current Queue UI workflow around normalized backend contracts rather than reviving the old #58 components unchanged:
+
+- show physical source, assigned FoxForge spool, estimated grams and reservation state;
+- explicit plan/release/reconcile actions;
+- reconciliation UI for uncertain/failed/cancelled started jobs;
+- clear distinction between estimate and explicit measured actual mass;
+- realtime invalidation for accounting changes;
+- EN/RU/UK strings;
+- responsive/browser coverage on current Queue UI structure.
 
 ### P3-R5 — evidence/provider enablement
 
@@ -124,6 +147,7 @@ Automatic accounting enablement remains evidence-gated and provider-specific whi
 - Bambu may be first after an exact Candidate 6 X2D weighed-spool validation.
 - Moonraker/Klipper remains disabled until its own estimator/evidence and physical validation are proven.
 - Provider enablement must be explicit; generic UI/application code must not infer it from printer model names.
+- R5 is the only slice allowed to bind the R3 pre-dispatch accounting gate in production composition for validated provider/workflow evidence.
 
 ## Candidate 6 closure gate
 

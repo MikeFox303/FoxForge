@@ -16,20 +16,23 @@ from foxforge.adapters.moonraker import create_moonraker_http_adapter
 from foxforge.api.v1 import BearerCommandSecurity, create_api_v1_app
 from foxforge.api.v1.artifact_reads import register_artifact_read_routes
 from foxforge.api.v1.command_audit import install_command_audit
+from foxforge.api.v1.filament_accounting import register_filament_accounting_routes
 from foxforge.api.v1.inventory_commands import register_inventory_command_routes
 from foxforge.api.v1.inventory_reads import register_inventory_read_routes
 from foxforge.api.v1.job_control_commands import register_job_control_command_routes
 from foxforge.api.v1.queue_commands import register_queue_command_routes
 from foxforge.api.v1.queue_guard import install_queue_command_guard
 from foxforge.api.v1.realtime import register_realtime_routes
+from foxforge.application.accounting import FilamentAccountingService
 from foxforge.application.artifacts import ArtifactStore
 from foxforge.application.commands import CommandAuditStore, CommandIdempotencyStore
 from foxforge.application.event_stores import EventingInventoryStore, EventingQueueStore
-from foxforge.application.events import ApplicationEventJournal
+from foxforge.application.events import ApplicationEventJournal, ApplicationEventTopic
 from foxforge.application.fleet import FleetService
 from foxforge.application.inventory import InventoryService
 from foxforge.application.queue import QueueService
 from foxforge.domain.printers import PrinterAdapterError, PrinterEventKind
+from foxforge.infrastructure.accounting import SQLiteFilamentAccountingStore
 from foxforge.infrastructure.artifacts import FilesystemArtifactStore
 from foxforge.infrastructure.commands import SQLiteCommandAuditStore, SQLiteCommandIdempotencyStore
 from foxforge.infrastructure.inventory import SQLiteInventoryStore
@@ -82,6 +85,7 @@ class RuntimeComposition:
     fleet: FleetService
     queue: QueueService
     inventory: InventoryService
+    accounting: FilamentAccountingService
     artifacts: ArtifactStore
     command_idempotency: CommandIdempotencyStore
     command_audit: CommandAuditStore
@@ -119,10 +123,22 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     events = ApplicationEventJournal()
     reconnect_diagnostics = ReconnectDiagnostics()
 
-    queue_store = EventingQueueStore(SQLiteQueueStore(database_path), events)
     inventory_store = EventingInventoryStore(SQLiteInventoryStore(database_path), events)
-    queue = QueueService(fleet, queue_store)
     inventory = InventoryService(inventory_store)
+    accounting = FilamentAccountingService(
+        inventory,
+        SQLiteFilamentAccountingStore(database_path),
+        on_change=lambda queue_id: events.publish(
+            ApplicationEventTopic.ACCOUNTING,
+            "reservation_changed",
+            resource_id=str(queue_id),
+        ),
+    )
+    queue_store = EventingQueueStore(SQLiteQueueStore(database_path), events)
+    # R4a enables lifecycle settlement/restart reconciliation only. The R3
+    # pre-dispatch accounting gate remains deliberately unbound until R5 can
+    # enable it for providers with validated accounting evidence.
+    queue = QueueService(fleet, queue_store, lifecycle_observer=accounting)
     artifacts = FilesystemArtifactStore(
         settings.data_dir / "artifacts",
         total_quota_bytes=settings.artifact_total_quota_bytes,
@@ -168,6 +184,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
     register_inventory_command_routes(app, inventory=inventory, fleet=fleet)
     register_artifact_read_routes(app, artifacts=artifacts)
     register_queue_command_routes(app, queue=queue, fleet=fleet, artifacts=artifacts)
+    register_filament_accounting_routes(app, queue=queue, inventory=inventory, accounting=accounting)
     register_job_control_command_routes(app, fleet=fleet)
     register_realtime_routes(app, journal=events)
     install_command_audit(app, security=command_security, store=command_audit)
@@ -203,6 +220,7 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
         fleet=fleet,
         queue=queue,
         inventory=inventory,
+        accounting=accounting,
         artifacts=artifacts,
         command_idempotency=command_idempotency,
         command_audit=command_audit,
@@ -218,6 +236,9 @@ def create_runtime_app(settings: RuntimeSettings) -> web.Application:
 
 async def _start_runtime(app: web.Application, reconnect_seconds: float) -> None:
     runtime = app[_RUNTIME_KEY]
+    # QueueService replays durable entries through the accounting lifecycle
+    # observer before subscribing to live fleet events, repairing a crash after
+    # terminal queue persistence without duplicating inventory debits.
     await runtime.queue.start()
     event_relay_ready = asyncio.Event()
     app[_EVENT_RELAY_KEY] = asyncio.create_task(

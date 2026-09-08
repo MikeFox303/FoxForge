@@ -105,6 +105,24 @@ _COMMAND_ROUTES: Final = (
         "queue.reconcile",
         "queue_id",
     ),
+    _CommandRoute(
+        "POST",
+        re.compile(r"^/api/v1/queue/(?P<queue_id>[^/]+)/filament-plan$"),
+        "filament.plan",
+        "queue_id",
+    ),
+    _CommandRoute(
+        "POST",
+        re.compile(r"^/api/v1/queue/(?P<queue_id>[^/]+)/filament-release$"),
+        "filament.release",
+        "queue_id",
+    ),
+    _CommandRoute(
+        "POST",
+        re.compile(r"^/api/v1/queue/(?P<queue_id>[^/]+)/filament-reconcile$"),
+        "filament.reconcile",
+        "queue_id",
+    ),
 )
 
 
