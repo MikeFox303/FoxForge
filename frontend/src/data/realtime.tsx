@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 
 import { demoModeEnabled } from './apiClient';
 
-type ApplicationEventTopic = 'fleet' | 'queue' | 'inventory' | 'printer_configuration';
+type ApplicationEventTopic = 'fleet' | 'queue' | 'inventory' | 'accounting' | 'printer_configuration';
 
 interface ApplicationEventPayload {
   apiVersion: '1';
@@ -18,9 +18,13 @@ interface ApplicationEventPayload {
   resourceId?: string;
 }
 
-export type RealtimeQueryKey = readonly ['fleet'] | readonly ['queue'] | readonly ['inventory'];
+export type RealtimeQueryKey =
+  | readonly ['fleet']
+  | readonly ['queue']
+  | readonly ['inventory']
+  | readonly ['accounting'];
 
-const resyncKeys: readonly RealtimeQueryKey[] = [['fleet'], ['queue'], ['inventory']];
+const resyncKeys: readonly RealtimeQueryKey[] = [['fleet'], ['queue'], ['inventory'], ['accounting']];
 const INVALIDATION_BATCH_MS = 250;
 
 export function realtimeInvalidationKeys(
@@ -48,6 +52,8 @@ export function realtimeInvalidationKeys(
       return [['queue']];
     case 'inventory':
       return [['inventory']];
+    case 'accounting':
+      return [['accounting'], ['queue'], ['inventory']];
     default:
       return resyncKeys;
   }

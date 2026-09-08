@@ -7,6 +7,7 @@ import { createRoot } from 'react-dom/client';
 import { AppProviders } from './app/providers';
 import { FoxForgeApp } from './FoxForgeApp';
 import { installRandomUuidFallback } from './platform/randomUuid';
+import './filamentAccountingTranslations';
 import './jobControlTranslations';
 import './inventoryOperatorTranslations';
 import './operatorAccessTranslations';
@@ -21,6 +22,7 @@ import './printer-card.css';
 import './job-control.css';
 import './printer-setup.css';
 import './operator-access.css';
+import './filament-accounting.css';
 import './mobile.css';
 import './functional-controls.css';
 

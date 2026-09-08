@@ -172,6 +172,12 @@ export interface PrinterViewModel {
   thermalTelemetry?: ThermalTelemetrySnapshot;
 }
 
+export interface QueueMaterialBindingView {
+  materialIndex: number;
+  slotId: string;
+  toolheadId?: string;
+}
+
 export interface QueueViewModel {
   queueId: string;
   printerId: string;
@@ -182,6 +188,7 @@ export interface QueueViewModel {
   createdAt: string;
   updatedAt: string;
   attemptCount: number;
+  materialBindings: QueueMaterialBindingView[];
   blocker?: string;
   retryable?: boolean;
 }

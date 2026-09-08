@@ -8,6 +8,7 @@ import { useTranslation } from 'react-i18next';
 import { CommandApiError } from '../../data/commandClient';
 import type { FleetData, PrinterViewModel, QueueViewModel } from '../../domain';
 import '../../queue-command.css';
+import { QueueAccountingPanel } from './QueueAccountingPanel';
 import {
   createQueueJobIdentity,
   dispatchPrintJob,
@@ -550,6 +551,11 @@ export function QueueEntryActions({ entry }: { entry: QueueViewModel }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const printer = queryClient
+    .getQueriesData<FleetData>({ queryKey: ['fleet', 'snapshot'] })
+    .map(([, data]) => data?.printers.find((candidate) => candidate.identity.printerId === entry.printerId))
+    .find((candidate): candidate is PrinterViewModel => candidate !== undefined);
+
   const dispatch = async () => {
     const idempotencyKey = dispatchKey ?? crypto.randomUUID();
     setDispatchKey(idempotencyKey);
@@ -586,31 +592,36 @@ export function QueueEntryActions({ entry }: { entry: QueueViewModel }) {
   };
 
   const retryableFailure = entry.state === 'failed' && entry.retryable === true;
-  if (!['pending', 'blocked', 'indeterminate'].includes(entry.state) && !retryableFailure && !error) return null;
+  const showPrintActions = ['pending', 'blocked', 'indeterminate'].includes(entry.state) || retryableFailure;
 
   return (
-    <div className="queue-entry-actions">
-      {(entry.state === 'pending' || entry.state === 'blocked' || retryableFailure) && (
-        <button className="text-button" type="button" disabled={busy} onClick={() => void dispatch()}>
-          {busy
-            ? t('alpha.queueCommand.sending')
-            : retryableFailure
-              ? t('alpha.queueCommand.retryPrint')
-              : t('alpha.queueCommand.startPrint')}
-        </button>
+    <>
+      {(showPrintActions || error) && (
+        <div className="queue-entry-actions">
+          {(entry.state === 'pending' || entry.state === 'blocked' || retryableFailure) && (
+            <button className="text-button" type="button" disabled={busy} onClick={() => void dispatch()}>
+              {busy
+                ? t('alpha.queueCommand.sending')
+                : retryableFailure
+                  ? t('alpha.queueCommand.retryPrint')
+                  : t('alpha.queueCommand.startPrint')}
+            </button>
+          )}
+          {entry.state === 'indeterminate' && (
+            <>
+              <button className="text-button warning-text" type="button" disabled={busy} onClick={() => void reconcile(true)}>
+                {t('alpha.queueCommand.confirmStarted')}
+              </button>
+              <button className="text-button" type="button" disabled={busy} onClick={() => void reconcile(false)}>
+                {t('alpha.queueCommand.confirmNotStarted')}
+              </button>
+            </>
+          )}
+          {error && <small className="warning-text">{error}</small>}
+        </div>
       )}
-      {entry.state === 'indeterminate' && (
-        <>
-          <button className="text-button warning-text" type="button" disabled={busy} onClick={() => void reconcile(true)}>
-            {t('alpha.queueCommand.confirmStarted')}
-          </button>
-          <button className="text-button" type="button" disabled={busy} onClick={() => void reconcile(false)}>
-            {t('alpha.queueCommand.confirmNotStarted')}
-          </button>
-        </>
-      )}
-      {error && <small className="warning-text">{error}</small>}
-    </div>
+      <QueueAccountingPanel entry={entry} printer={printer} />
+    </>
   );
 }
 

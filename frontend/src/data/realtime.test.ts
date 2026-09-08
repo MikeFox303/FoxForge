@@ -15,6 +15,8 @@ const payload = (topic: string) =>
     change: 'changed',
   });
 
+const allKeys = [['fleet'], ['queue'], ['inventory'], ['accounting']];
+
 describe('realtimeInvalidationKeys', () => {
   it('routes fleet and printer configuration events to the fleet cache', () => {
     expect(realtimeInvalidationKeys('change', payload('fleet'))).toEqual([['fleet']]);
@@ -26,16 +28,20 @@ describe('realtimeInvalidationKeys', () => {
     expect(realtimeInvalidationKeys('change', payload('inventory'))).toEqual([['inventory']]);
   });
 
-  it('fails closed to full snapshot resync for malformed or unknown events', () => {
-    expect(realtimeInvalidationKeys('change', '{bad json')).toEqual([['fleet'], ['queue'], ['inventory']]);
-    expect(realtimeInvalidationKeys('change', payload('future-topic'))).toEqual([
-      ['fleet'],
+  it('refreshes accounting together with queue and inventory after reservation changes', () => {
+    expect(realtimeInvalidationKeys('change', payload('accounting'))).toEqual([
+      ['accounting'],
       ['queue'],
       ['inventory'],
     ]);
   });
 
+  it('fails closed to full snapshot resync for malformed or unknown events', () => {
+    expect(realtimeInvalidationKeys('change', '{bad json')).toEqual(allKeys);
+    expect(realtimeInvalidationKeys('change', payload('future-topic'))).toEqual(allKeys);
+  });
+
   it('invalidates every canonical snapshot when the server reports a replay gap', () => {
-    expect(realtimeInvalidationKeys('resync_required', '{}')).toEqual([['fleet'], ['queue'], ['inventory']]);
+    expect(realtimeInvalidationKeys('resync_required', '{}')).toEqual(allKeys);
   });
 });
