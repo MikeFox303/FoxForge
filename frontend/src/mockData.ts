@@ -169,6 +169,7 @@ export const fleetData: FleetData = {
       createdAt: '2026-09-04T00:23:00Z',
       updatedAt: '2026-09-04T00:25:00Z',
       attemptCount: 1,
+      materialBindings: [{ materialIndex: 0, slotId: 'ams-1-a1' }],
     },
     {
       queueId: '4e1789fa-b7b7-4e4f-9a67-b2046ac1c341',
@@ -180,6 +181,7 @@ export const fleetData: FleetData = {
       createdAt: '2026-09-04T00:51:00Z',
       updatedAt: '2026-09-04T00:51:00Z',
       attemptCount: 0,
+      materialBindings: [],
     },
     {
       queueId: '2883e980-0e6f-43a3-a5bf-90ec50b0683f',
@@ -191,6 +193,7 @@ export const fleetData: FleetData = {
       createdAt: '2026-09-04T00:54:00Z',
       updatedAt: '2026-09-04T00:54:00Z',
       attemptCount: 0,
+      materialBindings: [{ materialIndex: 0, slotId: 'ams-1-a3' }],
       blocker: 'Printer is busy with an active job',
     },
   ],

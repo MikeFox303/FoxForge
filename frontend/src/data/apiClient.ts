@@ -146,6 +146,11 @@ interface ApiQueueEntry {
       filename: string;
       format: PrintArtifactFormat;
     };
+    materialBindings: Array<{
+      materialIndex: number;
+      slotId: string;
+      toolheadId: string | null;
+    }>;
   };
   assessment: {
     blockers: Array<{ code: string; message: string | null }>;
@@ -317,6 +322,11 @@ function mapQueueEntry(entry: ApiQueueEntry): QueueViewModel {
     createdAt: entry.createdAt,
     updatedAt: entry.updatedAt,
     attemptCount: entry.attemptCount,
+    materialBindings: entry.request.materialBindings.map((binding) => ({
+      materialIndex: binding.materialIndex,
+      slotId: binding.slotId,
+      toolheadId: binding.toolheadId ?? undefined,
+    })),
     blocker: blocker?.message ?? blocker?.code ?? entry.error?.message,
     retryable: entry.error?.retryable,
   };
