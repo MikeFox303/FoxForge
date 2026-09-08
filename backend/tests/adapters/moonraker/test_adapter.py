@@ -6,12 +6,13 @@ from __future__ import annotations
 import asyncio
 from dataclasses import replace
 
-from foxforge.adapters.moonraker import MoonrakerAdapter
+from foxforge.adapters.moonraker import MoonrakerAdapter, MoonrakerNativeThermalZone
 from foxforge.domain.printers import ConnectionState, OperationalState, PrinterEventKind, utc_now
 from foxforge.domain.printers.capabilities import (
     MaterialSystemCapability,
     MaterialTopologyCapability,
     PrintExecutionCapability,
+    ThermalTelemetryCapability,
 )
 
 
@@ -39,6 +40,7 @@ def test_moonraker_adapter_resolves_common_capabilities(moonraker_identity, fake
 
     assert adapter.capability(PrintExecutionCapability) is not None
     assert adapter.capability(MaterialSystemCapability) is not None
+    assert adapter.capability(ThermalTelemetryCapability) is not None
     assert adapter.capability(MaterialTopologyCapability) is None
     assert adapter.capability(dict) is None
 
@@ -72,6 +74,41 @@ def test_moonraker_native_updates_emit_normalized_events(
             ]
             assert adapter.snapshot().operational_state == OperationalState.PRINTING
             assert len({event.connection_epoch for event in observed}) == 1
+        finally:
+            await events.aclose()  # type: ignore[attr-defined]
+            await adapter.disconnect()
+
+    asyncio.run(scenario())
+
+
+def test_moonraker_thermal_update_emits_common_event(
+    moonraker_identity,
+    fake_moonraker_transport,
+    moonraker_idle_state,
+) -> None:
+    async def scenario() -> None:
+        adapter = MoonrakerAdapter(moonraker_identity, fake_moonraker_transport)
+        await adapter.connect()
+        events = adapter.events()
+        try:
+            thermal = replace(
+                moonraker_idle_state,
+                connected=True,
+                thermal_zones=(
+                    MoonrakerNativeThermalZone("extruder", 0, 205.0, 210.0),
+                    MoonrakerNativeThermalZone("heater_bed", 0, 59.0, 60.0),
+                ),
+                observed_at=utc_now(),
+            )
+            await fake_moonraker_transport.push(thermal)
+            event = await asyncio.wait_for(anext(events), timeout=0.2)
+            assert event.kind == PrinterEventKind.THERMAL_TELEMETRY_CHANGED
+            snapshot = event.payload
+            assert snapshot.stale is False
+            assert [(zone.zone_id, zone.label) for zone in snapshot.zones] == [
+                ("hotend:0", "Hotend"),
+                ("bed:0", "Bed"),
+            ]
         finally:
             await events.aclose()  # type: ignore[attr-defined]
             await adapter.disconnect()

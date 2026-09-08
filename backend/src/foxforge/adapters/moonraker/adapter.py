@@ -22,6 +22,7 @@ from foxforge.domain.printers.capabilities import (
     JobControlCapability,
     MaterialSystemCapability,
     PrintExecutionCapability,
+    ThermalTelemetryCapability,
 )
 
 from .job_control import MoonrakerJobControlCapability
@@ -29,6 +30,7 @@ from .mapping import map_moonraker_material_system, map_moonraker_state
 from .material_system import MoonrakerMaterialSystemCapability
 from .native import MoonrakerNativeState
 from .print_execution import MoonrakerPrintExecutionCapability, normalize_moonraker_transport_error
+from .thermal_telemetry import MoonrakerThermalTelemetryCapability
 from .transport import MoonrakerTransport, MoonrakerTransportError
 
 C = TypeVar("C")
@@ -71,10 +73,12 @@ class MoonrakerAdapter:
         self._sequence = 0
         self._pump_task: asyncio.Task[None] | None = None
         self._material = MoonrakerMaterialSystemCapability(identity.printer_id, self.native_snapshot)
+        self._thermal = MoonrakerThermalTelemetryCapability(identity.printer_id, self.native_snapshot)
         self._printing = MoonrakerPrintExecutionCapability(transport, self.snapshot)
         self._job_control = MoonrakerJobControlCapability(transport, self.snapshot)
         self._capabilities: dict[type[object], object] = {
             cast(type[object], MaterialSystemCapability): self._material,
+            cast(type[object], ThermalTelemetryCapability): self._thermal,
             cast(type[object], PrintExecutionCapability): self._printing,
             cast(type[object], JobControlCapability): self._job_control,
         }
@@ -177,6 +181,9 @@ class MoonrakerAdapter:
         if previous_material.units != current_material.units or previous_material.stale != current_material.stale:
             self._emit(PrinterEventKind.MATERIAL_SYSTEM_CHANGED, current_material)
 
+        if _thermal_signature(previous_native) != _thermal_signature(native):
+            self._emit(PrinterEventKind.THERMAL_TELEMETRY_CHANGED, self._thermal.snapshot())
+
         if reconcile:
             self._emit(PrinterEventKind.SNAPSHOT_RECONCILED, current)
 
@@ -199,3 +206,9 @@ class MoonrakerAdapter:
         for queue in tuple(self._subscribers):
             queue.put_nowait(event)
         return event
+
+
+def _thermal_signature(native: MoonrakerNativeState) -> tuple[object, ...]:
+    if not native.thermal_zones:
+        return ()
+    return (native.connected, native.thermal_zones)

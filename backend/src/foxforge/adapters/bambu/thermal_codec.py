@@ -10,6 +10,7 @@ observations. Raw MQTT field names remain private to the Bambu adapter.
 from __future__ import annotations
 
 from collections.abc import Mapping
+from math import isfinite
 
 from .native import BambuNativeThermalZone
 
@@ -39,12 +40,8 @@ class BambuThermalCodec:
             self._merge_simple(
                 "hotend:0",
                 0,
-                current=_temperature(print_data.get("nozzle_temper")) if "nozzle_temper" in print_data else _MISSING,
-                target=(
-                    _target_temperature(print_data.get("nozzle_target_temper"))
-                    if "nozzle_target_temper" in print_data
-                    else _MISSING
-                ),
+                current=_present_temperature(print_data, "nozzle_temper"),
+                target=_present_target(print_data, "nozzle_target_temper"),
             )
             secondary_current = _first_present_temperature(
                 print_data,
@@ -59,12 +56,8 @@ class BambuThermalCodec:
             self._merge_simple("hotend:1", 1, current=secondary_current, target=secondary_target)
 
         bed_encoded = _nested_temp(print_data, "device", "bed", "info", "temp")
-        bed_current: object = _MISSING
-        bed_target: object = _MISSING
-        if "bed_temper" in print_data:
-            bed_current = _temperature(print_data.get("bed_temper"), maximum=200.0)
-        if "bed_target_temper" in print_data:
-            bed_target = _target_temperature(print_data.get("bed_target_temper"), maximum=200.0)
+        bed_current: object = _present_temperature(print_data, "bed_temper", maximum=200.0)
+        bed_target: object = _present_target(print_data, "bed_target_temper", maximum=200.0)
         if bed_encoded is not _MISSING and bed_current is _MISSING and bed_target is _MISSING:
             bed_current, bed_target = _decode_encoded_or_direct(bed_encoded, maximum=200.0)
         self._merge_simple("bed", 10, current=bed_current, target=bed_target)
@@ -75,8 +68,9 @@ class BambuThermalCodec:
             chamber_current, decoded_target = _decode_encoded_or_direct(print_data.get("chamber_temper"), maximum=120.0)
             if decoded_target is not _MISSING:
                 chamber_target = decoded_target
-        if "chamber_target_temper" in print_data:
-            chamber_target = _target_temperature(print_data.get("chamber_target_temper"), maximum=120.0)
+        chamber_explicit_target = _present_target(print_data, "chamber_target_temper", maximum=120.0)
+        if chamber_explicit_target is not _MISSING:
+            chamber_target = chamber_explicit_target
 
         ctc_temp = _nested_temp(print_data, "device", "ctc", "info", "temp")
         ctc_target = _nested_temp(print_data, "device", "ctc", "info", "target")
@@ -160,17 +154,33 @@ def _nested_temp(mapping: Mapping[str, object], *path: str) -> object:
     return current
 
 
+def _present_temperature(mapping: Mapping[str, object], key: str, *, maximum: float = 500.0) -> object:
+    if key not in mapping:
+        return _MISSING
+    value = _temperature(mapping.get(key), maximum=maximum)
+    return value if value is not None else _MISSING
+
+
+def _present_target(mapping: Mapping[str, object], key: str, *, maximum: float = 500.0) -> object:
+    if key not in mapping:
+        return _MISSING
+    value = _target_temperature(mapping.get(key), maximum=maximum)
+    return value if value is not None else _MISSING
+
+
 def _first_present_temperature(mapping: Mapping[str, object], *keys: str) -> object:
     for key in keys:
-        if key in mapping:
-            return _temperature(mapping.get(key))
+        value = _present_temperature(mapping, key)
+        if value is not _MISSING:
+            return value
     return _MISSING
 
 
 def _first_present_target(mapping: Mapping[str, object], *keys: str) -> object:
     for key in keys:
-        if key in mapping:
-            return _target_temperature(mapping.get(key))
+        value = _present_target(mapping, key)
+        if value is not _MISSING:
+            return value
     return _MISSING
 
 
@@ -182,16 +192,17 @@ def _decode_encoded_or_direct(
 ) -> tuple[object, object]:
     numeric = _number(value)
     if numeric is None:
-        return None, _MISSING
+        return _MISSING, _MISSING
     if numeric > 500:
         encoded = int(numeric)
         target = encoded // 65536
         current = encoded % 65536
-        current_value = float(current) if -50.0 < current < maximum else None
-        target_value = float(target) if 0 <= target < maximum else None
+        current_value: object = float(current) if -50.0 < current < maximum else _MISSING
+        target_value: object = float(target) if 0 <= target < maximum else _MISSING
         return current_value, target_value
-    current = numeric if -50.0 < numeric < maximum else None
-    return current, 0.0 if direct_target_zero and current is not None else _MISSING
+    if not -50.0 < numeric < maximum:
+        return _MISSING, _MISSING
+    return numeric, 0.0 if direct_target_zero else _MISSING
 
 
 def _temperature(value: object, *, maximum: float = 500.0) -> float | None:
@@ -208,13 +219,15 @@ def _number(value: object) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
-    if isinstance(value, str):
+        numeric = float(value)
+    elif isinstance(value, str):
         try:
-            return float(value.strip())
+            numeric = float(value.strip())
         except ValueError:
             return None
-    return None
+    else:
+        return None
+    return numeric if isfinite(numeric) else None
 
 
 def _integer(value: object) -> int | None:
