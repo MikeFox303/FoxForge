@@ -1,0 +1,581 @@
+name: Candidate 6 software gate
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/**'
+      - 'README.md'
+      - 'docs/project-status.md'
+      - 'docs/testing/pre-alpha-5-candidate6-software-gate.md'
+      - '.github/workflows/candidate-gate.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'deployment/**'
+      - 'README.md'
+      - 'docs/project-status.md'
+      - 'docs/testing/pre-alpha-5-candidate6-software-gate.md'
+      - '.github/workflows/candidate-gate.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: foxforge-candidate6-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FOXFORGE_GATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+  FOXFORGE_CANDIDATE_COMMAND_TOKEN: foxforge-candidate-gate-token-0123456789abcdef
+
+jobs:
+  backend:
+    name: Backend Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: backend/constraints.txt
+      - name: Install frozen backend graph
+        working-directory: backend
+        run: python -m pip install -c constraints.txt -e '.[dev]'
+      - name: Ruff lint
+        working-directory: backend
+        run: ruff check src tests
+      - name: Ruff format
+        working-directory: backend
+        run: ruff format --check src tests
+      - name: Backend tests
+        working-directory: backend
+        run: pytest
+
+  frontend:
+    name: Frontend exact lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frozen frontend graph
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Type check
+        working-directory: frontend
+        run: npm run check
+      - name: Unit tests
+        working-directory: frontend
+        run: npm test
+      - name: Production build
+        working-directory: frontend
+        run: npm run build
+
+  browser:
+    name: Exact-source browser acceptance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Build exact-source image
+        run: |
+          docker build \
+            --file deployment/docker/Dockerfile \
+            --build-arg VCS_REF="$FOXFORGE_GATE_SHA" \
+            --build-arg VERSION="candidate6-gate" \
+            --tag foxforge:candidate-browser \
+            .
+      - name: Start exact-source application
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-candidate-browser-data"
+          docker run -d --name foxforge-candidate-browser \
+            -p 18080:8000 \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_CANDIDATE_COMMAND_TOKEN" \
+            -v "${RUNNER_TEMP}/foxforge-candidate-browser-data:/data" \
+            foxforge:candidate-browser
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18080/healthz >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:18080/healthz
+      - name: Browser acceptance
+        working-directory: frontend
+        env:
+          FOXFORGE_E2E_BASE_URL: http://127.0.0.1:18080
+          FOXFORGE_E2E_COMMAND_TOKEN: ${{ env.FOXFORGE_CANDIDATE_COMMAND_TOKEN }}
+        run: npm run test:e2e
+      - name: Verify no public source maps
+        run: |
+          if docker exec foxforge-candidate-browser sh -c "find /app/static -type f -name '*.map' | grep -q ."; then
+            echo 'Public source maps found in Candidate 6 image' >&2
+            docker exec foxforge-candidate-browser find /app/static -type f -name '*.map'
+            exit 1
+          fi
+      - name: Upload browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate6-browser-${{ env.FOXFORGE_GATE_SHA }}
+          path: |
+            frontend/test-results/**/*.png
+            frontend/test-results/**/*.zip
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Browser container logs
+        if: always()
+        run: docker logs foxforge-candidate-browser || true
+      - name: Stop browser container
+        if: always()
+        run: docker rm -f foxforge-candidate-browser || true
+
+  dependencies:
+    name: Dependency security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Audit production frontend dependencies
+        working-directory: frontend
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit --omit=dev --audit-level=high
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Audit frozen Python dependency graph
+        working-directory: backend
+        run: |
+          python -m pip install 'pip-audit==2.10.1'
+          pip-audit --requirement constraints.txt
+
+  image-security:
+    name: Final-image security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: docker/setup-buildx-action@v4
+      - name: Build exact-source scan image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/Dockerfile
+          load: true
+          push: false
+          tags: foxforge:candidate-security
+          build-args: |
+            VCS_REF=${{ env.FOXFORGE_GATE_SHA }}
+            VERSION=candidate6-security
+      - name: Scan high/critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: foxforge:candidate-security
+          format: table
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
+
+  deployment-auth:
+    name: Deployment authentication
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - name: Build exact-source auth image
+        run: |
+          docker build \
+            --file deployment/docker/Dockerfile \
+            --build-arg VCS_REF="$FOXFORGE_GATE_SHA" \
+            --build-arg VERSION="candidate6-auth" \
+            --tag foxforge:candidate-auth \
+            .
+      - name: Read-only mode fails closed
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-candidate-readonly"
+          docker run -d --name foxforge-candidate-readonly \
+            -p 18081:8000 \
+            -v "${RUNNER_TEMP}/foxforge-candidate-readonly:/data" \
+            foxforge:candidate-auth
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18081/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          status=$(curl --silent --output /tmp/candidate-readonly.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18081/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H 'Idempotency-Key: candidate-readonly-1' \
+            --data '{"spoolId":"20000000-0000-4000-8000-000000000001","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Candidate gate","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$status" = "503"
+          grep -q 'command_api_disabled' /tmp/candidate-readonly.json
+      - name: Explicit token enables writes and wrong token fails
+        run: |
+          mkdir -p "${RUNNER_TEMP}/foxforge-candidate-write"
+          docker run -d --name foxforge-candidate-write \
+            -p 18082:8000 \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_CANDIDATE_COMMAND_TOKEN" \
+            -v "${RUNNER_TEMP}/foxforge-candidate-write:/data" \
+            foxforge:candidate-auth
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18082/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          wrong=$(curl --silent --output /tmp/candidate-wrong.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18082/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer wrong-candidate-gate-token-0123456789abcdef' \
+            -H 'Idempotency-Key: candidate-wrong-1' \
+            --data '{"spoolId":"20000000-0000-4000-8000-000000000002","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Candidate gate","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$wrong" = "401"
+          grep -q 'unauthorized' /tmp/candidate-wrong.json
+          good=$(curl --silent --output /tmp/candidate-good.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18082/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H "Authorization: Bearer $FOXFORGE_CANDIDATE_COMMAND_TOKEN" \
+            -H 'Idempotency-Key: candidate-good-1' \
+            --data '{"spoolId":"20000000-0000-4000-8000-000000000003","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Candidate gate","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$good" = "201"
+      - name: Proxy headers are not an application principal
+        run: |
+          docker network create foxforge-candidate-auth-net
+          mkdir -p "${RUNNER_TEMP}/foxforge-candidate-proxy"
+          docker run -d --name foxforge-candidate-proxy-backend \
+            --network foxforge-candidate-auth-net \
+            --network-alias foxforge-backend \
+            -e FOXFORGE_COMMAND_TOKEN="$FOXFORGE_CANDIDATE_COMMAND_TOKEN" \
+            -v "${RUNNER_TEMP}/foxforge-candidate-proxy:/data" \
+            foxforge:candidate-auth
+          docker run -d --name foxforge-candidate-proxy \
+            --network foxforge-candidate-auth-net \
+            -p 18083:8080 \
+            -e FOXFORGE_PROXY_UPSTREAM=http://foxforge-backend:8000 \
+            -v "$GITHUB_WORKSPACE/deployment/testing/reverse_proxy.py:/proxy/reverse_proxy.py:ro" \
+            --entrypoint python \
+            foxforge:candidate-auth \
+            /proxy/reverse_proxy.py
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:18083/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          spoof=$(curl --silent --output /tmp/candidate-proxy-spoof.json --write-out '%{http_code}' \
+            -X POST http://127.0.0.1:18083/api/v1/inventory/spools \
+            -H 'Content-Type: application/json' \
+            -H 'X-Authenticated-User: operator' \
+            -H 'X-Forwarded-User: operator' \
+            -H 'Idempotency-Key: candidate-proxy-spoof-1' \
+            --data '{"spoolId":"20000000-0000-4000-8000-000000000004","materialFamily":"PLA","manufacturer":"FoxForge","productName":"Candidate proxy","rgbaHex":"#FFFFFF","initialFilamentMassG":"1000","emptySpoolMassG":"180"}')
+          test "$spoof" = "401"
+          grep -q 'unauthorized' /tmp/candidate-proxy-spoof.json
+      - name: Unsafe trusted-browser mode is rejected
+        run: |
+          set +e
+          docker run --name foxforge-candidate-unsafe \
+            -e FOXFORGE_TRUSTED_BROWSER_SESSIONS=true \
+            foxforge:candidate-auth >/tmp/candidate-unsafe.log 2>&1
+          rc=$?
+          set -e
+          test "$rc" -ne 0
+          grep -q 'TRUSTED_BROWSER' /tmp/candidate-unsafe.log
+      - name: Auth logs
+        if: always()
+        run: |
+          docker logs foxforge-candidate-readonly || true
+          docker logs foxforge-candidate-write || true
+          docker logs foxforge-candidate-proxy-backend || true
+          docker logs foxforge-candidate-proxy || true
+          cat /tmp/candidate-unsafe.log || true
+      - name: Auth cleanup
+        if: always()
+        run: |
+          docker rm -f foxforge-candidate-readonly foxforge-candidate-write foxforge-candidate-proxy-backend foxforge-candidate-proxy foxforge-candidate-unsafe 2>/dev/null || true
+          docker network rm foxforge-candidate-auth-net 2>/dev/null || true
+
+  architecture-smoke:
+    name: Runtime smoke ${{ matrix.platform }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            tag: amd64
+          - platform: linux/arm64
+            tag: arm64
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - name: Build local platform image
+        run: |
+          docker buildx build \
+            --platform "${{ matrix.platform }}" \
+            --file deployment/docker/Dockerfile \
+            --build-arg VCS_REF="$FOXFORGE_GATE_SHA" \
+            --build-arg VERSION="candidate6-${{ matrix.tag }}" \
+            --tag "foxforge:candidate-${{ matrix.tag }}" \
+            --load \
+            .
+      - name: Run local platform image
+        run: |
+          root="${RUNNER_TEMP}/candidate-${{ matrix.tag }}"
+          mkdir -p "$root/data"
+          docker run --platform "${{ matrix.platform }}" -d \
+            --name "foxforge-candidate-${{ matrix.tag }}" \
+            -p 18090:8000 \
+            -v "$root/data:/data" \
+            "foxforge:candidate-${{ matrix.tag }}"
+          for attempt in $(seq 1 120); do
+            if curl --fail --silent http://127.0.0.1:18090/healthz >/dev/null; then
+              curl --fail --silent http://127.0.0.1:18090/ | grep -q 'FoxForge'
+              docker exec "foxforge-candidate-${{ matrix.tag }}" test -f /data/config.json
+              docker exec "foxforge-candidate-${{ matrix.tag }}" test -f /data/foxforge.sqlite3
+              exit 0
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "foxforge-candidate-${{ matrix.tag }}")" != true ]; then
+              break
+            fi
+            sleep 1
+          done
+          docker logs "foxforge-candidate-${{ matrix.tag }}" || true
+          exit 1
+      - name: Platform logs
+        if: always()
+        run: docker logs "foxforge-candidate-${{ matrix.tag }}" || true
+      - name: Stop platform image
+        if: always()
+        run: docker rm -f "foxforge-candidate-${{ matrix.tag }}" || true
+
+  umbrel-compatibility:
+    name: Umbrel structural compatibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - uses: actions/checkout@v7
+        with:
+          repository: MikeFox303/umbrel-3d-printing-store
+          path: _umbrel-store
+      - name: Validate package structure without Candidate 6 identity mutation
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          import pathlib
+          import re
+
+          root = pathlib.Path('_umbrel-store/my3d-foxforge')
+          compose = (root / 'docker-compose.yml').read_text(encoding='utf-8')
+          manifest = (root / 'umbrel-app.yml').read_text(encoding='utf-8')
+          contract = json.loads((root / 'foxforge-package.json').read_text(encoding='utf-8'))
+
+          assert contract['schemaVersion'] == 1
+          assert contract['packageRole'] == 'pre-alpha-5-validation-candidate'
+          assert contract['targetReleaseVersion'] == '0.1.0-alpha.5'
+          assert contract['authMode'] == 'write-enabled'
+          assert re.search(r'^\s*FOXFORGE_COMMAND_TOKEN:\s*["\']?\$\{APP_PASSWORD\}["\']?\s*$', compose, re.M)
+          assert '${APP_DATA_DIR}/data:/data' in compose
+          assert '/healthz' in compose
+          assert 'network_mode: host' not in compose
+          assert 'privileged: true' not in compose
+          assert 'docker.sock' not in compose
+          assert re.search(r'^port:\s*8283\s*$', manifest, re.M)
+          image_lines = [line.strip() for line in compose.splitlines() if line.strip().startswith('image:')]
+          assert image_lines and '@sha256:' in image_lines[0]
+          assert ':latest' not in image_lines[0]
+          PY
+      - name: Validate Compose and APP_PASSWORD bootstrap
+        shell: bash
+        env:
+          APP_DATA_DIR: /tmp/foxforge-candidate-umbrel-data
+          APP_PASSWORD: foxforge-candidate-umbrel-password-32-chars
+        run: |
+          mkdir -p "$APP_DATA_DIR"
+          cat >/tmp/candidate-app-proxy.yml <<'EOF'
+          services:
+            app_proxy:
+              image: alpine:3.22
+          EOF
+          docker compose \
+            -f _umbrel-store/my3d-foxforge/docker-compose.yml \
+            -f /tmp/candidate-app-proxy.yml \
+            config --format json >/tmp/candidate-umbrel-compose.json
+          python - <<'PY'
+          import json
+          import os
+
+          rendered = json.load(open('/tmp/candidate-umbrel-compose.json', encoding='utf-8'))
+          services = rendered['services']
+          assert 'app_proxy' in services
+          server = services['server']
+          assert server['environment']['FOXFORGE_COMMAND_TOKEN'] == os.environ['APP_PASSWORD']
+          expected_source = f"{os.environ['APP_DATA_DIR']}/data"
+          volumes = server.get('volumes', [])
+          assert any(
+              isinstance(volume, dict)
+              and volume.get('source') == expected_source
+              and volume.get('target') == '/data'
+              for volume in volumes
+          )
+          PY
+
+  closure:
+    name: Milestone closure invariant
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ env.FOXFORGE_GATE_SHA }}
+      - name: Verify exact source checkout
+        run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
+      - name: Require current C6-10 branch to be 0 behind main
+        if: github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/compare/main...${FOXFORGE_GATE_SHA}" \
+            >/tmp/candidate-compare.json
+          python - <<'PY'
+          import json
+          data = json.load(open('/tmp/candidate-compare.json', encoding='utf-8'))
+          if data['behind_by'] != 0:
+              raise SystemExit(f"C6-10 head is {data['behind_by']} commit(s) behind main")
+          print('C6-10 head is 0 behind main')
+          PY
+      - name: Require no other open FoxForge PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CURRENT_PR: ${{ github.event.pull_request.number }}
+          CURRENT_HEAD_REF: ${{ github.head_ref }}
+        shell: bash
+        run: |
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" \
+            >/tmp/open-prs.json
+          python - <<'PY'
+          import json
+          import os
+
+          current = os.environ.get('CURRENT_PR', '').strip()
+          current_number = int(current) if current.isdigit() else None
+          head_ref = os.environ.get('CURRENT_HEAD_REF', '').strip()
+          if current_number is not None and head_ref != 'pre-alpha-5/candidate6-software-gate':
+              raise SystemExit(f'Only the C6-10 branch may self-exempt from closure, got {head_ref!r}')
+
+          pulls = json.load(open('/tmp/open-prs.json', encoding='utf-8'))
+          blockers = [
+              (item['number'], item['title'])
+              for item in pulls
+              if item['number'] != current_number
+          ]
+          if blockers:
+              raise SystemExit(f'Other open FoxForge PRs block Candidate 6 closure: {blockers}')
+          print('Candidate 6 PR closure invariant satisfied')
+          PY
+      - name: Verify publication has not started in this gate
+        run: |
+          python - <<'PY'
+          import json
+          manifest = json.load(open('release/manifest.json', encoding='utf-8'))
+          assert manifest['version'] == '0.1.0-alpha.4.3'
+          assert manifest['tag'] == 'v0.1.0-alpha.4.3'
+          PY
+
+  candidate-gate:
+    name: Candidate 6 software gate PASS
+    if: always()
+    needs:
+      - backend
+      - frontend
+      - browser
+      - dependencies
+      - image-security
+      - deployment-auth
+      - architecture-smoke
+      - umbrel-compatibility
+      - closure
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every C6-10 job to pass
+        env:
+          NEEDS_JSON: ${{ toJson(needs) }}
+        run: |
+          python - <<'PY'
+          import json
+          import os
+
+          needs = json.loads(os.environ['NEEDS_JSON'])
+          failed = {
+              name: value['result']
+              for name, value in needs.items()
+              if value['result'] != 'success'
+          }
+          if failed:
+              raise SystemExit(f'Candidate 6 software gate failed: {failed}')
+          print('Candidate 6 non-publishing software gate passed')
+          PY
