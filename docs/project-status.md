@@ -1,13 +1,13 @@
 # FoxForge project status
 
-**Snapshot date:** 2026-09-09  
+**Snapshot date:** 2026-09-10  
 **Canonical branch:** `main`  
-**Canonical `main` at start of C6-10:** `0e07a61659cbf356db5cc66f44aa1de91ff0cf3a`  
+**C6-10 exact-main PASS:** `994e39fc442bf48fa6069f0750dc9e886af6f23b` (run `34308752322`)  
 **Latest semantic pre-release:** `v0.1.0-alpha.4.3`  
 **Target release:** `v0.1.0-alpha.5`  
 **Active milestone:** Pre-Alpha 5 / Bambu Lab connection and control ([#115](https://github.com/MikeFox303/FoxForge/issues/115))  
 **Replacement validation track:** Candidate 6 stabilization ([#154](https://github.com/MikeFox303/FoxForge/issues/154))  
-**Current phase:** C6-10 non-publishing software gate  
+**Current phase:** C6-11 immutable Candidate 6 publication readiness  
 **Physical Candidate 6 validation:** **not started**  
 **Maturity:** runnable/installable alpha; not production-ready
 
@@ -26,7 +26,7 @@ Candidate 5 is now **historical/failed for Alpha 5 acceptance**. Real X2D testin
 
 Those defects were fixed by #152/#153 and locked by Candidate 6 regression coverage. Candidate 5 evidence is therefore not Candidate 6 evidence.
 
-Candidate 6 itself is **not published yet**. No Candidate 6 source/image/package identity exists until C6-11, so no physical Candidate 6 PASS can legitimately be claimed before then.
+Candidate 6 itself is **not published yet**. C6-10 has passed on the exact merged source `994e39fc442bf48fa6069f0750dc9e886af6f23b`, but no Candidate 6 source/image/package identity exists until C6-11 freezes and publishes one exact identity. No physical Candidate 6 PASS can legitimately be claimed before then.
 
 The currently installable Umbrel package remains historical Candidate 5:
 
@@ -41,7 +41,7 @@ It remains available for continuity/diagnostics, but it is **not the replacement
 
 ## Candidate 6 software integration state
 
-C6-01 through C6-09 are integrated on `main`.
+C6-01 through C6-10 are integrated and C6-10 has passed on exact merged `main`.
 
 | Item | State | Durable result |
 | --- | --- | --- |
@@ -54,8 +54,8 @@ C6-01 through C6-09 are integrated on `main`.
 | C6-07 | Integrated | #158/#161 — diagnostics + memory-only Operator Access cleanup. |
 | C6-08 | Integrated | #166 — UI primitives/i18n/code-quality closure. |
 | C6-09 | Integrated | #167 — backend architecture/lifecycle guards. |
-| C6-10 | **Active** | exact non-publishing software release gate. |
-| C6-11 | Blocked | immutable Candidate 6 publication/package identity; only after exact-main C6-10 PASS. |
+| C6-10 | **PASS** | PR #179 + exact merged-main run `34308752322`; Python 3.12/3.13, frontend, browser, security, auth, amd64/arm64, Umbrel and closure aggregation all green. |
+| C6-11 | **Ready** | immutable Candidate 6 source/image/Umbrel package publication; physical validation remains blocked until this identity exists. |
 
 The C6-10 contract is documented in [`testing/pre-alpha-5-candidate6-software-gate.md`](testing/pre-alpha-5-candidate6-software-gate.md).
 
@@ -126,15 +126,15 @@ Superseded Dependabot PRs remain resolved and must not be reopened without a new
 | Pause/Resume/Cancel | Implemented | Exact observed vendor-job guard; physical validation pending. |
 | Realtime events | Implemented | SSE invalidation/replay with canonical HTTP snapshots. |
 | Web UI | Functional alpha | Material System UI 2.0, capability-driven printer detail, staged setup, queue/inventory/accounting and memory-only Operator Access. |
-| Docker/ARM64 | C6-10 validation active | Candidate 6 local `amd64` + QEMU `arm64` build/runtime gate; no Candidate 6 image push. |
-| Umbrel | Candidate 5 package still installable | C6-10 checks only structural/bootstrap invariants; Candidate 6 identity belongs to C6-11. |
+| Docker/ARM64 | **C6-10 PASS** | Exact merged-main `amd64` + QEMU `arm64` build/runtime passed; Candidate 6 image has not yet been pushed. |
+| Umbrel | Candidate 5 package still installable | C6-10 structural/bootstrap contract passed; Candidate 6 identity belongs to C6-11. |
 | Persistent farm scheduler | Not implemented | Deferred until printer/deployment/accounting foundations are stable. |
 
-## C6-10 acceptance contract
+## C6-10 acceptance result
 
-C6-10 is deliberately **non-publishing**. It must validate the exact source without creating Candidate 6 release side effects.
+C6-10 was deliberately **non-publishing** and completed successfully on exact merged `main` `994e39fc442bf48fa6069f0750dc9e886af6f23b` in workflow run `34308752322`.
 
-Required exact-source checks:
+The accepted matrix covered:
 
 1. Backend on Python 3.12 and 3.13: Ruff lint, Ruff format and full pytest/contracts.
 2. Frontend: frozen `package-lock`, TypeScript typecheck, Vitest and production Vite build.
@@ -142,7 +142,7 @@ Required exact-source checks:
 4. Security: production npm audit, frozen Python graph audit and high/critical final-image scan.
 5. Auth: no token fails closed, correct token enables writes, wrong token is rejected, reverse-proxy identity headers are not an app principal, unsafe trusted-browser mode is rejected.
 6. Architecture runtime smoke: local `linux/amd64` and `linux/arm64`; arm64 uses QEMU; no image push.
-7. Umbrel structural compatibility only:
+7. Umbrel structural compatibility:
    - App Proxy remains present;
    - no host networking;
    - no privileged mode;
@@ -151,24 +151,19 @@ Required exact-source checks:
    - `${APP_DATA_DIR}/data:/data`;
    - `/healthz`;
    - package role remains `pre-alpha-5-validation-candidate` targeting `0.1.0-alpha.5`.
-8. PR closure:
-   - during the C6-10 PR, no other open FoxForge PR may exist;
-   - after merge to `main`, open PR count must be zero.
+8. PR closure: the exact merged-main run confirmed no open FoxForge PR remained.
 
-The workflow must use the exact PR head when running in pull-request context and the exact merged `main` SHA after merge. The C6-10 branch must be 0 behind before final validation/merge.
-
-C6-10 must **not** update `release/manifest.json`, tag a release, log in/push to GHCR, create a GitHub pre-release or mutate the companion Umbrel Store.
+C6-10 did **not** update `release/manifest.json`, tag a release, log in/push to GHCR, create a GitHub pre-release or mutate the companion Umbrel Store. `release/manifest.json` therefore correctly remains on `v0.1.0-alpha.4.3` until the final semantic Alpha 5 release process.
 
 ## C6-11 and physical validation
 
-Only after C6-10 passes on the exact merged `main` with open PR count zero may C6-11:
+C6-11 may now proceed only from a clean, rechecked source state. It must:
 
-1. freeze the exact FoxForge source SHA;
-2. publish matching `linux/amd64` + `linux/arm64` OCI image(s);
-3. record the immutable image digest;
-4. create the matching Candidate 6 Umbrel package;
-5. update the companion Store and run its exact package identity/runtime tests;
-6. synchronize README/project status/physical runbook to the single Candidate 6 identity.
+1. freeze one exact FoxForge source SHA;
+2. publish matching `linux/amd64` + `linux/arm64` OCI image(s) under an immutable candidate tag and record the manifest digest;
+3. create the matching Candidate 6 Umbrel package without changing the semantic release manifest to final Alpha 5;
+4. update the companion Store and run its exact package identity/runtime tests;
+5. synchronize README/project status/deployment/physical runbook to the single Candidate 6 source/image/package/Store identity.
 
 After C6-11, the real no-print gate must run on **Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro** through the normal App Proxy/network path, without host-network workarounds.
 
