@@ -15,6 +15,7 @@ from contextlib import suppress
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
+from uuid import uuid4
 
 import paho.mqtt.client as mqtt
 
@@ -117,7 +118,7 @@ class PahoBambuMqttWire:
 
         client = mqtt.Client(
             callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-            client_id=f"foxforge-{self._settings.serial_number[-8:]}",
+            client_id=_mqtt_client_id(self._settings.serial_number),
             protocol=mqtt.MQTTv311,
         )
         client.username_pw_set(self._settings.username, self._settings.access_code)
@@ -426,6 +427,14 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
         self.file = self.sock.makefile("r", encoding=self.encoding)
         self.welcome = self.getresp()
         return self.welcome
+
+
+def _mqtt_client_id(serial_number: str) -> str:
+    """Return a short per-session id so rapid setup/reconnect clients cannot evict each other."""
+    serial_suffix = "".join(
+        char for char in serial_number.upper() if char.isascii() and char.isalnum()
+    )[-8:] or "printer"
+    return f"fox-{serial_suffix}-{uuid4().hex[:8]}"
 
 
 def _remote_size(ftp: ftplib.FTP_TLS, remote_filename: str) -> int | None:
