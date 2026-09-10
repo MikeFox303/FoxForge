@@ -1,6 +1,6 @@
 # Pre-Alpha 5 Candidate 6 software gate
 
-**Status:** C6-10 pre-publication verification contract  
+**Status:** C6-10 PASS; C6-11 publication contract active  
 **Target:** Candidate 6 inside `v0.1.0-alpha.5`  
 **Physical validation:** not part of this gate
 
@@ -79,6 +79,25 @@ Only after C6-10 passes on clean integrated `main` may C6-11:
 6. begin the real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print gate.
 
 No Candidate 5 physical evidence may be relabeled as Candidate 6 evidence.
+
+## C6-11 publication mechanism
+
+Candidate 6 publication uses `.github/workflows/candidate-publish.yml`, not the semantic `release.yml` workflow.
+
+The publisher is intentionally split from the semantic release path:
+
+- a publication marker on `pre-alpha-5/candidate6-publish` names one full 40-character FoxForge source SHA;
+- that source must still be the exact current `main` head when publication begins;
+- the exact source must already have a successful post-merge `Candidate 6 software gate` run;
+- open FoxForge PR count must be zero at publication time;
+- `release/manifest.json` must still identify `v0.1.0-alpha.4.3` and `v0.1.0-alpha.5` must not already exist;
+- publication creates only `ghcr.io/mikefox303/foxforge:sha-<7-char-source>` for `linux/amd64` + `linux/arm64` and records its immutable OCI digest;
+- an existing source tag is never overwritten;
+- the published image must be anonymously pullable for both target platforms;
+- publication emits a retained `candidate6-publication.json` artifact containing the exact source, image tag, digest, platforms and intended `0.1.0-alpha.4.3-umbrel.6` package identity;
+- this workflow does **not** create a Git tag, GitHub Release, Alpha 5 release manifest, Store commit or physical-validation claim.
+
+The companion Store update happens only after the image digest has been retrieved and verified. Its PR must pin the exact `sha-<source>@sha256:<digest>` image and must pass the Store package contract plus amd64/arm64 runtime gates before merge.
 
 ## Physical validation remains separate
 
