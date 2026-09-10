@@ -51,8 +51,6 @@ jobs:
               if command in text:
                   raise SystemExit(f'forbidden semantic publication command: {command}')
 
-          # The semantic manifest may be read exactly once for the unpromoted-version
-          # assertion. Candidate publication must never rewrite it.
           manifest_path = 'release/' + 'manifest.json'
           if text.count(manifest_path) != 1:
               raise SystemExit('semantic release manifest may only be read once by Candidate publisher')
@@ -66,7 +64,7 @@ jobs:
     outputs:
       source_sha: ${{ steps.freeze.outputs.source_sha }}
       short_sha: ${{ steps.freeze.outputs.short_sha }}
-      image_digest: ${{ steps.image.outputs.digest }}
+      image_digest: ${{ steps.final_digest.outputs.digest }}
       package_version: ${{ steps.freeze.outputs.package_version }}
     steps:
       - name: Checkout publication marker
@@ -82,10 +80,13 @@ jobs:
           from pathlib import Path
           marker = json.loads(Path('.candidate6/source.json').read_text(encoding='utf-8'))
           sha = marker.get('sourceCommit', '')
+          digest = marker.get('expectedImageDigest', '')
           if marker.get('candidate') != 6:
               raise SystemExit('candidate must be 6')
           if not re.fullmatch(r'[0-9a-f]{40}', sha):
               raise SystemExit('sourceCommit must be a full lowercase Git SHA')
+          if digest and not re.fullmatch(r'sha256:[0-9a-f]{64}', digest):
+              raise SystemExit('expectedImageDigest must be an immutable sha256 digest')
           if marker.get('baseReleaseVersion') != '0.1.0-alpha.4.3':
               raise SystemExit('baseReleaseVersion must remain 0.1.0-alpha.4.3')
           if marker.get('targetReleaseVersion') != '0.1.0-alpha.5':
@@ -97,6 +98,7 @@ jobs:
               out.write(f'source_sha={sha}\n')
               out.write(f'short_sha={sha[:7]}\n')
               out.write(f'package_version={package_version}\n')
+              out.write(f'expected_digest={digest}\n')
           PY
 
       - name: Require clean exact-main C6-10 PASS
@@ -149,18 +151,30 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Refuse mutable overwrite of Candidate source tag
+      - name: Resolve immutable Candidate source tag
+        id: resolve
         env:
           IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
+          EXPECTED_DIGEST: ${{ steps.freeze.outputs.expected_digest }}
         shell: bash
         run: |
-          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "Candidate source tag already exists: $IMAGE" >&2
-            exit 1
+          set -euo pipefail
+          if inspect="$(docker buildx imagetools inspect "$IMAGE" 2>/dev/null)"; then
+            actual="$(printf '%s\n' "$inspect" | awk '/^Digest:/ {print $2; exit}')"
+            test -n "$EXPECTED_DIGEST"
+            test "$actual" = "$EXPECTED_DIGEST"
+            echo 'publish=false' >> "$GITHUB_OUTPUT"
+            echo "digest=$actual" >> "$GITHUB_OUTPUT"
+            echo "Adopting existing immutable Candidate image $IMAGE@$actual without rebuild or overwrite."
+          else
+            test -z "$EXPECTED_DIGEST"
+            echo 'publish=true' >> "$GITHUB_OUTPUT"
+            echo 'digest=' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish versioned multi-architecture Candidate 6 image
         id: image
+        if: steps.resolve.outputs.publish == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -178,10 +192,27 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Resolve final immutable digest
+        id: final_digest
+        env:
+          PUBLISH: ${{ steps.resolve.outputs.publish }}
+          EXISTING_DIGEST: ${{ steps.resolve.outputs.digest }}
+          NEW_DIGEST: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$PUBLISH" = 'true' ]; then
+            digest="$NEW_DIGEST"
+          else
+            digest="$EXISTING_DIGEST"
+          fi
+          [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
       - name: Verify published immutable index and platforms
         env:
           IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
-          DIGEST: ${{ steps.image.outputs.digest }}
+          DIGEST: ${{ steps.final_digest.outputs.digest }}
         shell: bash
         run: |
           set -euo pipefail
@@ -193,19 +224,21 @@ jobs:
       - name: Verify public anonymous pulls
         env:
           IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
-          DIGEST: ${{ steps.image.outputs.digest }}
+          DIGEST: ${{ steps.final_digest.outputs.digest }}
         shell: bash
         run: |
           set -euo pipefail
           docker logout ghcr.io
           docker pull --platform linux/amd64 "${IMAGE}@${DIGEST}"
+          amd64_id="$(docker image inspect --format '{{.Id}}' "${IMAGE%@*}@${DIGEST}")"
+          docker image rm -f "$amd64_id"
           docker pull --platform linux/arm64 "${IMAGE}@${DIGEST}"
 
       - name: Record immutable Candidate 6 publication identity
         env:
           SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
           SHORT_SHA: ${{ steps.freeze.outputs.short_sha }}
-          DIGEST: ${{ steps.image.outputs.digest }}
+          DIGEST: ${{ steps.final_digest.outputs.digest }}
           PACKAGE_VERSION: ${{ steps.freeze.outputs.package_version }}
         shell: bash
         run: |
