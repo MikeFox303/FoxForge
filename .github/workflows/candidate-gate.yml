@@ -7,6 +7,7 @@ on:
       - 'frontend/**'
       - 'deployment/**'
       - 'README.md'
+      - 'docs/README.md'
       - 'docs/project-status.md'
       - 'docs/testing/pre-alpha-5-candidate6-software-gate.md'
       - '.github/workflows/candidate-gate.yml'
@@ -18,6 +19,7 @@ on:
       - 'frontend/**'
       - 'deployment/**'
       - 'README.md'
+      - 'docs/README.md'
       - 'docs/project-status.md'
       - 'docs/testing/pre-alpha-5-candidate6-software-gate.md'
       - '.github/workflows/candidate-gate.yml'
@@ -487,7 +489,7 @@ jobs:
           ref: ${{ env.FOXFORGE_GATE_SHA }}
       - name: Verify exact source checkout
         run: test "$(git rev-parse HEAD)" = "$FOXFORGE_GATE_SHA"
-      - name: Require current C6-10 branch to be 0 behind main
+      - name: Require current gate head to be 0 behind main
         if: github.event_name == 'pull_request'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -502,14 +504,13 @@ jobs:
           import json
           data = json.load(open('/tmp/candidate-compare.json', encoding='utf-8'))
           if data['behind_by'] != 0:
-              raise SystemExit(f"C6-10 head is {data['behind_by']} commit(s) behind main")
-          print('C6-10 head is 0 behind main')
+              raise SystemExit(f"Candidate 6 gate head is {data['behind_by']} commit(s) behind main")
+          print('Candidate 6 gate head is 0 behind main')
           PY
       - name: Require no other open FoxForge PRs
         env:
           GH_TOKEN: ${{ github.token }}
           CURRENT_PR: ${{ github.event.pull_request.number }}
-          CURRENT_HEAD_REF: ${{ github.head_ref }}
         shell: bash
         run: |
           curl --fail --silent --show-error \
@@ -523,11 +524,17 @@ jobs:
 
           current = os.environ.get('CURRENT_PR', '').strip()
           current_number = int(current) if current.isdigit() else None
-          head_ref = os.environ.get('CURRENT_HEAD_REF', '').strip()
-          if current_number is not None and head_ref != 'pre-alpha-5/candidate6-software-gate':
-              raise SystemExit(f'Only the C6-10 branch may self-exempt from closure, got {head_ref!r}')
-
           pulls = json.load(open('/tmp/open-prs.json', encoding='utf-8'))
+
+          if current_number is not None:
+              current_pull = [item for item in pulls if item['number'] == current_number]
+              if len(current_pull) != 1:
+                  raise SystemExit(f'Current PR #{current_number} is not the unique open self PR')
+              if current_pull[0]['head']['sha'] != os.environ['FOXFORGE_GATE_SHA']:
+                  raise SystemExit(
+                      f"Current PR head {current_pull[0]['head']['sha']} does not match exact gate SHA {os.environ['FOXFORGE_GATE_SHA']}"
+                  )
+
           blockers = [
               (item['number'], item['title'])
               for item in pulls
