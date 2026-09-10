@@ -1,0 +1,7 @@
+{
+  "candidate": 6,
+  "sourceCommit": "78ace6f7b7412aa0d3fc58bed095aecdf9920f94",
+  "baseReleaseVersion": "0.1.0-alpha.4.3",
+  "targetReleaseVersion": "0.1.0-alpha.5",
+  "packageVersion": "0.1.0-alpha.4.3-umbrel.6"
+}
