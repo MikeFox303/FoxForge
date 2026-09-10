@@ -2,197 +2,136 @@
 
 **Snapshot date:** 2026-09-10  
 **Canonical branch:** `main`  
-**C6-10 exact-main PASS:** `994e39fc442bf48fa6069f0750dc9e886af6f23b` (run `34308752322`)  
 **Latest semantic pre-release:** `v0.1.0-alpha.4.3`  
-**Target release:** `v0.1.0-alpha.5`  
+**Target release:** `v0.1.0-alpha.5` — **not published**  
 **Active milestone:** Pre-Alpha 5 / Bambu Lab connection and control ([#115](https://github.com/MikeFox303/FoxForge/issues/115))  
-**Replacement validation track:** Candidate 6 stabilization ([#154](https://github.com/MikeFox303/FoxForge/issues/154))  
-**Current phase:** C6-11 immutable Candidate 6 publication readiness  
-**Physical Candidate 6 validation:** **not started**  
+**Replacement validation track:** Candidate 6 ([#154](https://github.com/MikeFox303/FoxForge/issues/154))  
+**Current phase:** Candidate 6 physical validation authorized  
+**Physical Candidate 6 validation:** **not completed**  
 **Maturity:** runnable/installable alpha; not production-ready
 
-This page is the concise current-state snapshot. Git history, ADRs and design documents remain the durable source of truth. `release/` and dated physical-evidence records are immutable history and must not be rewritten to make an older candidate look current.
+This page is the concise current-state snapshot. Git history, ADRs, validation runbooks and immutable package identities remain the durable source of truth. Historical candidate evidence must not be rewritten to look current.
 
-## Release and validation state
+## Candidate 6 immutable identity
 
-FoxForge has **not** published final `v0.1.0-alpha.5`.
-
-The latest semantic GitHub pre-release remains **`v0.1.0-alpha.4.3`**.
-
-Candidate 5 is now **historical/failed for Alpha 5 acceptance**. Real X2D testing found two compatibility gaps that required application changes:
-
-- valid X2D `push_status` can arrive without `gcode_state`;
-- dual external X2/H2 inventory arrives through `print.vir_slot`, which must take precedence over the legacy `vt_tray` path.
-
-Those defects were fixed by #152/#153 and locked by Candidate 6 regression coverage. Candidate 5 evidence is therefore not Candidate 6 evidence.
-
-Candidate 6 itself is **not published yet**. C6-10 has passed on the exact merged source `994e39fc442bf48fa6069f0750dc9e886af6f23b`, but no Candidate 6 source/image/package identity exists until C6-11 freezes and publishes one exact identity. No physical Candidate 6 PASS can legitimately be claimed before then.
-
-The currently installable Umbrel package remains historical Candidate 5:
+C6-10 and C6-11 are complete. The frozen Candidate 6 application/package identity is:
 
 ```text
-Umbrel package: 0.1.0-alpha.4.3-umbrel.5
-Candidate 5 source: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
-exact image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
-target release recorded by package: 0.1.0-alpha.5
+FoxForge application source: 78ace6f7b7412aa0d3fc58bed095aecdf9920f94
+C6-10 exact-main gate: run 34439269464 — PASS
+image tag: ghcr.io/mikefox303/foxforge:sha-78ace6f
+OCI digest: sha256:b01f1d44199a4413167ee2369c0dfbcafa602312442772d27de18e04c24ed0eb
+exact image: ghcr.io/mikefox303/foxforge:sha-78ace6f@sha256:b01f1d44199a4413167ee2369c0dfbcafa602312442772d27de18e04c24ed0eb
+publication verification: run 34440021792 — PASS
+Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.6
+Umbrel Store PR: MikeFox303/umbrel-3d-printing-store#38
+Umbrel Store commit: 018d29a8668e923c7f1a3447fc12273939aefbb8
+Store post-merge FoxForge package/runtime gate: run 34509996521 — PASS
+Store post-merge release gate: run 34509996582 — PASS
+target semantic release: v0.1.0-alpha.5 — not published
 ```
 
-It remains available for continuity/diagnostics, but it is **not the replacement acceptance target**.
+Documentation-only commits after `78ace6f7...` do not change the Candidate 6 application identity. Any application code, image or package-definition change does.
 
-## Candidate 6 software integration state
+Candidate 5 remains historical/failed for Alpha 5 acceptance. Real X2D testing found partial initial `push_status` and dual-external `print.vir_slot` compatibility gaps, which were corrected and regression-locked for Candidate 6. Candidate 1–5 evidence cannot be carried into Candidate 6.
 
-C6-01 through C6-10 are integrated and C6-10 has passed on exact merged `main`.
+## Candidate 6 milestone state
 
 | Item | State | Durable result |
 | --- | --- | --- |
 | C6-01 | Integrated | #155 — sanitized physical-derived X2D regression lock. |
 | C6-02 | Integrated | #156 — shared Bambu LAN/incremental report classifier cleanup. |
-| C6-03 | Integrated | #162 + #178 — `foxforge.thermal_telemetry` v1, Bambu/X2/H2 thermal, Moonraker dynamic heater discovery, sparse-target preservation and malformed/non-finite hardening. |
+| C6-03 | Integrated | #162 + #178 — `foxforge.thermal_telemetry` v1 for Bambu and Moonraker/Klipper. |
 | C6-04 | Integrated | #157/#163 — Material System UI 2.0. |
-| C6-05 | Integrated | #159/#164 — Printer cards / Printer Detail cleanup. |
-| C6-06 | Integrated | #160 — staged Add Printer decomposition. |
-| C6-07 | Integrated | #158/#161 — diagnostics + memory-only Operator Access cleanup. |
+| C6-05 | Integrated | #159/#164 — capability-driven Printer cards / Printer Detail. |
+| C6-06 | Integrated | #160 — staged Add Printer Provider → Connection → Identity → Verify. |
+| C6-07 | Integrated | #158/#161 — diagnostics + memory-only Operator Access. |
 | C6-08 | Integrated | #166 — UI primitives/i18n/code-quality closure. |
 | C6-09 | Integrated | #167 — backend architecture/lifecycle guards. |
-| C6-10 | **PASS** | PR #179 + exact merged-main run `34308752322`; Python 3.12/3.13, frontend, browser, security, auth, amd64/arm64, Umbrel and closure aggregation all green. |
-| C6-11 | **Ready** | immutable Candidate 6 source/image/Umbrel package publication; physical validation remains blocked until this identity exists. |
-
-The C6-10 contract is documented in [`testing/pre-alpha-5-candidate6-software-gate.md`](testing/pre-alpha-5-candidate6-software-gate.md).
+| C6-10 | **PASS** | Exact frozen source `78ace6f7...`; full software gate run `34439269464`. |
+| C6-11 | **PASS** | Multi-arch OCI published/verified; Store Candidate 6 merged as `018d29a8...`; post-merge package/runtime and Store gates PASS. |
+| Physical gate | **Next** | Exact Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro no-print gate, then first print/accounting only after no-print PASS. |
 
 ## P3 automatic filament accounting
 
-Historical PR #58 is:
+Historical PR #58 is closed/unmerged archive/reference only. P3 was reconstructed on the current architecture and integrated through #165, #168, #169, #170, #171 and #172.
 
-- closed;
-- not merged;
-- archive/reference only;
-- not a source that may be rebased/merged wholesale.
+Preserved invariants include exact `Decimal` mass, no overcommit, explicit physical-slot → FoxForge-spool assignment, a fresh-routing pre-dispatch accounting guard before external side effects, idempotent completed settlement, held reservations for `INDETERMINATE`, explicit reconciliation for uncertain started outcomes, restart-safe SQLite persistence and no mass guessing from print progress.
 
-P3 was reconstructed on the current architecture and integrated through:
+The published Candidate 6 Umbrel package intentionally sets:
 
-- #165 — R1 durable reservation core;
-- #168 — R2 idempotent planning/settlement;
-- #169 — R3 fail-closed queue pre-dispatch gate;
-- #170 — R4a guarded API/runtime lifecycle;
-- #171 — R4b queue operator accounting UI;
-- #172 — R5 provider-scoped Candidate 6 validation gate.
+```text
+FOXFORGE_FILAMENT_ACCOUNTING_MODE=bambu-validation
+```
 
-Preserved accounting invariants:
-
-- exact `Decimal` mass;
-- no overcommit;
-- explicit physical-slot → FoxForge-spool assignment;
-- accounting/routing guard after fresh routing validation and before any external print side effect;
-- idempotent completed settlement;
-- no release after a possible print side effect;
-- `INDETERMINATE` retains reservations;
-- started FAILED/CANCELLED with unknown usage require reconciliation;
-- explicit actual-mass reconciliation;
-- restart-safe SQLite persistence;
-- no consumption guessing from progress;
-- vendor-independent accounting contracts with provider-specific enablement composed at runtime.
-
-P3 is therefore **software-integrated**, but it is not yet part of a published Candidate 6 or a physical acceptance claim.
-
-## Dependency/toolchain closure
-
-The Candidate 6 dependency backlog is closed. Relevant integrated updates:
-
-- #173 — backend development tooling;
-- #174 — GitHub Actions;
-- #175 — i18next/react-i18next;
-- #176 — Vitest 4;
-- #177 — TypeScript 7.
-
-Superseded Dependabot PRs remain resolved and must not be reopened without a new technical reason.
+This enables automatic pre-dispatch accounting enforcement only for Bambu adapters. Moonraker/Klipper and unknown providers remain outside the automatic enforcement mode. Physical Bambu accounting acceptance still requires explicit reservation evidence and pre/post measured spool mass.
 
 ## Current implementation status
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Common printer domain | Implemented | FoxForge-owned identities, snapshots/events/errors and typed capabilities. |
-| Bambu adapter | Functional alpha | Deep MQTT/FTPS/material/routing/control behavior; Candidate 6 physical validation not started. |
-| Bambu discovery | Implemented foundation | Bounded server-visible RFC1918 discovery plus manual fallback; authenticated preflight remains authoritative. |
-| Bambu Add/Update Printer | Implemented | Provider → Connection → Identity → Verify; test-before-save and rollback-safe replacement. |
-| Moonraker adapter | Functional alpha | HTTP/WebSocket/control + common thermal telemetry foundation; physical OpenKE validation pending. |
-| Common thermal telemetry | Integrated | `foxforge.thermal_telemetry` v1; Bambu and Moonraker implementations. |
+| Bambu adapter | Functional alpha | Deep MQTT/FTPS/material/routing/control behavior; Candidate 6 physical validation next. |
+| Bambu discovery | Implemented foundation | Bounded server-visible RFC1918 discovery plus manual fallback; authenticated preflight authoritative. |
+| Bambu Add/Update Printer | Implemented | Staged exact-payload Verify, test-before-save and rollback-safe replacement. |
+| Moonraker adapter | Functional alpha | HTTP/WebSocket/control + common thermal telemetry; physical OpenKE validation pending. |
+| Common thermal telemetry | Integrated | `foxforge.thermal_telemetry` v1, Bambu + Moonraker implementations. |
 | Fleet/reconnect | Implemented foundation | Dynamic composition, bounded backoff/jitter and secret-safe diagnostics. |
-| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation, immutable 3MF inspection, explicit material intent and fail-closed routing. |
+| Durable print queue | Implemented foundation | SQLite dispatch/retry/reconciliation, immutable 3MF inspection and fail-closed routing. |
 | Artifact staging | Implemented | Content-addressed staging, quota/min-free reserve and safe GC. |
-| Filament/spool inventory | Implemented | Exact `Decimal` ledger and normal operator workflows. |
-| Automatic filament accounting | Software integrated | P3 R1–R5 integrated; publication/physical validation pending. |
+| Filament/spool inventory | Implemented | Exact `Decimal` ledger and operator workflows. |
+| Automatic filament accounting | Candidate 6 validation enabled for Bambu | Software integrated; physical weighed-spool acceptance pending. |
 | Command security | Implemented foundation | Explicit bearer auth, fail-closed read-only mode, normalized errors and idempotency. |
 | Printer credentials | Implemented | SecretStore separates printer credentials from ordinary config/read models. |
 | Pause/Resume/Cancel | Implemented | Exact observed vendor-job guard; physical validation pending. |
 | Realtime events | Implemented | SSE invalidation/replay with canonical HTTP snapshots. |
-| Web UI | Functional alpha | Material System UI 2.0, capability-driven printer detail, staged setup, queue/inventory/accounting and memory-only Operator Access. |
-| Docker/ARM64 | **C6-10 PASS** | Exact merged-main `amd64` + QEMU `arm64` build/runtime passed; Candidate 6 image has not yet been pushed. |
-| Umbrel | Candidate 5 package still installable | C6-10 structural/bootstrap contract passed; Candidate 6 identity belongs to C6-11. |
-| Persistent farm scheduler | Not implemented | Deferred until printer/deployment/accounting foundations are stable. |
+| Web UI | Functional alpha | Material System UI 2.0, staged setup, queue/inventory/accounting and memory-only Operator Access. |
+| Docker/ARM64 | **Candidate 6 published** | Immutable `amd64`/`arm64` index and public pulls verified. |
+| Umbrel | **Candidate 6 installable** | `0.1.0-alpha.4.3-umbrel.6`, Store commit `018d29a8...`, no host networking. |
+| Persistent farm scheduler | Not implemented | Deferred until printer/deployment/accounting foundations are physically accepted. |
 
-## C6-10 acceptance result
+## Physical Candidate 6 gate
 
-C6-10 was deliberately **non-publishing** and completed successfully on exact merged `main` `994e39fc442bf48fa6069f0750dc9e886af6f23b` in workflow run `34308752322`.
+Physical evidence is now authorized against the immutable identity above. The primary target is Raspberry Pi 5 + Umbrel + Bambu X2D + AMS 2 Pro through the ordinary App Proxy/bridge deployment path, without host networking.
 
-The accepted matrix covered:
+The no-print gate must prove GUI Operator Access, memory-only credentials, discovery/Add Printer, exact-payload Verify→change→re-Verify, negative setup cases, rollback-safe Update, restart, network-loss recovery, secret-safe diagnostics, partial initial X2D `push_status`, common thermal telemetry and the real material fixture:
 
-1. Backend on Python 3.12 and 3.13: Ruff lint, Ruff format and full pytest/contracts.
-2. Frontend: frozen `package-lock`, TypeScript typecheck, Vitest and production Vite build.
-3. Browser: locally built production image, Chromium/Playwright acceptance and no public source maps.
-4. Security: production npm audit, frozen Python graph audit and high/critical final-image scan.
-5. Auth: no token fails closed, correct token enables writes, wrong token is rejected, reverse-proxy identity headers are not an app principal, unsafe trusted-browser mode is rejected.
-6. Architecture runtime smoke: local `linux/amd64` and `linux/arm64`; arm64 uses QEMU; no image push.
-7. Umbrel structural compatibility:
-   - App Proxy remains present;
-   - no host networking;
-   - no privileged mode;
-   - no `docker.sock`;
-   - `${APP_PASSWORD}` → `FOXFORGE_COMMAND_TOKEN`;
-   - `${APP_DATA_DIR}/data:/data`;
-   - `/healthz`;
-   - package role remains `pre-alpha-5-validation-candidate` targeting `0.1.0-alpha.5`.
-8. PR closure: the exact merged-main run confirmed no open FoxForge PR remained.
+```text
+AMS 2 Pro: A1 PETG, A2 PETG, A3 PETG, A4 PETG
+External Left: empty -> left toolhead
+External Right: PLA -> right toolhead
+```
 
-C6-10 did **not** update `release/manifest.json`, tag a release, log in/push to GHCR, create a GitHub pre-release or mutate the companion Umbrel Store. `release/manifest.json` therefore correctly remains on `v0.1.0-alpha.4.3` until the final semantic Alpha 5 release process.
+Only after every no-print section passes may the first-print path run:
 
-## C6-11 and physical validation
+```text
+SHA256 → stage → inspect immutable 3MF → select plate → explicit material bindings
+→ routing compiler → accounting reservation → queue → explicit Start
+→ FTPS upload → MQTT project_file → exactly one physical job
+```
 
-C6-11 may now proceed only from a clean, rechecked source state. It must:
+The first-print evidence must preserve compiler-owned `ams_mapping`, `ams_mapping2` and `nozzle_mapping`, exact observed vendor-job identity, fail-closed handling of ambiguous outcomes, and measured spool usage. No consumption may be guessed from print progress.
 
-1. freeze one exact FoxForge source SHA;
-2. publish matching `linux/amd64` + `linux/arm64` OCI image(s) under an immutable candidate tag and record the manifest digest;
-3. create the matching Candidate 6 Umbrel package without changing the semantic release manifest to final Alpha 5;
-4. update the companion Store and run its exact package identity/runtime tests;
-5. synchronize README/project status/deployment/physical runbook to the single Candidate 6 source/image/package/Store identity.
+Any application/image/package-definition change during Candidate 6 physical validation requires a new immutable candidate. Documentation-only status/evidence commits do not change the runtime candidate.
 
-After C6-11, the real no-print gate must run on **Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro** through the normal App Proxy/network path, without host-network workarounds.
-
-Required no-print observations include GUI Operator Access, memory-only credentials, discovery/Add Printer, Verify→change→re-Verify, negative setup cases, rollback-safe Update, restart, network-loss recovery, secret-safe diagnostics, partial initial `push_status`, thermal telemetry, AMS A1–A4 PETG, External Left empty, External Right PLA, and typed left/right topology.
-
-Only after full no-print PASS may the first-print gate run:
-
-`SHA256 → stage → inspect 3MF → selected plate → explicit material bindings → routing compiler → queue → explicit Start → FTPS → project_file`.
-
-The real first-print evidence must preserve compiler-owned `ams_mapping`, `ams_mapping2` and `nozzle_mapping`, exactly one intended Start, stable observed job identity and fail-closed handling of ambiguous remote side effects.
-
-Any application-code change during physical Candidate 6 validation requires a new candidate. Evidence cannot be carried to a changed digest.
+See [`testing/pre-alpha-5-bambu-physical-validation.md`](testing/pre-alpha-5-bambu-physical-validation.md).
 
 ## Architecture and safety invariants
 
 - common/domain/application code does not import vendor transports;
-- vendor-independent abstractions must not collapse deep Bambu behavior into a lowest-common-denominator model;
-- generic frontend code consumes FoxForge contracts/capabilities, not raw Bambu fields or `model == "X2D"` switches;
+- vendor-independent abstractions do not collapse deep Bambu behavior into a lowest-common-denominator model;
+- generic frontend code consumes FoxForge contracts/capabilities, not raw Bambu fields or model-name switches;
 - unknown/ambiguous physical IDs fail closed;
 - ambiguous remote side effects are never blindly retried;
 - Operator Access credentials remain memory-only in the browser;
 - Docker, ARM64 and Umbrel remain first-class deployment targets;
-- durable project state belongs in Git/docs, not chat memory;
-- copied/derived upstream code requires explicit copyright/license/provenance notices, while newly written FoxForge code informed by upstream behavior is preferred.
+- copied/derived upstream code requires explicit copyright/license/provenance notices;
+- durable project state belongs in Git/docs, not chat memory.
 
 ## Key current documents
 
 - [Candidate 6 software gate](testing/pre-alpha-5-candidate6-software-gate.md)
-- [Pre-Alpha 5 physical-validation history/runbook](testing/pre-alpha-5-bambu-physical-validation.md)
+- [Pre-Alpha 5 physical-validation runbook](testing/pre-alpha-5-bambu-physical-validation.md)
 - [Physical evidence gate](testing/physical-evidence-gate.md)
 - [Thermal telemetry](design/thermal-telemetry.md)
 - [Immutable 3MF print-plan inspection](design/immutable-3mf-print-plan.md)

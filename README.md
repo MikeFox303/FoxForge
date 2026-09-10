@@ -1,7 +1,7 @@
 # FoxForge
 
 [![Release](https://img.shields.io/badge/pre--release-v0.1.0--alpha.4.3-orange)](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)
-[![Alpha 5](https://img.shields.io/badge/Alpha%205-Candidate%206%20C6--11%20ready-yellow)](docs/project-status.md)
+[![Alpha 5](https://img.shields.io/badge/Alpha%205-Candidate%206%20published-yellow)](docs/project-status.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-lightgrey)](deployment/README.md)
 
@@ -10,36 +10,38 @@
 Bambu Lab is the current primary integration target. Moonraker/Klipper is supported through the same common architecture, while material systems, queueing, filament accounting and future farm-management features remain capability-driven rather than tied to a single printer family.
 
 > [!WARNING]
-> FoxForge is early alpha software. It is suitable for development and controlled self-hosted testing, but it is **not production-ready**. CI, browser tests and QEMU container smoke are not physical printer validation.
+> FoxForge is early alpha software. Candidate 6 is published for controlled physical validation; it is **not production-ready** and publication/CI do not equal physical printer acceptance.
 
 ## Release and Candidate 6 status
 
-The latest published semantic pre-release is **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**. Final **`v0.1.0-alpha.5` has not been published**.
+The latest published semantic pre-release remains **[v0.1.0-alpha.4.3](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)**. Final **`v0.1.0-alpha.5` has not been published**.
 
-Pre-Alpha 5 is tracked by [#115](https://github.com/MikeFox303/FoxForge/issues/115), with replacement Candidate 6 stabilization in [#154](https://github.com/MikeFox303/FoxForge/issues/154).
+Pre-Alpha 5 is tracked by [#115](https://github.com/MikeFox303/FoxForge/issues/115), with replacement Candidate 6 in [#154](https://github.com/MikeFox303/FoxForge/issues/154).
 
-Current source state:
-
-- Candidate 5 is historical/failed for Alpha 5 acceptance after real X2D testing exposed partial `push_status` and dual-external `vir_slot` compatibility gaps;
-- those findings were fixed and locked by the Candidate 6 regression work;
-- **C6-01 through C6-10 are integrated on `main`**;
-- **C6-10 exact-main software acceptance passed** on `994e39fc442bf48fa6069f0750dc9e886af6f23b` in run `34308752322`;
-- Candidate 6 has **not** been published or physically validated;
-- **C6-11 is the next gate**: freeze one exact source SHA, publish the matching multi-architecture image/digest and Umbrel package, then authorize Candidate 6 physical validation.
-
-The current Umbrel Store package is still the historical Candidate 5 package:
+C6-10 and C6-11 are complete. The exact installable Candidate 6 identity is:
 
 ```text
-Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.5
-Candidate 5 source: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
-exact image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
+FoxForge application source: 78ace6f7b7412aa0d3fc58bed095aecdf9920f94
+C6-10 exact-main gate: run 34439269464 — PASS
+image tag: ghcr.io/mikefox303/foxforge:sha-78ace6f
+OCI digest: sha256:b01f1d44199a4413167ee2369c0dfbcafa602312442772d27de18e04c24ed0eb
+exact image: ghcr.io/mikefox303/foxforge:sha-78ace6f@sha256:b01f1d44199a4413167ee2369c0dfbcafa602312442772d27de18e04c24ed0eb
+publication verification: run 34440021792 — PASS
+Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.6
+Umbrel Store PR: MikeFox303/umbrel-3d-printing-store#38
+Umbrel Store commit: 018d29a8668e923c7f1a3447fc12273939aefbb8
+Store post-merge package/runtime gate: run 34509996521 — PASS
+Store post-merge release gate: run 34509996582 — PASS
+target semantic release: v0.1.0-alpha.5 — not published
 ```
 
-It remains installable for continuity and historical diagnostics, but it is **not the new Candidate 6 acceptance target**. No Candidate 5 evidence may be relabeled as Candidate 6 evidence.
+Candidate 5 is historical/failed for Alpha 5 acceptance. Candidate 1–5 evidence may not be relabeled as Candidate 6 evidence. Documentation-only commits after the frozen application source do not change Candidate 6 runtime identity.
 
-See the [Candidate 6 software gate contract](docs/testing/pre-alpha-5-candidate6-software-gate.md) and [current project status](docs/project-status.md).
+**Candidate 6 physical validation is now authorized but has not yet been completed.** The next gate is the real Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print procedure, followed by the first-print/accounting gate only after complete no-print PASS.
 
-## What current `main` provides
+See the [current project status](docs/project-status.md), [Candidate 6 software gate](docs/testing/pre-alpha-5-candidate6-software-gate.md) and [physical-validation runbook](docs/testing/pre-alpha-5-bambu-physical-validation.md).
+
+## What Candidate 6 provides
 
 ### Printer setup and fleet
 
@@ -78,15 +80,11 @@ See the [Candidate 6 software gate contract](docs/testing/pre-alpha-5-candidate6
 - explicit operator material bindings and fail-closed routing compilation;
 - durable spool inventory with exact `Decimal` mass accounting;
 - explicit physical-slot → FoxForge-spool assignments;
-- Candidate 6 P3 accounting reconstructed on current architecture through R1–R5:
-  - durable reservations and no overcommit;
-  - idempotent planning and completed settlement;
-  - fresh-routing pre-dispatch accounting guard before external side effects;
-  - guarded runtime/API lifecycle and reconciliation;
-  - operator accounting UI;
-  - provider-scoped Candidate 6 validation gate.
+- P3 accounting reconstructed on the current architecture through R1–R5: durable reservations, no overcommit, idempotent settlement, fresh-routing pre-dispatch accounting guard, guarded reconciliation and operator accounting UI.
 
-Historical PR #58 is closed/unmerged and retained only as an archive/reference. P3 is integrated in current source, but it is not yet part of a published Candidate 6 or physical acceptance claim.
+The generic runtime default remains `FOXFORGE_FILAMENT_ACCOUNTING_MODE=disabled`. The published Candidate 6 Umbrel package intentionally uses `bambu-validation`, which enforces accounting readiness only for Bambu adapters. Moonraker/Klipper automatic accounting remains disabled. FoxForge never infers consumed grams from progress and never auto-picks a spool or guesses a nozzle when routing is ambiguous.
+
+Historical PR #58 is closed/unmerged and retained only as archive/reference.
 
 ### Web interface
 
@@ -103,7 +101,7 @@ Historical PR #58 is closed/unmerged and retained only as an archive/reference. 
 | Area | Status |
 | --- | --- |
 | Common printer architecture | Implemented |
-| Bambu Lab adapter | Functional alpha; Candidate 6 physical validation not started |
+| Bambu Lab adapter | Functional alpha; Candidate 6 physical validation next |
 | Bambu LAN discovery | Implemented foundation; real deployment-network validation pending |
 | Moonraker/Klipper adapter | Functional alpha; physical OpenKE validation pending |
 | Common thermal telemetry | Bambu + Moonraker implementations integrated |
@@ -112,33 +110,61 @@ Historical PR #58 is closed/unmerged and retained only as an archive/reference. 
 | Pause / Resume / Cancel | Implemented; physical validation pending |
 | Artifact staging | Implemented |
 | Filament/spool inventory | Operator workflow implemented |
-| Automatic filament accounting | P3 R1–R5 software integrated; publication/physical validation pending |
+| Automatic filament accounting | Bambu Candidate 6 validation mode published; physical acceptance pending |
 | AMS/CFS observation | Bambu AMS + external source foundation implemented |
 | Persistent farm scheduler | Not implemented |
-| Docker `amd64` / `arm64` | **C6-10 exact-main PASS**; Candidate 6 image not published |
-| Umbrel | Candidate 5 remains installable; Candidate 6 package awaits C6-11 |
+| Docker `amd64` / `arm64` | Candidate 6 immutable image published and public runtime verified |
+| Umbrel | Candidate 6 `0.1.0-alpha.4.3-umbrel.6` published/installable |
 
-## Candidate 6 gate sequence
+## Candidate 6 physical gate
 
-1. **C6-10 — PASS:** exact software source validated without publication side effects.
-2. **C6-11 — next:** freeze exact source SHA, publish matching `linux/amd64` + `linux/arm64` image/digest and matching Umbrel package.
-3. Run the real **Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print gate** on that exact identity.
-4. Only after complete no-print PASS, run one explicitly reviewed first-print path and guarded job control.
-5. Any application-code change during physical Candidate 6 validation requires a new candidate; evidence cannot be carried across a changed digest.
+Primary acceptance target:
+
+```text
+Raspberry Pi 5 + Umbrel
+└─ FoxForge Candidate 6 (ordinary App Proxy / bridge networking)
+   └─ Bambu Lab X2D + AMS 2 Pro
+      ├─ A1 PETG
+      ├─ A2 PETG
+      ├─ A3 PETG
+      ├─ A4 PETG
+      ├─ External Left  -> left toolhead  -> empty
+      └─ External Right -> right toolhead -> PLA
+```
+
+The no-print gate must prove install identity, GUI-only operator credential access, discovery/Add Printer, Verify→change→re-Verify, negative setup cases, rollback-safe Update, restart/reconnect recovery, redacted diagnostics, partial initial X2D status, thermal telemetry, AMS/external state and typed dual-external topology.
+
+Only after every no-print section passes may the first-print path run:
+
+```text
+SHA256 → stage → inspect 3MF → select plate → explicit material bindings
+→ routing compiler → accounting reservation → queue → explicit Start
+→ FTPS → project_file → exactly one observed physical job
+```
+
+Physical accounting evidence must include the exact FoxForge spool assignment/reservation and reproducible pre/post measured spool mass. Do not derive actual grams from progress.
+
+Any application-code, image or package-definition change after physical evidence begins requires a new candidate. Documentation/evidence commits do not change the frozen Candidate 6 application identity.
 
 ## Installation
 
 ### Umbrel
 
-FoxForge is available from the [MikeFox303 3D Printing Community App Store](https://github.com/MikeFox303/umbrel-3d-printing-store) as `my3d-foxforge`.
+FoxForge Candidate 6 is available from the [MikeFox303 3D Printing Community App Store](https://github.com/MikeFox303/umbrel-3d-printing-store) as `my3d-foxforge` version `0.1.0-alpha.4.3-umbrel.6`.
 
-The Store currently serves the historical Candidate 5 package described above. Umbrel exposes the app password in its UI and maps `${APP_PASSWORD}` to `FOXFORGE_COMMAND_TOKEN`. Enter that value in **Operator Access / Unlock writes** when protected actions are required; the browser keeps the credential only in memory for the current tab.
+Add/refresh that Community Store in Umbrel, select FoxForge, and install/update normally. The package uses ordinary bridge/App Proxy networking, no host networking, and maps Umbrel `${APP_PASSWORD}` to `FOXFORGE_COMMAND_TOKEN`. Enter the app password shown by Umbrel in **Operator Access / Unlock writes**; the browser retains it only in memory for the current tab.
 
 See [Umbrel deployment](deployment/umbrel/README.md).
 
 ### Docker
 
-The latest published semantic release image is:
+Candidate 6 can also be pulled by exact immutable identity:
+
+```bash
+docker pull ghcr.io/mikefox303/foxforge:sha-78ace6f@sha256:b01f1d44199a4413167ee2369c0dfbcafa602312442772d27de18e04c24ed0eb
+```
+
+The latest semantic release image remains:
 
 ```bash
 docker pull ghcr.io/mikefox303/foxforge:0.1.0-alpha.4.3
@@ -207,7 +233,7 @@ Repository guardrails are documented in [`AGENTS.md`](AGENTS.md).
 
 - [Current project status](docs/project-status.md)
 - [Candidate 6 software gate](docs/testing/pre-alpha-5-candidate6-software-gate.md)
-- [Pre-Alpha 5 physical-validation history/runbook](docs/testing/pre-alpha-5-bambu-physical-validation.md)
+- [Pre-Alpha 5 physical-validation runbook](docs/testing/pre-alpha-5-bambu-physical-validation.md)
 - [Thermal telemetry](docs/design/thermal-telemetry.md)
 - [Immutable 3MF print-plan inspection](docs/design/immutable-3mf-print-plan.md)
 - [Material routing compiler](docs/design/material-routing-compiler.md)
