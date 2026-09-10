@@ -76,7 +76,48 @@ def test_add_persists_and_joins_live_fleet_without_restart(tmp_path) -> None:
     asyncio.run(scenario())
 
 
-def test_add_does_not_persist_or_join_fleet_when_preflight_fails(tmp_path) -> None:
+def test_verify_then_add_creates_only_one_new_live_connection(tmp_path) -> None:
+    async def scenario() -> None:
+        config_path = tmp_path / "config.json"
+        fleet = FleetService()
+        registry = AdapterRegistry()
+        created: list[FakePrinterAdapter] = []
+
+        def factory(identity, settings):
+            adapter = FakePrinterAdapter(identity)
+            created.append(adapter)
+            return adapter
+
+        registry.register("fake-ui", factory)
+        manager = RuntimePrinterManager(
+            fleet=fleet,
+            registry=registry,
+            config_path=config_path,
+            config=_empty_runtime_config(),
+            secret_store=InMemorySecretStore(),
+        )
+        try:
+            verified = await manager.test_connection(_configuration())
+            assert verified.connection_error is None
+            assert len(created) == 1
+            assert created[0].transport_connect_count == 1
+            assert created[0].transport_disconnect_count == 1
+
+            added = await manager.add(_configuration())
+
+            assert added.connection_error is None
+            assert len(created) == 2
+            assert created[1].transport_connect_count == 1
+            assert created[1].transport_disconnect_count == 0
+            assert fleet.printer_ids == ("printer-ui",)
+            assert load_runtime_config(config_path).printers[0].identity.printer_id == "printer-ui"
+        finally:
+            await fleet.aclose()
+
+    asyncio.run(scenario())
+
+
+def test_add_does_not_persist_or_join_fleet_when_connection_fails(tmp_path) -> None:
     async def scenario() -> None:
         config_path = tmp_path / "config.json"
         fleet = FleetService()

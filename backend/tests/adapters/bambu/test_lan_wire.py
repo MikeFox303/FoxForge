@@ -109,6 +109,42 @@ class _FakeMqttClient:
         return self._socket
 
 
+class _FakePahoClient:
+    def __init__(self, *, client_id: str) -> None:
+        self.client_id = client_id
+        self.on_connect = None
+        self.on_disconnect = None
+        self.on_message = None
+        self.subscriptions: list[tuple[str, int]] = []
+
+    def username_pw_set(self, username: str, password: str) -> None:
+        pass
+
+    def tls_set_context(self, context) -> None:
+        pass
+
+    def reconnect_delay_set(self, min_delay: int, max_delay: int) -> None:
+        pass
+
+    def connect(self, host: str, port: int, keepalive: int):
+        return lan_wire.mqtt.MQTT_ERR_SUCCESS
+
+    def loop_start(self):
+        assert self.on_connect is not None
+        self.on_connect(self, None, None, 0, None)
+        return lan_wire.mqtt.MQTT_ERR_SUCCESS
+
+    def subscribe(self, topic: str, qos: int):
+        self.subscriptions.append((topic, qos))
+        return lan_wire.mqtt.MQTT_ERR_SUCCESS, 1
+
+    def disconnect(self):
+        return lan_wire.mqtt.MQTT_ERR_SUCCESS
+
+    def loop_stop(self):
+        return lan_wire.mqtt.MQTT_ERR_SUCCESS
+
+
 def _settings(**overrides) -> BambuLanSettings:
     values = {
         "host": "192.0.2.20",
@@ -189,6 +225,32 @@ def test_mqtt_certificate_pin_accepts_match_and_rejects_mismatch() -> None:
 
     with pytest.raises(BambuTransportError, match="fingerprint"):
         wire._verify_mqtt_certificate(_FakeMqttClient(b"changed-certificate"))  # noqa: SLF001
+
+
+def test_mqtt_reconnect_uses_distinct_short_client_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    created: list[_FakePahoClient] = []
+
+    def factory(*, callback_api_version, client_id: str, protocol):
+        client = _FakePahoClient(client_id=client_id)
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(lan_wire.mqtt, "Client", factory)
+
+    async def scenario() -> None:
+        wire = lan_wire.PahoBambuMqttWire(_settings())
+        await wire.connect()
+        await wire.disconnect()
+        await wire.connect()
+        await wire.disconnect()
+
+    asyncio.run(scenario())
+
+    assert len(created) == 2
+    assert created[0].client_id != created[1].client_id
+    assert all(client.client_id.startswith("fox-FOXFORGE-") for client in created)
+    assert all(len(client.client_id) <= 23 for client in created)
+    assert all(client.subscriptions == [("device/01P00FOXFORGE/report", 1)] for client in created)
 
 
 def test_ftps_accepts_ambiguous_426_only_when_remote_size_matches(

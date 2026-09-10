@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from contextlib import suppress
 from dataclasses import replace
 from pathlib import Path
@@ -29,6 +30,8 @@ from .secret_settings import (
     secret_fields,
     secret_key,
 )
+
+_LOG = logging.getLogger(__name__)
 
 
 class RuntimePrinterManager:
@@ -74,6 +77,10 @@ class RuntimePrinterManager:
         except PrinterAdapterError as error:
             connection_error = error
         except Exception as error:
+            _LOG.exception(
+                "unexpected printer adapter failure during setup test for %s",
+                configuration.identity.printer_id,
+            )
             connection_error = _normalize_unexpected_connection_error(error)
         snapshot = adapter.snapshot()
         try:
@@ -96,12 +103,11 @@ class RuntimePrinterManager:
             if self._find(printer_id) is not None:
                 raise PrinterConfigurationConflictError(f"printer is already configured: {printer_id}")
 
-            # Bambuddy-style safety invariant: credentials and reachability are
-            # validated before FoxForge creates any durable printer state.
-            preflight = await self.test_connection(configuration)
-            if preflight.connection_error is not None:
-                raise PrinterConnectionValidationError(preflight.connection_error)
-
+            # The live adapter connection is the backend-authoritative preflight.
+            # Do not connect a disposable adapter first and immediately reconnect
+            # another instance: rapid Bambu MQTT sessions can overlap at the broker.
+            # Durable config/secrets are still written only after this connection
+            # has completed and produced a valid initial printer state.
             adapter = self._registry.create(configuration.identity, configuration.settings)
             await self._fleet.add_adapter(adapter)
             connected = await self._connect(configuration)
@@ -230,6 +236,7 @@ class RuntimePrinterManager:
         except PrinterAdapterError as error:
             connection_error = error
         except Exception as error:
+            _LOG.exception("unexpected live printer connection failure for %s", printer_id)
             connection_error = _normalize_unexpected_connection_error(error)
         return PrinterSetupOutcome(
             configuration=configuration,

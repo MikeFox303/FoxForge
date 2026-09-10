@@ -1,7 +1,7 @@
 # Bambu LAN transport
 
 - **Status:** implemented alpha transport; physical X2D acceptance in progress
-- **Updated:** 2026-09-07
+- **Updated:** 2026-09-11
 - **Related:** [Bambu adapter foundation](bambu-adapter-foundation.md), [project storage](bambu-project-storage.md), [certificate trust](bambu-certificate-trust.md)
 
 ## Purpose
@@ -42,6 +42,8 @@ Real X2D/H2-family reports are incremental. Candidate 5 physical validation prov
 
 The private `lan_reports` classifier owns the recognized Bambu LAN status-field vocabulary shared by transport preflight and codec filtering. This is intentionally an adapter-private implementation detail, not a public FoxForge contract. Keeping one vocabulary prevents firmware compatibility fields from being added to the connection gate while being forgotten by the incremental codec, or vice versa.
 
+Each physical MQTT connection uses a short per-session client id. A deterministic id derived only from the printer serial is intentionally avoided: setup verification, Add Printer, reconnect supervision or another FoxForge process can briefly overlap at the Bambu broker, and two live sessions with the same MQTT client id may evict one another. This behavior is implemented as new FoxForge code; Bambuddy's use of connection-instance client ids is only a behavioral reference.
+
 ## Setup/discovery interaction
 
 Pre-Alpha 5 adds a conservative discovery helper, but discovery is not part of MQTT authentication:
@@ -52,6 +54,10 @@ Pre-Alpha 5 adds a conservative discovery helper, but discovery is not part of M
 - the candidate must still pass the normal authenticated live preflight before Add/Update persistence.
 
 Manual host entry remains supported when deployment networking prevents discovery.
+
+The UI `Verify` action is a disposable diagnostic connection and never authorizes persistence by itself. `Add Printer` remains backend-authoritative, but its validation now uses the exact adapter that will join the live `FleetService`: FoxForge adds that adapter to the in-memory fleet, performs one authenticated connection/initial-state handshake, and only then persists config and secrets. A failed connection removes the temporary fleet entry and leaves no durable printer state. This avoids the previous Add path opening a disposable backend preflight session and immediately reconnecting a second adapter instance.
+
+`Update Printer` keeps its stricter rollback-safe preflight because a known-good live adapter must remain recoverable until replacement settings have been validated.
 
 ## State and events
 
@@ -77,6 +83,8 @@ See [bambu-certificate-trust.md](bambu-certificate-trust.md).
 ## Secrets and diagnostics
 
 LAN access codes are hydrated through `SecretStore` only at runtime composition/testing boundaries. They must not appear in config read DTOs, reconnect diagnostics, audit records or normalized setup errors.
+
+Unexpected setup/live adapter exceptions are logged server-side with their traceback, while the operator-facing response remains the normalized `internal_adapter_error` without raw implementation details or secrets.
 
 Reconnect supervision is vendor-independent and operates through `FleetService.connect()`; the Bambu transport owns only its connection handshake/state.
 
