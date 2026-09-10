@@ -93,10 +93,11 @@ The normal spool operator workflow is implemented. Automatic queue-to-filament a
 
 ## Deployment and testing
 
-- [Docker deployment](deployment/docker.md)
-- [Umbrel deployment](deployment/umbrel.md)
-- [Deployment authentication](deployment/authentication.md)
-- [Release publishing](deployment/release-publishing.md)
+- [Deployment overview](../deployment/README.md)
+- [Docker deployment](../deployment/docker/README.md)
+- [Umbrel deployment](../deployment/umbrel/README.md)
+- [Deployment authentication](../deployment/README.md#write-authentication)
+- [Semantic release workflow](../.github/workflows/release.yml)
 - [Candidate 6 software gate](testing/pre-alpha-5-candidate6-software-gate.md)
 - [Deployment authentication contract](testing/deployment-auth-contract.md)
 - [Coverage policy](testing/coverage-policy.md)
