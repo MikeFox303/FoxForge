@@ -1,7 +1,7 @@
 # FoxForge
 
 [![Release](https://img.shields.io/badge/pre--release-v0.1.0--alpha.4.3-orange)](https://github.com/MikeFox303/FoxForge/releases/tag/v0.1.0-alpha.4.3)
-[![Alpha 5](https://img.shields.io/badge/Alpha%205-Candidate%206%20software%20gate-yellow)](docs/testing/pre-alpha-5-candidate6-software-gate.md)
+[![Alpha 5](https://img.shields.io/badge/Alpha%205-Candidate%206%20C6--11%20ready-yellow)](docs/project-status.md)
 [![License](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
 [![Platforms](https://img.shields.io/badge/Linux-amd64%20%7C%20arm64-lightgrey)](deployment/README.md)
 
@@ -22,10 +22,10 @@ Current source state:
 
 - Candidate 5 is historical/failed for Alpha 5 acceptance after real X2D testing exposed partial `push_status` and dual-external `vir_slot` compatibility gaps;
 - those findings were fixed and locked by the Candidate 6 regression work;
-- **C6-01 through C6-09 are integrated on `main`**;
-- **C6-10 is the active non-publishing software gate**;
+- **C6-01 through C6-10 are integrated on `main`**;
+- **C6-10 exact-main software acceptance passed** on `994e39fc442bf48fa6069f0750dc9e886af6f23b` in run `34308752322`;
 - Candidate 6 has **not** been published or physically validated;
-- C6-11 will freeze one exact source SHA, publish the matching multi-architecture image and Umbrel package, and only then authorize Candidate 6 physical validation.
+- **C6-11 is the next gate**: freeze one exact source SHA, publish the matching multi-architecture image/digest and Umbrel package, then authorize Candidate 6 physical validation.
 
 The current Umbrel Store package is still the historical Candidate 5 package:
 
@@ -115,13 +115,13 @@ Historical PR #58 is closed/unmerged and retained only as an archive/reference. 
 | Automatic filament accounting | P3 R1–R5 software integrated; publication/physical validation pending |
 | AMS/CFS observation | Bambu AMS + external source foundation implemented |
 | Persistent farm scheduler | Not implemented |
-| Docker `amd64` / `arm64` | C6-10 local build/runtime gate active; Candidate 6 image not published |
+| Docker `amd64` / `arm64` | **C6-10 exact-main PASS**; Candidate 6 image not published |
 | Umbrel | Candidate 5 remains installable; Candidate 6 package awaits C6-11 |
 
 ## Candidate 6 gate sequence
 
-1. **C6-10:** validate exact software source without publishing anything.
-2. **C6-11:** freeze exact source SHA, publish matching `linux/amd64` + `linux/arm64` image/digest and matching Umbrel package.
+1. **C6-10 — PASS:** exact software source validated without publication side effects.
+2. **C6-11 — next:** freeze exact source SHA, publish matching `linux/amd64` + `linux/arm64` image/digest and matching Umbrel package.
 3. Run the real **Raspberry Pi 5 + Umbrel + X2D + AMS 2 Pro no-print gate** on that exact identity.
 4. Only after complete no-print PASS, run one explicitly reviewed first-print path and guarded job control.
 5. Any application-code change during physical Candidate 6 validation requires a new candidate; evidence cannot be carried across a changed digest.

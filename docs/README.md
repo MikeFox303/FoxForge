@@ -15,11 +15,11 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 | --- | --- |
 | Semantic release | `v0.1.0-alpha.4.3` |
 | Active milestone | Pre-Alpha 5 / Bambu Lab connection and control |
-| Umbrel validation package | `0.1.0-alpha.4.3-umbrel.4` |
-| Candidate source | `c11f7145b4354aa79c8f0fad223648240e652bac` |
-| Candidate image | `ghcr.io/mikefox303/foxforge:sha-c11f714@sha256:75d656bafcafb4e0e566548f6cca941244d29fef1bbc5be98e425f375246056a` |
+| Historical installable package | Candidate 5 — `0.1.0-alpha.4.3-umbrel.5` |
+| Candidate 6 software gate | **C6-10 PASS** on merged `main` `994e39fc442bf48fa6069f0750dc9e886af6f23b` (run `34308752322`) |
+| Candidate 6 source/image/package | **Not published yet; C6-11 is the next gate** |
 
-The validation package is not a final Alpha 5 semantic release. Documentation-only commits may advance `main` without changing the immutable candidate under test.
+Candidate 5 is historical/failed for Alpha 5 acceptance and remains installable only for continuity/diagnostics. Candidate 6 physical validation is not authorized until C6-11 freezes one exact FoxForge source SHA, publishes its matching multi-architecture OCI image and immutable digest, and publishes the matching Umbrel package/Store identity. Documentation-only commits may advance `main` after a candidate is frozen, but evidence must always name the frozen source/image/package identity it actually validates.
 
 ## Architecture Decision Records
 
@@ -52,7 +52,7 @@ ADRs record durable decisions. Historical context inside an accepted ADR is not 
 - [Bambu project storage](design/bambu-project-storage.md)
 - [Pre-Alpha 5 physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
 
-Current source includes bounded LAN discovery with private-subnet suggestions, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project storage, AMS/external observation, typed material topology and fail-closed 3MF material routing. Physical X2D/AMS 2 Pro acceptance remains the active release gate.
+Current source includes bounded LAN discovery with private-subnet suggestions, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project storage, AMS/external observation, typed material topology, common thermal telemetry and fail-closed 3MF material routing. C6-10 software acceptance is complete; physical X2D/AMS 2 Pro acceptance remains blocked until C6-11 creates the exact Candidate 6 identity.
 
 ## Moonraker/Klipper
 
@@ -79,7 +79,7 @@ Inventory:
 - [Inventory operator API](design/inventory-command-api.md)
 - [Inventory command UI](design/inventory-command-ui.md)
 
-The normal spool operator workflow is implemented. Automatic queue-to-filament accounting remains a separate frozen P3 feature.
+The normal spool operator workflow is implemented. Automatic queue-to-filament accounting P3 R1–R5 is software-integrated on current `main`; publication and physical acceptance remain pending as part of Candidate 6.
 
 ## API, web, security and persistence
 
@@ -97,6 +97,7 @@ The normal spool operator workflow is implemented. Automatic queue-to-filament a
 - [Umbrel deployment](deployment/umbrel.md)
 - [Deployment authentication](deployment/authentication.md)
 - [Release publishing](deployment/release-publishing.md)
+- [Candidate 6 software gate](testing/pre-alpha-5-candidate6-software-gate.md)
 - [Deployment authentication contract](testing/deployment-auth-contract.md)
 - [Coverage policy](testing/coverage-policy.md)
 
@@ -116,16 +117,4 @@ These files are records, not a second FoxForge architecture.
 - [Umbrel mobile validation — 2026-09-04](validation/2026-09-04-umbrel-mobile.md) — historical Alpha 2 real-install/mobile evidence.
 - [`testing/alpha4.2-validation-tooling-bootstrap.md`](testing/alpha4.2-validation-tooling-bootstrap.md) — historical Alpha 4.2 tooling handoff.
 - [`testing/evidence/alpha4.2-manifest.template.json`](testing/evidence/alpha4.2-manifest.template.json) — historical Alpha 4.2 template.
-- [P3 frozen state](status/p3-frozen-state-2026-09-04.md) — frozen implementation snapshot; current resume gate is defined by project-status/current physical-validation docs.
-
-Do not rewrite immutable release notes, audit snapshots or dated evidence records to look current. Link to them with their historical role clearly labeled.
-
-## Working rules
-
-- Keep common printer contracts vendor-independent.
-- Preserve deep Bambu functionality behind typed adapter/capability boundaries.
-- Keep Bambu and Moonraker transport details out of common queue/inventory code.
-- Keep deployment compatible with Docker, Linux `amd64`/`arm64` and Umbrel.
-- Preserve upstream copyright/license notices and classify upstream-derived work in the adoption map.
-- Treat `INDETERMINATE` side effects as reconciliation-only; never blindly retry an ambiguous printer command.
-- Important architecture and release decisions belong in Git, not only in chat.
+- [P3 frozen-state history](status/p3-frozen-state-2026-09-04.md) — historical implementation snapshot; current integrated state is recorded in `project-status.md`.
