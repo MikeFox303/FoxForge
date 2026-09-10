@@ -1,0 +1,220 @@
+name: Candidate 6 publication
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/candidate-publish.yml'
+      - 'docs/testing/pre-alpha-5-candidate6-software-gate.md'
+  push:
+    branches:
+      - 'pre-alpha-5/candidate6-publish'
+    paths:
+      - '.candidate6/source.json'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: foxforge-candidate6-publication
+  cancel-in-progress: false
+
+jobs:
+  contract:
+    name: Candidate publication contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify hard publication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          workflow=.github/workflows/candidate-publish.yml
+          grep -q "pre-alpha-5/candidate6-publish" "$workflow"
+          grep -q "packages: write" "$workflow"
+          if grep -Eq 'gh release create|git tag|release/manifest\.json.*(write|update|cat >)' "$workflow"; then
+            echo 'Candidate publisher must not create semantic tags/releases or mutate the semantic release manifest.' >&2
+            exit 1
+          fi
+
+  publish:
+    name: Publish exact Candidate 6 image
+    needs: contract
+    if: github.event_name == 'push' && github.ref == 'refs/heads/pre-alpha-5/candidate6-publish'
+    runs-on: ubuntu-latest
+    outputs:
+      source_sha: ${{ steps.freeze.outputs.source_sha }}
+      short_sha: ${{ steps.freeze.outputs.short_sha }}
+      image_digest: ${{ steps.image.outputs.digest }}
+      package_version: ${{ steps.freeze.outputs.package_version }}
+    steps:
+      - name: Checkout publication marker
+        uses: actions/checkout@v7
+
+      - name: Parse frozen source marker
+        id: freeze
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          marker = json.loads(Path('.candidate6/source.json').read_text(encoding='utf-8'))
+          sha = marker.get('sourceCommit', '')
+          if marker.get('candidate') != 6:
+              raise SystemExit('candidate must be 6')
+          if not re.fullmatch(r'[0-9a-f]{40}', sha):
+              raise SystemExit('sourceCommit must be a full lowercase Git SHA')
+          if marker.get('baseReleaseVersion') != '0.1.0-alpha.4.3':
+              raise SystemExit('baseReleaseVersion must remain 0.1.0-alpha.4.3')
+          if marker.get('targetReleaseVersion') != '0.1.0-alpha.5':
+              raise SystemExit('targetReleaseVersion must remain 0.1.0-alpha.5')
+          package_version = marker.get('packageVersion')
+          if package_version != '0.1.0-alpha.4.3-umbrel.6':
+              raise SystemExit('packageVersion must be Candidate 6 package identity')
+          with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
+              out.write(f'source_sha={sha}\n')
+              out.write(f'short_sha={sha[:7]}\n')
+              out.write(f'package_version={package_version}\n')
+          PY
+
+      - name: Require clean exact-main C6-10 PASS
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          main_sha="$(gh api "repos/${GITHUB_REPOSITORY}/branches/main" --jq '.commit.sha')"
+          test "$main_sha" = "$SOURCE_SHA"
+          open_prs="$(gh api "repos/${GITHUB_REPOSITORY}/pulls?state=open&per_page=100" --jq 'length')"
+          test "$open_prs" = "0"
+          green="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs?head_sha=${SOURCE_SHA}&status=completed&per_page=100" --jq '[.workflow_runs[] | select(.name == "Candidate 6 software gate" and .event == "push" and .conclusion == "success")] | length')"
+          test "$green" -ge 1
+
+      - name: Checkout exact frozen FoxForge source
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.freeze.outputs.source_sha }}
+          fetch-depth: 0
+
+      - name: Verify semantic release remains unpromoted
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('release/manifest.json').read_text(encoding='utf-8'))
+          assert manifest['version'] == '0.1.0-alpha.4.3'
+          assert manifest['tag'] == 'v0.1.0-alpha.4.3'
+          PY
+          if git ls-remote --exit-code --tags origin refs/tags/v0.1.0-alpha.5 >/dev/null 2>&1; then
+            echo 'v0.1.0-alpha.5 already exists; Candidate 6 publisher refuses to continue.' >&2
+            exit 1
+          fi
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Refuse mutable overwrite of Candidate source tag
+        env:
+          IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
+        shell: bash
+        run: |
+          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
+            echo "Candidate source tag already exists: $IMAGE" >&2
+            exit 1
+          fi
+
+      - name: Publish versioned multi-architecture Candidate 6 image
+        id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deployment/docker/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.freeze.outputs.package_version }}
+            org.opencontainers.image.revision=${{ steps.freeze.outputs.source_sha }}
+            org.opencontainers.image.source=https://github.com/MikeFox303/FoxForge
+          build-args: |
+            VCS_REF=${{ steps.freeze.outputs.source_sha }}
+            VERSION=${{ steps.freeze.outputs.package_version }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Verify published immutable index and platforms
+        env:
+          IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          inspect="$(docker buildx imagetools inspect "${IMAGE}@${DIGEST}")"
+          printf '%s\n' "$inspect"
+          printf '%s\n' "$inspect" | grep -q 'linux/amd64'
+          printf '%s\n' "$inspect" | grep -q 'linux/arm64'
+
+      - name: Verify public anonymous pulls
+        env:
+          IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker logout ghcr.io
+          docker pull --platform linux/amd64 "${IMAGE}@${DIGEST}"
+          docker pull --platform linux/arm64 "${IMAGE}@${DIGEST}"
+
+      - name: Record immutable Candidate 6 publication identity
+        env:
+          SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
+          SHORT_SHA: ${{ steps.freeze.outputs.short_sha }}
+          DIGEST: ${{ steps.image.outputs.digest }}
+          PACKAGE_VERSION: ${{ steps.freeze.outputs.package_version }}
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          identity = {
+              'candidate': 6,
+              'sourceCommit': os.environ['SOURCE_SHA'],
+              'image': f"ghcr.io/mikefox303/foxforge:sha-{os.environ['SHORT_SHA']}",
+              'imageDigest': os.environ['DIGEST'],
+              'platforms': ['linux/amd64', 'linux/arm64'],
+              'packageVersion': os.environ['PACKAGE_VERSION'],
+              'baseReleaseVersion': '0.1.0-alpha.4.3',
+              'targetReleaseVersion': '0.1.0-alpha.5',
+              'workflowRun': int(os.environ['GITHUB_RUN_ID']),
+          }
+          Path('candidate6-publication.json').write_text(json.dumps(identity, indent=2) + '\n', encoding='utf-8')
+          print(json.dumps(identity, indent=2))
+          PY
+
+      - name: Upload Candidate 6 publication identity
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate6-publication-${{ steps.freeze.outputs.source_sha }}
+          path: candidate6-publication.json
+          if-no-files-found: error
+          retention-days: 90
