@@ -34,13 +34,29 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          workflow=.github/workflows/candidate-publish.yml
-          grep -q "pre-alpha-5/candidate6-publish" "$workflow"
-          grep -q "packages: write" "$workflow"
-          if grep -Eq 'gh release create|git tag|release/manifest\.json.*(write|update|cat >)' "$workflow"; then
-            echo 'Candidate publisher must not create semantic tags/releases or mutate the semantic release manifest.' >&2
-            exit 1
-          fi
+          python - <<'PY'
+          from pathlib import Path
+
+          text = Path('.github/workflows/candidate-publish.yml').read_text(encoding='utf-8')
+          if 'pre-alpha-5/candidate6-publish' not in text:
+              raise SystemExit('dedicated Candidate 6 publish branch trigger is missing')
+          if 'packages: write' not in text:
+              raise SystemExit('GHCR publication permission is missing')
+
+          forbidden_commands = [
+              'gh release ' + 'create',
+              'git ' + 'tag ',
+          ]
+          for command in forbidden_commands:
+              if command in text:
+                  raise SystemExit(f'forbidden semantic publication command: {command}')
+
+          # The semantic manifest may be read exactly once for the unpromoted-version
+          # assertion. Candidate publication must never rewrite it.
+          manifest_path = 'release/' + 'manifest.json'
+          if text.count(manifest_path) != 1:
+              raise SystemExit('semantic release manifest may only be read once by Candidate publisher')
+          PY
 
   publish:
     name: Publish exact Candidate 6 image
