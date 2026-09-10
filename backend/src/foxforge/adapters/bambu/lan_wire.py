@@ -431,9 +431,9 @@ class _ImplicitFTP_TLS(ftplib.FTP_TLS):
 
 def _mqtt_client_id(serial_number: str) -> str:
     """Return a short per-session id so rapid setup/reconnect clients cannot evict each other."""
-    serial_suffix = "".join(
-        char for char in serial_number.upper() if char.isascii() and char.isalnum()
-    )[-8:] or "printer"
+    serial_suffix = (
+        "".join(char for char in serial_number.upper() if char.isascii() and char.isalnum())[-8:] or "printer"
+    )
     return f"fox-{serial_suffix}-{uuid4().hex[:8]}"
 
 
