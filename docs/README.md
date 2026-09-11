@@ -5,7 +5,7 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 ## Read this first
 
 - [Current project status](project-status.md) — current semantic release, validation candidate, implementation state and development order.
-- [Pre-Alpha 5 Bambu physical validation](testing/pre-alpha-5-bambu-physical-validation.md) — exact installable candidate and X2D/AMS 2 Pro release gate.
+- [Pre-Alpha 5 Bambu physical validation](testing/pre-alpha-5-bambu-physical-validation.md) — exact Candidate 7 identity and X2D/AMS 2 Pro release gate.
 - [Generic physical-validation runbook](testing/physical-validation-runbook.md) — version-independent evidence rules.
 - [Physical evidence gate](testing/physical-evidence-gate.md) — verifier contract.
 
@@ -14,12 +14,17 @@ The Git repository is the canonical source for durable FoxForge architecture, co
 | Item | Current value |
 | --- | --- |
 | Semantic release | `v0.1.0-alpha.4.3` |
+| Target semantic release | `v0.1.0-alpha.5` — unpublished |
 | Active milestone | Pre-Alpha 5 / Bambu Lab connection and control |
-| Historical installable package | Candidate 5 — `0.1.0-alpha.4.3-umbrel.5` |
-| Candidate 6 software gate | **C6-10 PASS** on merged `main` `994e39fc442bf48fa6069f0750dc9e886af6f23b` (run `34308752322`) |
-| Candidate 6 source/image/package | **Not published yet; C6-11 is the next gate** |
+| Candidate 7 application source | `4f769ca89d466d2cbe41360848b6343ec5a8eb36` |
+| Candidate 7 exact image | `ghcr.io/mikefox303/foxforge:sha-4f769ca@sha256:0000e7a6c74056a0fff2e019c31a8cffc6d7fb2d3ec1fefdf587354a4d64c9b7` |
+| Candidate 7 Umbrel package | `0.1.0-alpha.4.3-umbrel.7` |
+| Candidate 7 Store commit | `6e69e4005ae9529eeee5c376c8769393b056ee0d` |
+| Physical validation | **Authorized; no-print gate not yet accepted** |
 
-Candidate 5 is historical/failed for Alpha 5 acceptance and remains installable only for continuity/diagnostics. Candidate 6 physical validation is not authorized until C6-11 freezes one exact FoxForge source SHA, publishes its matching multi-architecture OCI image and immutable digest, and publishes the matching Umbrel package/Store identity. Documentation-only commits may advance `main` after a candidate is frozen, but evidence must always name the frozen source/image/package identity it actually validates.
+Candidate 5 is historical after real X2D partial-status/dual-external findings. Candidate 6 is historical/failed after real X2D UI Verify could succeed and Add Printer could then fail with `internal_adapter_error`. PR #184 fixed the Add/MQTT lifecycle, so Candidate 7 is the required replacement identity. Candidate 5/6 evidence must not be relabeled as Candidate 7 evidence.
+
+The frozen Candidate 7 application source passed the full exact-source software gate. Its immutable multi-architecture image was verified with independent anonymous pulls, and the companion Store package passed package/runtime gates on both `amd64` and `arm64` before merge. Documentation-only commits may advance `main` after this freeze, but physical evidence must always name the frozen source/image/package/Store identity it actually validates.
 
 ## Architecture Decision Records
 
@@ -50,16 +55,16 @@ ADRs record durable decisions. Historical context inside an accepted ADR is not 
 - [Private discovery subnet suggestions](design/private-discovery-subnet-suggestions.md)
 - [Bambu certificate trust](design/bambu-certificate-trust.md)
 - [Bambu project storage](design/bambu-project-storage.md)
-- [Pre-Alpha 5 physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
+- [Pre-Alpha 5 Candidate 7 physical validation](testing/pre-alpha-5-bambu-physical-validation.md)
 
-Current source includes bounded LAN discovery with private-subnet suggestions, test-before-save setup, rollback-safe update, reconnect diagnostics, MQTT/TLS state, project storage, AMS/external observation, typed material topology, common thermal telemetry and fail-closed 3MF material routing. C6-10 software acceptance is complete; physical X2D/AMS 2 Pro acceptance remains blocked until C6-11 creates the exact Candidate 6 identity.
+Current application source includes bounded LAN discovery with private-subnet suggestions, staged exact-payload setup, a single backend-authoritative live Add connection, rollback-safe Update, reconnect diagnostics, MQTT/TLS state, per-session Bambu MQTT client IDs, project storage, AMS/external observation, typed material topology, common thermal telemetry and fail-closed 3MF material routing. Candidate 7 is published; physical X2D/AMS 2 Pro acceptance is now the active gate.
 
 ## Moonraker/Klipper
 
 - [Moonraker adapter foundation](design/moonraker-adapter-foundation.md)
 - [Moonraker HTTP/WebSocket transport](design/moonraker-http-transport.md)
 
-The production transport foundation is implemented; representative physical OpenKE validation remains pending.
+The production transport foundation is implemented; representative physical OpenKE validation remains pending and does not inherit Bambu evidence.
 
 ## Queue and inventory
 
@@ -79,7 +84,7 @@ Inventory:
 - [Inventory operator API](design/inventory-command-api.md)
 - [Inventory command UI](design/inventory-command-ui.md)
 
-The normal spool operator workflow is implemented. Automatic queue-to-filament accounting P3 R1–R5 is software-integrated on current `main`; publication and physical acceptance remain pending as part of Candidate 6.
+The normal spool operator workflow is implemented. Automatic queue-to-filament accounting P3 R1–R5 is software-integrated. Candidate 7's Umbrel package enables the provider-scoped `bambu-validation` mode; physical Bambu accounting acceptance remains pending. Moonraker/Klipper automatic accounting is not enabled by this mode.
 
 ## API, web, security and persistence
 
@@ -98,7 +103,8 @@ The normal spool operator workflow is implemented. Automatic queue-to-filament a
 - [Umbrel deployment](../deployment/umbrel/README.md)
 - [Deployment authentication](../deployment/README.md#write-authentication)
 - [Semantic release workflow](../.github/workflows/release.yml)
-- [Candidate 6 software gate](testing/pre-alpha-5-candidate6-software-gate.md)
+- [Legacy Candidate 6 software gate / Candidate 7 exact-source gate](testing/pre-alpha-5-candidate6-software-gate.md)
+- [Candidate 7 physical-validation runbook](testing/pre-alpha-5-bambu-physical-validation.md)
 - [Deployment authentication contract](testing/deployment-auth-contract.md)
 - [Coverage policy](testing/coverage-policy.md)
 
@@ -114,7 +120,7 @@ These files are records, not a second FoxForge architecture.
 
 - [Independent audit — 2026-09-04](audits/2026-09-04-independent-project-audit.md) — immutable historical finding snapshot.
 - [Audit remediation tracker](audits/2026-09-04-remediation-tracker.md) — active status/evidence tracker.
-- [`docs/status/`](status/) — dated release-readiness/evidence/handoff records. Alpha 4.x files here are historical and must not be used as the current validation target.
+- [`docs/status/`](status/) — dated release-readiness/evidence/handoff records. Older candidate records are historical and must not be used as the current validation target.
 - [Umbrel mobile validation — 2026-09-04](validation/2026-09-04-umbrel-mobile.md) — historical Alpha 2 real-install/mobile evidence.
 - [`testing/alpha4.2-validation-tooling-bootstrap.md`](testing/alpha4.2-validation-tooling-bootstrap.md) — historical Alpha 4.2 tooling handoff.
 - [`testing/evidence/alpha4.2-manifest.template.json`](testing/evidence/alpha4.2-manifest.template.json) — historical Alpha 4.2 template.

@@ -6,7 +6,7 @@ FoxForge has not published a stable release yet.
 
 ## Unreleased — Pre-Alpha 5
 
-Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForge/issues/115).
+Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForge/issues/115) and replacement-candidate validation [#154](https://github.com/MikeFox303/FoxForge/issues/154).
 
 ### Added
 
@@ -18,30 +18,43 @@ Target: `v0.1.0-alpha.5`. Tracking: [#115](https://github.com/MikeFox303/FoxForg
 - Per-printer reconnect context for last failure, retry state and recovery without exposing raw vendor exceptions or credentials.
 - Capability-driven application shell, printer-card density and Printer Detail Control/Materials presentation.
 - Staged Add Printer **Provider → Connection → Identity → Verify** workflow with exact-current-payload verification gating.
+- Provider-scoped `bambu-validation` filament-accounting mode for the controlled Alpha 5 physical gate.
 
 ### Changed
 
-- Add Printer now validates live connectivity before creating durable printer configuration; any payload change after a successful UI Verify disables Save until the changed payload is verified again.
-- Update Printer now performs the same backend preflight before replacing a known-good configuration.
-- A failed replacement connection rolls back durable configuration, secrets and runtime adapter state to the previous working printer.
+- PR #184 hardened the real Bambu Add Printer connection lifecycle after Candidate 6 physical testing: Add now uses the exact live fleet adapter as the single backend-authoritative connection before durable persistence instead of opening a disposable Add preflight followed immediately by another live connection.
+- Bambu MQTT now uses a short per-session client ID so UI Verify, Add, reconnect and parallel process sessions do not deliberately reuse one serial-derived broker identity.
+- Unexpected adapter exceptions are logged server-side while setup API/UI errors remain normalized and secret-safe.
+- Add Printer still requires exact-payload UI Verify; any payload change after Verify disables Save until the changed payload is verified again.
+- Update Printer retains a separate preflight and rollback path so invalid replacement connectivity cannot destroy a known-good configuration.
 - Terminal sanitized Add/Update connection failures are replayed deterministically through durable HTTP idempotency rather than re-executing a failed setup side effect.
 - Queue assessment persists compiler-owned toolhead bindings, Bambu dispatch revalidates source/topology immediately before submit, and `project_file.nozzle_mapping` is emitted only from a complete proven route.
-- Present-but-invalid 3MF toolhead metadata now remains explicitly fail-closed as `TOOLHEAD_METADATA_INVALID`; a fixed physical source route cannot mask corrupt slicer intent.
+- Present-but-invalid 3MF toolhead metadata remains explicitly fail-closed as `TOOLHEAD_METADATA_INVALID`; a fixed physical source route cannot mask corrupt slicer intent.
 - Browser routing readiness follows the selected plate while preserving global and selected-plate blockers, so an unrelated blocked plate does not poison an otherwise safe selected plate.
 - External Bambu 254/255 sources remain `-1` in flat `ams_mapping` and retain their real source identity in `ams_mapping2`.
-- The Bambu milestone is explicitly focused on real X2D + AMS 2 Pro connection/control validation before broader P3/farm work resumes.
+- The Bambu milestone remains focused on real X2D + AMS 2 Pro connection/control/accounting validation before broader farm work resumes.
 
 ### Validation package
 
-The current companion Umbrel package is **Candidate 5: `0.1.0-alpha.4.3-umbrel.5`**, a validation candidate rather than a semantic Alpha 5 release.
+The active companion Umbrel package is **Candidate 7: `0.1.0-alpha.4.3-umbrel.7`**, a physical-validation candidate rather than the semantic Alpha 5 release.
 
 ```text
-source commit: 0351c659f2d2845fb83bc0b1802c4d9ebeeef1f2
-image: ghcr.io/mikefox303/foxforge:sha-0351c65@sha256:00c699effbe9b245a4916a8c301df5b67435d75dd42fad02cc5bbf0ca51aec39
-Store commit: 16d57c486ce8e2b26abd5c7e9480188d95f080cb
+FoxForge application source: 4f769ca89d466d2cbe41360848b6343ec5a8eb36
+image tag: ghcr.io/mikefox303/foxforge:sha-4f769ca
+OCI digest: sha256:0000e7a6c74056a0fff2e019c31a8cffc6d7fb2d3ec1fefdf587354a4d64c9b7
+exact image: ghcr.io/mikefox303/foxforge:sha-4f769ca@sha256:0000e7a6c74056a0fff2e019c31a8cffc6d7fb2d3ec1fefdf587354a4d64c9b7
+Umbrel package: 0.1.0-alpha.4.3-umbrel.7
+Store commit: 6e69e4005ae9529eeee5c376c8769393b056ee0d
+semantic target: v0.1.0-alpha.5 (unpublished)
 ```
 
-Candidate 4 is retired for first-print acceptance. Candidate 5 passed the companion Store package/runtime gates on `amd64` and `arm64`, but final Alpha 5 remains blocked on the real-device acceptance matrix in `docs/testing/pre-alpha-5-bambu-physical-validation.md`. Physical Start remains forbidden until Candidate 5 no-print sections 1–6 pass.
+The frozen source passed the full exact-source gate in run `34616523326`. Candidate 7 publication recovery run `34630673497` verified the immutable multi-architecture index and independent public pulls for `linux/amd64` and `linux/arm64`. Companion Store PR #39 passed package contract, App Password bootstrap, both public runtime smokes, upstream version audit and Store Release Gate before merge.
+
+Candidate 5 is historical after partial-status/dual-external X2D findings. Candidate 6 is historical/failed after the real X2D could pass UI Verify and then fail during Add Printer with `internal_adapter_error`. Because #184 changed application code after Candidate 6 publication, Candidate 7 was required and older candidate evidence cannot be relabeled.
+
+Candidate 7 no-print physical validation on Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro is now authorized. The first mandatory regression is **Verify → Add** on the exact X2D payload without the Candidate 6 internal adapter failure. Physical Start remains forbidden until no-print sections 1–7 in `docs/testing/pre-alpha-5-bambu-physical-validation.md` all pass.
+
+Any application/image/package-definition change after Candidate 7 evidence begins requires Candidate 8. Documentation-only status/evidence commits do not change the frozen application identity.
 
 ## [0.1.0-alpha.4.3] - 2026-09-05
 
