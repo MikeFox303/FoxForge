@@ -22,7 +22,7 @@ foxforge = "foxforge.runtime.__main__:main"
 dev = [
   "coverage==7.16.0",
   "pytest>=9.0.3,<10",
-  "ruff==0.16.5",
+  "ruff==0.16.6",
 ]
 
 [tool.setuptools.packages.find]
