@@ -1,7 +1,7 @@
 # Pre-Alpha 5 Candidate 6 software gate
 
-**Status:** C6-10 PASS; C6-11 publication contract active  
-**Target:** Candidate 6 inside `v0.1.0-alpha.5`  
+**Status:** C6-10 PASS; replacement Candidate 7 reuses the same exact-source gate after #184  
+**Target:** replacement physical-validation candidate inside `v0.1.0-alpha.5`  
 **Physical validation:** not part of this gate
 
 ## Purpose
@@ -99,8 +99,22 @@ The publisher is intentionally split from the semantic release path:
 
 The companion Store update happens only after the image digest has been retrieved and verified. Its PR must pin the exact `sha-<source>@sha256:<digest>` image and must pass the Store package contract plus amd64/arm64 runtime gates before merge.
 
+## Candidate 7 replacement use
+
+Real Candidate 6 physical validation later exposed the X2D Add Printer MQTT connection-lifecycle defect fixed by PR #184. Because that fix changes application code, the published Candidate 6 source/image/package identity is historical for Alpha 5 physical acceptance and its evidence cannot be carried forward.
+
+The replacement is **Candidate 7 inside the same `v0.1.0-alpha.5` milestone**. Candidate 7 deliberately reuses the complete non-publishing matrix above; the existing workflow name `Candidate 6 software gate` is retained as a legacy CI identifier so prior run history and release tooling remain auditable. A Candidate 7 source is eligible for immutable publication only after this full gate succeeds on that exact merged `main` SHA with zero other open FoxForge PRs.
+
+Candidate 7 publication is separate from the historical Candidate 6 publisher:
+
+- `.github/workflows/candidate7-publish.yml` owns the new immutable publication path;
+- `pre-alpha-5/candidate7-publish` plus `.candidate7/source.json` freeze the exact replacement source;
+- the intended Umbrel package identity is `0.1.0-alpha.4.3-umbrel.7`;
+- semantic `v0.1.0-alpha.5` remains unpublished until the replacement physical acceptance matrix passes;
+- Candidate 6 tags, markers, images and evidence are never overwritten or relabeled.
+
 ## Physical validation remains separate
 
 CI proves software contracts only. It does not prove the Raspberry Pi networking path, Umbrel runtime, real X2D MQTT/FTPS behavior, AMS 2 Pro state, dual external feed topology, thermal readings, or physical print/job-control behavior.
 
-Those observations belong only to the post-C6-11 physical runbook and must reference the exact Candidate 6 source/image/package identity they validate.
+Those observations belong only to the post-publication physical runbook and must reference the exact immutable source/image/package identity they validate.
