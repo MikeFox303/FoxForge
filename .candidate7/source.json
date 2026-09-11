@@ -3,5 +3,6 @@
   "sourceCommit": "4f769ca89d466d2cbe41360848b6343ec5a8eb36",
   "baseReleaseVersion": "0.1.0-alpha.4.3",
   "targetReleaseVersion": "0.1.0-alpha.5",
-  "packageVersion": "0.1.0-alpha.4.3-umbrel.7"
+  "packageVersion": "0.1.0-alpha.4.3-umbrel.7",
+  "publishedImageDigest": "sha256:0000e7a6c74056a0fff2e019c31a8cffc6d7fb2d3ec1fefdf587354a4d64c9b7"
 }
