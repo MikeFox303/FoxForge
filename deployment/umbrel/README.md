@@ -4,10 +4,23 @@ FoxForge is packaged as `my3d-foxforge` in the companion `MikeFox303/umbrel-3d-p
 
 ## Current package status
 
-The latest semantic release remains `v0.1.0-alpha.4.3`. Candidate 5 is historical and retired for final Alpha 5 acceptance. Candidate 6 is still being stabilized and **has not yet been frozen or published**, so no Candidate 6 package version/source/digest should be invented before C6-11.
+The latest semantic release remains `v0.1.0-alpha.4.3`. Final `v0.1.0-alpha.5` is unpublished.
+
+The active Pre-Alpha 5 physical-validation package is **Candidate 7**:
+
+```text
+FoxForge application source: 4f769ca89d466d2cbe41360848b6343ec5a8eb36
+image tag: ghcr.io/mikefox303/foxforge:sha-4f769ca
+OCI digest: sha256:0000e7a6c74056a0fff2e019c31a8cffc6d7fb2d3ec1fefdf587354a4d64c9b7
+exact image: ghcr.io/mikefox303/foxforge:sha-4f769ca@sha256:0000e7a6c74056a0fff2e019c31a8cffc6d7fb2d3ec1fefdf587354a4d64c9b7
+Umbrel package: my3d-foxforge 0.1.0-alpha.4.3-umbrel.7
+Umbrel Store commit: 6e69e4005ae9529eeee5c376c8769393b056ee0d
+```
+
+Candidate 5 and Candidate 6 are historical. Candidate 6 failed the real X2D Add Printer physical gate after UI Verify could succeed; PR #184 fixed the Add/MQTT connection lifecycle, requiring Candidate 7 as the new immutable target.
 
 > [!IMPORTANT]
-> Candidate 6 physical validation must use one exact source/image/Umbrel package/Store identity created by C6-11. Editing the installed package definition after evidence starts invalidates that evidence.
+> Candidate 7 physical validation must use the exact source/image/Umbrel package/Store identity above. Editing the installed package definition after evidence starts invalidates that evidence and requires Candidate 8.
 
 ## Operator authentication
 
@@ -29,29 +42,36 @@ To use protected actions:
 
 App Proxy remains defense in depth and is not a FoxForge application principal. Direct protected writes still require the correct Bearer credential. Tokenless `/api/v1/operator-session` remains disabled, and `FOXFORGE_TRUSTED_BROWSER_SESSIONS=true` remains unsupported.
 
-## Candidate 6 filament-accounting mode
+## Candidate 7 filament-accounting mode
 
-The FoxForge runtime default is:
+The generic FoxForge runtime default is:
 
 ```text
 FOXFORGE_FILAMENT_ACCOUNTING_MODE=disabled
 ```
 
-For the controlled Candidate 6 Bambu accounting acceptance, the immutable Candidate 6 Umbrel package should intentionally set:
+The published Candidate 7 Umbrel package intentionally sets:
 
 ```text
 FOXFORGE_FILAMENT_ACCOUNTING_MODE=bambu-validation
 ```
 
-when C6-11 is published. That mode applies the common pre-dispatch reservation/assignment/capacity gate only to printers configured with `adapter_kind == "bambu"`. It does not enable Moonraker/Klipper accounting and does not derive consumed grams from progress.
+That mode applies the common pre-dispatch reservation/assignment/capacity gate only to printers configured with `adapter_kind == "bambu"`. It does not enable Moonraker/Klipper accounting and does not derive consumed grams from progress.
 
-The chosen value is part of the immutable Candidate 6 package contract. Do **not** install a `disabled` package, edit Compose manually to `bambu-validation`, and then claim the original package identity for accounting evidence. If the package needs a different mode, publish a new immutable candidate/package identity first.
+The chosen value is part of the immutable Candidate 7 package contract. Do **not** edit Compose manually and then claim the original package identity for accounting evidence. If the package needs a different mode, publish a new immutable candidate/package identity first.
 
-Validation must record `/api/v1/diagnostics/persistence` and confirm the active `filamentAccounting.mode` plus `enforcedAdapterKinds`.
+Validation must record `/api/v1/diagnostics/persistence` and confirm:
+
+```json
+{
+  "mode": "bambu-validation",
+  "enforcedAdapterKinds": ["bambu"]
+}
+```
 
 ## Packaging model
 
-The package uses:
+The Candidate 7 package uses:
 
 - ordinary Docker bridge networking;
 - no host networking;
@@ -59,7 +79,9 @@ The package uses:
 - no Docker socket access;
 - `${APP_DATA_DIR}/data:/data` persistence;
 - `/healthz` container health check;
-- the same FoxForge application image used by the project runtime.
+- the same immutable FoxForge application image published for Candidate 7.
+
+The companion Store package/runtime CI passed on both `linux/amd64` and `linux/arm64` before Store commit `6e69e4005ae9529eeee5c376c8769393b056ee0d` was merged.
 
 ## Printer networking and discovery
 
@@ -73,37 +95,38 @@ Pre-Alpha 5 uses conservative Bambu discovery:
 - a candidate must expose the expected Bambu MQTT and FTPS service ports;
 - SSDP metadata may fill serial/name/model;
 - discovery never persists a printer by itself;
-- normal authenticated test-before-save must still succeed.
+- normal authenticated exact-payload Verify must still succeed.
+
+Candidate 7's Add path then uses the live fleet adapter as the single backend-authoritative connection before durable config/secrets are accepted. Bambu MQTT sessions use short per-session client IDs, so separate Verify/Add/reconnect sessions do not deliberately reuse one serial-derived broker identity. Update Printer keeps its separate preflight/rollback path because it protects an already-known-good configuration.
 
 Manual Bambu entry remains available and is the fallback when discovery cannot see the printer from the deployment network namespace.
 
-## Candidate 6 publication and install
+## Candidate 7 install and physical validation
 
-Before an install can count as Candidate 6 physical evidence:
-
-1. C6-10 must pass on clean FoxForge `main`;
-2. C6-11 must publish the exact multi-arch image/digest and matching Umbrel package;
-3. the companion Store package must pin that exact immutable image;
-4. the package definition must already contain the intended accounting mode for the validation run;
-5. the runbook must record the exact source/image/package/Store identities.
-
-Then:
+To begin the authorized Candidate 7 physical gate:
 
 1. add/refresh `https://github.com/MikeFox303/umbrel-3d-printing-store` as a Community App Store;
-2. confirm the exact Candidate 6 package is offered;
+2. confirm **`my3d-foxforge 0.1.0-alpha.4.3-umbrel.7`** is offered;
 3. install/update without manual Compose/container modifications;
 4. confirm the app starts and `/healthz` succeeds;
 5. obtain the app password from the Umbrel UI and unlock FoxForge writes;
-6. follow the exact [Pre-Alpha 5 Bambu physical-validation runbook](../../docs/testing/pre-alpha-5-bambu-physical-validation.md).
+6. record the source, OCI digest, package version and Store commit shown above;
+7. follow the exact [Pre-Alpha 5 Bambu physical-validation runbook](../../docs/testing/pre-alpha-5-bambu-physical-validation.md).
 
-Successful package CI or install alone is not physical X2D acceptance.
+The first required real-device regression is the Candidate 6 blocker:
+
+```text
+X2D exact payload → Verify succeeds → Add/Save immediately → persists and stays connected
+```
+
+`internal_adapter_error` must not recur. A successful package install alone is not physical X2D acceptance, and a physical print remains blocked until all no-print sections pass.
 
 ## Persistence and upgrades
 
 Persistent `/data` includes application configuration, SQLite state, SecretStore data and staged artifacts. Back up the complete directory before early-alpha upgrades and treat it as sensitive.
 
-A changed source commit, image digest or package definition is a new physical-test target. Evidence from an earlier candidate may be retained historically but must not be silently carried forward.
+A changed application source, image digest or package definition is a new physical-test target. Evidence from an earlier candidate may be retained historically but must not be silently carried forward. Documentation-only status/evidence commits after the Candidate 7 freeze are not application identity.
 
 ## Remaining gate
 
-Final Alpha 5 remains blocked on exact Candidate 6 Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro acceptance, including setup negative paths, safe update rollback, partial X2D status, reconnect recovery, thermal/material topology, immutable 3MF routing, provider-scoped filament accounting, exactly-one project upload/start and guarded job control.
+Final Alpha 5 remains blocked on exact Candidate 7 Raspberry Pi 5/Umbrel + X2D + AMS 2 Pro acceptance, including the Verify→Add regression, setup negative paths, safe Update rollback, partial X2D status, reconnect recovery, thermal/material topology, immutable 3MF routing, provider-scoped filament accounting, exactly-one project upload/start and guarded job control.
