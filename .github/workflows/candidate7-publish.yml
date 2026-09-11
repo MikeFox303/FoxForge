@@ -59,14 +59,14 @@ jobs:
           PY
 
   publish:
-    name: Publish exact Candidate 7 image
+    name: Publish or recover exact Candidate 7 image
     needs: contract
     if: github.event_name == 'push' && github.ref == 'refs/heads/pre-alpha-5/candidate7-publish'
     runs-on: ubuntu-latest
     outputs:
       source_sha: ${{ steps.freeze.outputs.source_sha }}
       short_sha: ${{ steps.freeze.outputs.short_sha }}
-      image_digest: ${{ steps.image.outputs.digest }}
+      image_digest: ${{ steps.resolve.outputs.digest }}
       package_version: ${{ steps.freeze.outputs.package_version }}
     steps:
       - name: Checkout publication marker
@@ -94,10 +94,14 @@ jobs:
           package_version = marker.get('packageVersion')
           if package_version != '0.1.0-alpha.4.3-umbrel.7':
               raise SystemExit('packageVersion must be Candidate 7 package identity')
+          expected_digest = marker.get('publishedImageDigest', '')
+          if expected_digest and not re.fullmatch(r'sha256:[0-9a-f]{64}', expected_digest):
+              raise SystemExit('publishedImageDigest must be an OCI sha256 digest when present')
           with open(os.environ['GITHUB_OUTPUT'], 'a', encoding='utf-8') as out:
               out.write(f'source_sha={sha}\n')
               out.write(f'short_sha={sha[:7]}\n')
               out.write(f'package_version={package_version}\n')
+              out.write(f'expected_digest={expected_digest}\n')
           PY
 
       - name: Require clean exact-main software gate PASS
@@ -150,18 +154,35 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Refuse mutable overwrite of Candidate source tag
+      - name: Inspect immutable Candidate source tag
+        id: existing
         env:
           IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
+          EXPECTED_DIGEST: ${{ steps.freeze.outputs.expected_digest }}
         shell: bash
         run: |
-          if docker buildx imagetools inspect "$IMAGE" >/dev/null 2>&1; then
-            echo "Candidate source tag already exists: $IMAGE" >&2
-            exit 1
+          set -euo pipefail
+          if inspect="$(docker buildx imagetools inspect "$IMAGE" 2>/dev/null)"; then
+            digest="$(printf '%s\n' "$inspect" | awk '/^Digest:/ {print $2; exit}')"
+            test -n "$digest"
+            if [ -z "$EXPECTED_DIGEST" ]; then
+              echo "Candidate source tag already exists without an explicitly frozen recovery digest: $IMAGE" >&2
+              exit 1
+            fi
+            test "$digest" = "$EXPECTED_DIGEST"
+            echo 'exists=true' >> "$GITHUB_OUTPUT"
+            echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          else
+            if [ -n "$EXPECTED_DIGEST" ]; then
+              echo "Frozen recovery digest is recorded but Candidate tag is missing: $IMAGE@$EXPECTED_DIGEST" >&2
+              exit 1
+            fi
+            echo 'exists=false' >> "$GITHUB_OUTPUT"
           fi
 
       - name: Publish versioned multi-architecture Candidate 7 image
         id: image
+        if: steps.existing.outputs.exists != 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -179,10 +200,25 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Resolve immutable Candidate digest
+        id: resolve
+        env:
+          EXISTING_DIGEST: ${{ steps.existing.outputs.digest }}
+          BUILT_DIGEST: ${{ steps.image.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          digest="$EXISTING_DIGEST"
+          if [ -z "$digest" ]; then
+            digest="$BUILT_DIGEST"
+          fi
+          test -n "$digest"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+
       - name: Verify published immutable index and platforms
         env:
           IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
-          DIGEST: ${{ steps.image.outputs.digest }}
+          DIGEST: ${{ steps.resolve.outputs.digest }}
         shell: bash
         run: |
           set -euo pipefail
@@ -191,23 +227,43 @@ jobs:
           printf '%s\n' "$inspect" | grep -q 'linux/amd64'
           printf '%s\n' "$inspect" | grep -q 'linux/arm64'
 
-      - name: Verify public anonymous pulls
+  anonymous-pull:
+    name: Anonymous pull ${{ matrix.platform }}
+    needs: publish
+    if: github.event_name == 'push' && github.ref == 'refs/heads/pre-alpha-5/candidate7-publish'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - linux/amd64
+          - linux/arm64
+    steps:
+      - name: Verify public anonymous platform pull
         env:
-          IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ steps.freeze.outputs.short_sha }}
-          DIGEST: ${{ steps.image.outputs.digest }}
+          IMAGE: ghcr.io/mikefox303/foxforge:sha-${{ needs.publish.outputs.short_sha }}
+          DIGEST: ${{ needs.publish.outputs.image_digest }}
+          PLATFORM: ${{ matrix.platform }}
         shell: bash
         run: |
           set -euo pipefail
-          docker logout ghcr.io
-          docker pull --platform linux/amd64 "${IMAGE}@${DIGEST}"
-          docker pull --platform linux/arm64 "${IMAGE}@${DIGEST}"
+          docker logout ghcr.io >/dev/null 2>&1 || true
+          docker pull --platform "$PLATFORM" "${IMAGE}@${DIGEST}"
 
+  record:
+    name: Record Candidate 7 publication identity
+    needs:
+      - publish
+      - anonymous-pull
+    if: github.event_name == 'push' && github.ref == 'refs/heads/pre-alpha-5/candidate7-publish'
+    runs-on: ubuntu-latest
+    steps:
       - name: Record immutable Candidate 7 publication identity
         env:
-          SOURCE_SHA: ${{ steps.freeze.outputs.source_sha }}
-          SHORT_SHA: ${{ steps.freeze.outputs.short_sha }}
-          DIGEST: ${{ steps.image.outputs.digest }}
-          PACKAGE_VERSION: ${{ steps.freeze.outputs.package_version }}
+          SOURCE_SHA: ${{ needs.publish.outputs.source_sha }}
+          SHORT_SHA: ${{ needs.publish.outputs.short_sha }}
+          DIGEST: ${{ needs.publish.outputs.image_digest }}
+          PACKAGE_VERSION: ${{ needs.publish.outputs.package_version }}
         shell: bash
         run: |
           python - <<'PY'
@@ -232,7 +288,7 @@ jobs:
       - name: Upload Candidate 7 publication identity
         uses: actions/upload-artifact@v4
         with:
-          name: candidate7-publication-${{ steps.freeze.outputs.source_sha }}
+          name: candidate7-publication-${{ needs.publish.outputs.source_sha }}
           path: candidate7-publication.json
           if-no-files-found: error
           retention-days: 90
