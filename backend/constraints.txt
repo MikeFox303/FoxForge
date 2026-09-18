@@ -8,7 +8,7 @@ aiosignal==1.4.0
     # via aiohttp
 attrs==26.1.0
     # via aiohttp
-coverage==7.16.0
+coverage==7.16.1
     # via foxforge (pyproject.toml)
 frozenlist==1.8.0
     # via
@@ -18,7 +18,7 @@ idna==3.19
     # via yarl
 iniconfig==2.3.0
     # via pytest
-multidict==6.7.1
+multidict==6.8.0
     # via
     #   aiohttp
     #   yarl
@@ -36,7 +36,7 @@ pygments==2.21.0
     # via pytest
 pytest==9.1.1
     # via foxforge (pyproject.toml)
-ruff==0.16.5
+ruff==0.16.7
     # via foxforge (pyproject.toml)
 typing-extensions==4.16.0
     # via
