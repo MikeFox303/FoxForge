@@ -139,7 +139,7 @@ jobs:
 
       - name: Upload release browser evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: foxforge-release-browser-evidence-${{ github.sha }}
           path: |
